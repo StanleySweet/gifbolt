@@ -7,7 +7,12 @@
     <RootNamespace>GifBolt.Wpf</RootNamespace>
     <Nullable>disable</Nullable>
     <Platforms>AnyCPU;x64</Platforms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GifBolt.Core\GifBolt.Core.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="app.config" />

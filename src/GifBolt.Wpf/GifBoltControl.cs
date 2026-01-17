@@ -24,6 +24,9 @@ namespace GifBolt.Wpf
                 new FrameworkPropertyMetadata(typeof(GifBoltControl)));
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GifBoltControl"/> class.
+        /// </summary>
         public GifBoltControl()
         {
             Loaded += OnLoaded;
@@ -32,33 +35,52 @@ namespace GifBolt.Wpf
         }
 
         #region Dependency Properties
+        /// <summary>
+        /// Identifies the <see cref="Source"/> dependency property.
+        /// </summary>
         public static readonly DependencyProperty SourceProperty =
             DependencyProperty.Register(
                 nameof(Source), typeof(string), typeof(GifBoltControl),
                 new PropertyMetadata(null, OnSourceChanged));
 
+        /// <summary>
+        /// Gets or sets the path or URI to the GIF image source.
+        /// Setting this property automatically triggers loading if the control is loaded.
+        /// </summary>
         public string Source
         {
             get => (string)this.GetValue(SourceProperty);
             set => this.SetValue(SourceProperty, value);
         }
 
+        /// <summary>
+        /// Identifies the <see cref="AutoStart"/> dependency property.
+        /// </summary>
         public static readonly DependencyProperty AutoStartProperty =
             DependencyProperty.Register(
                 nameof(AutoStart), typeof(bool), typeof(GifBoltControl),
                 new PropertyMetadata(true));
 
+        /// <summary>
+        /// Gets or sets a value indicating whether playback starts automatically when a GIF is loaded.
+        /// </summary>
         public bool AutoStart
         {
             get => (bool)this.GetValue(AutoStartProperty);
             set => this.SetValue(AutoStartProperty, value);
         }
 
+        /// <summary>
+        /// Identifies the <see cref="Loop"/> dependency property.
+        /// </summary>
         public static readonly DependencyProperty LoopProperty =
             DependencyProperty.Register(
                 nameof(Loop), typeof(bool), typeof(GifBoltControl),
                 new PropertyMetadata(true, OnLoopChanged));
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the GIF loops indefinitely.
+        /// </summary>
         public bool Loop
         {
             get => (bool)this.GetValue(LoopProperty);
@@ -77,7 +99,7 @@ namespace GifBolt.Wpf
             var control = (GifBoltControl)d;
             if (control._native != IntPtr.Zero)
             {
-                GifBolt_SetLooping(control._native, (bool)e.NewValue);
+                GifBolt_SetLooping(control._native, (bool)e.NewValue ? 1 : 0);
             }
         }
 
@@ -104,7 +126,7 @@ namespace GifBolt.Wpf
             // Actual DX interop will be implemented later.
         }
 
-        private void OnRendering(object? sender, EventArgs e)
+        private void OnRendering(object sender, EventArgs e)
         {
             if (this._native != IntPtr.Zero)
             {
@@ -145,7 +167,9 @@ namespace GifBolt.Wpf
         }
 
         #region Public Control Methods
-        /// <summary>Démarre la lecture du GIF.</summary>
+        /// <summary>
+        /// Starts playback of the GIF.
+        /// </summary>
         public void Play()
         {
             if (this._native != IntPtr.Zero)
@@ -154,7 +178,9 @@ namespace GifBolt.Wpf
             }
         }
 
-        /// <summary>Met en pause la lecture du GIF.</summary>
+        /// <summary>
+        /// Pauses playback of the GIF.
+        /// </summary>
         public void Pause()
         {
             if (this._native != IntPtr.Zero)
@@ -163,7 +189,9 @@ namespace GifBolt.Wpf
             }
         }
 
-        /// <summary>Arrête la lecture et revient au début.</summary>
+        /// <summary>
+        /// Stops playback and resets to the first frame.
+        /// </summary>
         public void Stop()
         {
             if (this._native != IntPtr.Zero)
@@ -172,8 +200,10 @@ namespace GifBolt.Wpf
             }
         }
 
-        /// <summary>Charge un nouveau GIF depuis un chemin.</summary>
-        /// <param name="path">Chemin du fichier GIF.</param>
+        /// <summary>
+        /// Loads a new GIF from the specified file path.
+        /// </summary>
+        /// <param name="path">The file path to the GIF image.</param>
         public void LoadGif(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return;

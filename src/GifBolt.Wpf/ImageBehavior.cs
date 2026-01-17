@@ -75,7 +75,7 @@ namespace GifBolt.Wpf
 
         #region AnimationController (internal state)
 
-        private static readonly DependencyProperty AnimationControllerProperty =
+        private static readonly DependencyProperty _animationControllerProperty =
             DependencyProperty.RegisterAttached(
                 "AnimationController",
                 typeof(GifAnimationController),
@@ -83,10 +83,10 @@ namespace GifBolt.Wpf
                 new PropertyMetadata(null));
 
         private static GifAnimationController GetAnimationController(Image image) =>
-            (GifAnimationController)image.GetValue(AnimationControllerProperty);
+            (GifAnimationController)image.GetValue(_animationControllerProperty);
 
         private static void SetAnimationController(Image image, GifAnimationController value) =>
-            image.SetValue(AnimationControllerProperty, value);
+            image.SetValue(_animationControllerProperty, value);
 
         #endregion
 
@@ -94,7 +94,10 @@ namespace GifBolt.Wpf
 
         private static void OnAnimatedSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (!(d is Image image)) return;
+            if (!(d is Image image))
+            {
+                return;
+            }
 
             var controller = GetAnimationController(image);
             if (controller != null)
@@ -103,10 +106,16 @@ namespace GifBolt.Wpf
                 SetAnimationController(image, null);
             }
 
-            if (e.NewValue == null) return;
+            if (e.NewValue == null)
+            {
+                return;
+            }
 
             string path = GetPathFromSource(e.NewValue);
-            if (string.IsNullOrWhiteSpace(path)) return;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
 
             controller = new GifAnimationController(image, path);
             SetAnimationController(image, controller);
@@ -124,7 +133,10 @@ namespace GifBolt.Wpf
 
         private static void OnRepeatBehaviorChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (!(d is Image image)) return;
+            if (!(d is Image image))
+            {
+                return;
+            }
 
             var controller = GetAnimationController(image);
             if (controller != null && e.NewValue is string repeatBehavior)
@@ -154,13 +166,19 @@ namespace GifBolt.Wpf
         private static string GetPathFromSource(object source)
         {
             if (source is string str)
+            {
                 return str;
+            }
 
             if (source is Uri uri)
-                return uri.IsAbsoluteUri ? uri.LocalPath : uri.OriginalString;
+            {
+                return uri.IsAbsoluteUri ? uri.LocalPath : uri.ToString();
+            }
 
             if (source is BitmapImage bitmap && bitmap.UriSource != null)
-                return bitmap.UriSource.IsAbsoluteUri ? bitmap.UriSource.LocalPath : bitmap.UriSource.OriginalString;
+            {
+                return bitmap.UriSource.IsAbsoluteUri ? bitmap.UriSource.LocalPath : bitmap.UriSource.ToString();
+            }
 
             return null;
         }
@@ -174,7 +192,7 @@ namespace GifBolt.Wpf
     internal sealed class GifAnimationController : IDisposable
     {
         private readonly Image _image;
-        private readonly GifPlayer _player;
+        private readonly GifBolt.GifPlayer _player;
         private WriteableBitmap _writeableBitmap;
         private bool _isPlaying;
         private int _repeatCount;
@@ -182,7 +200,7 @@ namespace GifBolt.Wpf
         public GifAnimationController(Image image, string path)
         {
             this._image = image;
-            this._player = new GifPlayer();
+            this._player = new GifBolt.GifPlayer();
 
             if (!this._player.Load(path))
             {
@@ -243,7 +261,10 @@ namespace GifBolt.Wpf
 
         private void OnRendering(object sender, EventArgs e)
         {
-            if (!this._isPlaying) return;
+            if (!this._isPlaying)
+            {
+                return;
+            }
 
             if (this._player.TryGetFramePixelsRgba32(this._player.CurrentFrame, out byte[] pixels))
             {
@@ -281,7 +302,7 @@ namespace GifBolt.Wpf
                 }
             }
 
-            // Avance frame selon timing (simplification - dans une vraie impl, utiliser un timer précis)
+            // Advance frame selon timing (simplification - dans une vraie impl, utiliser un timer précis)
             // TODO: Gérer le timing exact avec GetFrameDelayMs()
         }
 

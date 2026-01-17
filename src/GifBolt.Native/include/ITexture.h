@@ -10,26 +10,41 @@ namespace GifBolt
 namespace Renderer
 {
 
+/// \enum TextureFormat
+/// \brief Pixel format for textures.
 enum class TextureFormat
 {
-    RGBA8,
-    BGRA8,
-    RGB8
+    RGBA8,  ///< 32-bit RGBA format (8 bits per channel)
+    BGRA8,  ///< 32-bit BGRA format (8 bits per channel, DirectX native)
+    RGB8    ///< 24-bit RGB format (8 bits per channel)
 };
 
-/**
- * Texture interface for backend abstraction
- */
+/// \class ITexture
+/// \brief Abstract interface for GPU textures.
+///
+/// Provides backend-agnostic texture interface for rendering abstraction.
 class ITexture
 {
    public:
+    /// \brief Virtual destructor for proper cleanup of derived classes.
     virtual ~ITexture() = default;
 
+    /// \brief Gets the width of the texture.
+    /// \return The texture width in pixels.
     virtual uint32_t GetWidth() const = 0;
+
+    /// \brief Gets the height of the texture.
+    /// \return The texture height in pixels.
     virtual uint32_t GetHeight() const = 0;
+
+    /// \brief Gets the pixel format of the texture.
+    /// \return The TextureFormat enum value.
     virtual TextureFormat GetFormat() const = 0;
 
-    // Update texture data
+    /// \brief Updates the texture with new pixel data.
+    /// \param data Pointer to the pixel data.
+    /// \param dataSize Size of the pixel data in bytes.
+    /// \return true if the update succeeded; false otherwise.
     virtual bool Update(const void* data, size_t dataSize) = 0;
 };
 

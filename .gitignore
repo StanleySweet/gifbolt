@@ -54,3 +54,7 @@ src/GifBolt.Core/obj/
 src/GifBolt.Core/bin/
 src/GifBolt.Wpf/obj/
 src/GifBolt.Wpf/bin/
+tests/**/obj/
+tests/**/bin/
+samples/**/obj/
+samples/**/bin/

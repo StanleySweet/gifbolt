@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+
 #pragma once
 
 #include "IDeviceCommandContext.h"
@@ -12,24 +14,62 @@ namespace Renderer
 
 class D3D11Texture;
 
+/// \class D3D11DeviceCommandContext
+/// \brief DirectX 11 implementation of IDeviceCommandContext.
+///
+/// Provides GPU-accelerated rendering using Direct3D 11 on Windows.
+/// Used as the primary rendering backend for WPF integration.
 class D3D11DeviceCommandContext : public IDeviceCommandContext
 {
    public:
+    /// \brief Initializes a new instance of D3D11DeviceCommandContext.
+    /// \throws std::runtime_error if Direct3D device creation fails.
     D3D11DeviceCommandContext();
+
+    /// \brief Destroys the D3D11DeviceCommandContext and releases GPU resources.
     ~D3D11DeviceCommandContext() override;
 
+    /// \brief Gets the backend type (always returns Backend::D3D11).
+    /// \return Backend::D3D11
     Backend GetBackend() const override;
+
+    /// \brief Creates a Direct3D texture with the specified properties.
+    /// \param width The texture width in pixels.
+    /// \param height The texture height in pixels.
+    /// \param rgba32Pixels Pointer to RGBA32 pixel data, or nullptr for empty texture.
+    /// \param byteCount Size of the pixel data in bytes.
+    /// \return A shared pointer to the created D3D11 texture.
+    /// \throws std::runtime_error if texture creation fails.
     std::shared_ptr<ITexture> CreateTexture(uint32_t width, uint32_t height,
                                             const void* rgba32Pixels, size_t byteCount) override;
+
+    /// \brief Marks the beginning of a frame.
     void BeginFrame() override;
+
+    /// \brief Clears the render target with the specified color.
+    /// \param r Red channel (0.0 - 1.0).
+    /// \param g Green channel (0.0 - 1.0).
+    /// \param b Blue channel (0.0 - 1.0).
+    /// \param a Alpha channel (0.0 - 1.0).
     void Clear(float r, float g, float b, float a) override;
+
+    /// \brief Draws a texture at the specified position and size.
+    /// \param texture The texture to draw.
+    /// \param x The X coordinate in screen space.
+    /// \param y The Y coordinate in screen space.
+    /// \param width The width to draw the texture.
+    /// \param height The height to draw the texture.
     void DrawTexture(ITexture* texture, int x, int y, int width, int height) override;
+
+    /// \brief Marks the end of a frame.
     void EndFrame() override;
+
+    /// \brief Flushes all pending rendering commands.
     void Flush() override;
 
    private:
     struct Impl;
-    Impl* _impl;
+    Impl* _impl;  ///< Opaque implementation pointer
 };
 
 #endif  // _WIN32

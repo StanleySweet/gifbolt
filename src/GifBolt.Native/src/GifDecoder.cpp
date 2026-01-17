@@ -19,7 +19,8 @@ public:
     bool LoadGif(const std::string& filePath);
     void DecodeFrame(GifFileType* gif, int frameIndex);
     void ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
-                       std::vector<uint32_t>& pixels, int width, int height);
+                       std::vector<uint32_t>& pixels, int width, int height,
+                       int transparentIndex = -1);
 };
 
 bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
@@ -73,12 +74,18 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, int frameIndex) {
     frame.height = desc->Height;
     frame.delayMs = 100; // Default delay
 
-    // Get delay from graphics control extension
+    // Get delay and transparency info from graphics control extension
+    int transparentIndex = -1; // No transparency by default
     for (int i = 0; i < image->ExtensionBlockCount; ++i) {
         ExtensionBlock* ext = &image->ExtensionBlocks[i];
         if (ext->Function == GRAPHICS_EXT_FUNC_CODE && ext->ByteCount >= 4) {
             int delay = (ext->Bytes[2] << 8) | ext->Bytes[1];
             frame.delayMs = delay * 10; // Convert to milliseconds
+
+            // Check transparency flag (bit 0 of packed field)
+            if (ext->Bytes[0] & 0x01) {
+                transparentIndex = ext->Bytes[3];
+            }
             break;
         }
     }
@@ -88,7 +95,7 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, int frameIndex) {
     frame.pixels.resize(desc->Width * desc->Height);
 
     ApplyColorMap(image->RasterBits, colorMap, frame.pixels,
-                  desc->Width, desc->Height);
+                  desc->Width, desc->Height, transparentIndex);
 
     frames.push_back(std::move(frame));
 }
@@ -96,12 +103,17 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, int frameIndex) {
 void GifDecoder::Impl::ApplyColorMap(const GifByteType* raster,
                                       const ColorMapObject* colorMap,
                                       std::vector<uint32_t>& pixels,
-                                      int width, int height) {
+                                      int width, int height,
+                                      int transparentIndex) {
     for (int i = 0; i < width * height; ++i) {
         int colorIndex = raster[i];
-        if (colorMap && colorIndex < colorMap->ColorCount) {
+
+        // Check if this pixel is transparent
+        if (transparentIndex >= 0 && colorIndex == transparentIndex) {
+            pixels[i] = 0x00000000; // Fully transparent
+        } else if (colorMap && colorIndex < colorMap->ColorCount) {
             GifColorType color = colorMap->Colors[colorIndex];
-            // Convert to RGBA
+            // Convert to RGBA with full opacity
             pixels[i] = (0xFF << 24) | (color.Blue << 16) |
                         (color.Green << 8) | color.Red;
         } else {
