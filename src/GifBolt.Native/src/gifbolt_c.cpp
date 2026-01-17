@@ -158,6 +158,50 @@ GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
         }
     }
 
+    GB_API const void* gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
+        gb_decoder_t decoder, int index, int targetWidth, int targetHeight,
+        int* outWidth, int* outHeight, int* byteCount)
+    {
+        if (byteCount)
+            *byteCount = 0;
+        if (outWidth)
+            *outWidth = 0;
+        if (outHeight)
+            *outHeight = 0;
+        if (!decoder)
+            return nullptr;
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        if (index < 0 || targetWidth <= 0 || targetHeight <= 0)
+            return nullptr;
+        try
+        {
+            uint32_t actualWidth = 0;
+            uint32_t actualHeight = 0;
+            const uint8_t* bgraPixels = ptr->GetFramePixelsBGRA32PremultipliedScaled(
+                static_cast<uint32_t>(index),
+                static_cast<uint32_t>(targetWidth),
+                static_cast<uint32_t>(targetHeight),
+                actualWidth,
+                actualHeight);
+
+            if (!bgraPixels)
+                return nullptr;
+
+            if (outWidth)
+                *outWidth = static_cast<int>(actualWidth);
+            if (outHeight)
+                *outHeight = static_cast<int>(actualHeight);
+            if (byteCount)
+                *byteCount = static_cast<int>(actualWidth * actualHeight * 4);
+
+            return reinterpret_cast<const void*>(bgraPixels);
+        }
+        catch (...)
+        {
+            return nullptr;
+        }
+    }
+
     GB_API unsigned int gb_decoder_get_background_color(gb_decoder_t decoder)
     {
         if (!decoder)

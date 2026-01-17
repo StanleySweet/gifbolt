@@ -102,6 +102,34 @@ public sealed class GifPlayer : IDisposable
         return true;
     }
 
+    /// <summary>Gets the BGRA32 pixel data with premultiplied alpha for the specified frame, scaled to target dimensions using GPU.</summary>
+    /// <param name="frameIndex">The index of the frame.</param>
+    /// <param name="targetWidth">The desired output width in pixels.</param>
+    /// <param name="targetHeight">The desired output height in pixels.</param>
+    /// <param name="pixels">The output buffer containing BGRA32 premultiplied scaled pixel data.</param>
+    /// <param name="outWidth">The actual output width in pixels.</param>
+    /// <param name="outHeight">The actual output height in pixels.</param>
+    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
+    /// <remarks>This method uses GPU acceleration for high-quality bilinear scaling.</remarks>
+    public bool TryGetFramePixelsBgra32PremultipliedScaled(int frameIndex, int targetWidth, int targetHeight,
+                                                            out byte[] pixels, out int outWidth, out int outHeight)
+    {
+        pixels = Array.Empty<byte>();
+        outWidth = 0;
+        outHeight = 0;
+        if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+            return false;
+        int byteCount;
+        var ptr = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
+            this._decoder.DangerousGetHandle(), frameIndex, targetWidth, targetHeight,
+            out outWidth, out outHeight, out byteCount);
+        if (ptr == IntPtr.Zero || byteCount <= 0)
+            return false;
+        pixels = new byte[byteCount];
+        System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, byteCount);
+        return true;
+    }
+
     /// <summary>Gets the display duration of the specified frame.</summary>
     /// <param name="frameIndex">The index of the frame.</param>
     /// <returns>The frame delay in milliseconds.</returns>

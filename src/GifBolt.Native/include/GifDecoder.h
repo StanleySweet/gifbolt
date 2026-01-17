@@ -99,6 +99,19 @@ class GifDecoder
     ///         The data is cached internally and valid until the next call to this function.
     const uint8_t* GetFramePixelsBGRA32Premultiplied(uint32_t index);
 
+    /// \brief Gets BGRA pixel data with premultiplied alpha for the specified frame, scaled to
+    /// target dimensions.
+    /// \param index The zero-based index of the frame.
+    /// \param targetWidth The desired output width in pixels.
+    /// \param targetHeight The desired output height in pixels.
+    /// \param outWidth Output parameter receiving the actual output width.
+    /// \param outHeight Output parameter receiving the actual output height.
+    /// \return A pointer to BGRA32 premultiplied scaled pixel data, or nullptr on error.
+    ///         The data is cached internally and valid until the next call to this function.
+    const uint8_t* GetFramePixelsBGRA32PremultipliedScaled(uint32_t index, uint32_t targetWidth,
+                                                           uint32_t targetHeight,
+                                                           uint32_t& outWidth, uint32_t& outHeight);
+
    private:
     class Impl;
     std::unique_ptr<Impl> pImpl;  ///< Opaque implementation (Pimpl pattern)

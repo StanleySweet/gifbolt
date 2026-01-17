@@ -124,5 +124,21 @@ namespace GifBolt.Internal
         /// <returns>Minimum delay in milliseconds.</returns>
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern int gb_decoder_get_min_frame_delay_ms(IntPtr decoder);
+
+        /// <summary>
+        /// Gets BGRA32 pixel data with premultiplied alpha for a specific frame, scaled to target dimensions.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder instance.</param>
+        /// <param name="index">The zero-based frame index.</param>
+        /// <param name="targetWidth">The desired output width in pixels.</param>
+        /// <param name="targetHeight">The desired output height in pixels.</param>
+        /// <param name="outWidth">Output parameter receiving the actual output width.</param>
+        /// <param name="outHeight">Output parameter receiving the actual output height.</param>
+        /// <param name="byteCount">Output parameter receiving the size of the pixel buffer in bytes.</param>
+        /// <returns>A pointer to the BGRA32 premultiplied scaled pixel buffer, or <see cref="IntPtr.Zero"/> if retrieval failed.</returns>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
+            IntPtr decoder, int index, int targetWidth, int targetHeight,
+            out int outWidth, out int outHeight, out int byteCount);
     }
 }

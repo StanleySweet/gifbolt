@@ -164,11 +164,46 @@ namespace GifBolt.Avalonia
         {
             base.Render(context);
 
-            if (this._bitmap != null)
+            if (this._bitmap != null && this._player != null)
             {
                 var sourceSize = new Size(this._bitmap.PixelSize.Width, this._bitmap.PixelSize.Height);
                 var viewportSize = this.Bounds.Size;
                 var destRect = this.CalculateStretchRect(sourceSize, viewportSize);
+
+                // If we're scaling, request the scaled frame from C++
+                var targetWidth = (int)destRect.Width;
+                var targetHeight = (int)destRect.Height;
+
+                if (targetWidth > 0 && targetHeight > 0 &&
+                    (targetWidth != this._bitmap.PixelSize.Width || targetHeight != this._bitmap.PixelSize.Height))
+                {
+                    // Request scaled frame from C++ (GPU-accelerated bilinear filtering)
+                    if (this._player.TryGetFramePixelsBgra32PremultipliedScaled(
+                        this._player.CurrentFrame, targetWidth, targetHeight,
+                        out byte[] scaledPixels, out int actualWidth, out int actualHeight))
+                    {
+                        if (scaledPixels.Length > 0 && actualWidth > 0 && actualHeight > 0)
+                        {
+                            // Create temporary bitmap for scaled pixels
+                            var scaledBitmap = new WriteableBitmap(
+                                new PixelSize(actualWidth, actualHeight),
+                                new Vector(96, 96),
+                                PixelFormat.Bgra8888,
+                                AlphaFormat.Premul);
+
+                            using (var buffer = scaledBitmap.Lock())
+                            {
+                                Marshal.Copy(scaledPixels, 0, buffer.Address, scaledPixels.Length);
+                            }
+
+                            // Draw scaled bitmap (no further scaling needed)
+                            context.DrawImage(scaledBitmap, new Rect(destRect.X, destRect.Y, actualWidth, actualHeight));
+                            return;
+                        }
+                    }
+                }
+
+                // Fallback: draw original bitmap with Avalonia scaling
                 context.DrawImage(this._bitmap, destRect);
             }
         }
