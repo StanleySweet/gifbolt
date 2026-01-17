@@ -1,9 +1,5 @@
 project(GifBolt.Native VERSION 1.0.0 LANGUAGES CXX)
 
-# Find required packages
-find_package(directx-headers CONFIG REQUIRED)
-find_package(directxmath CONFIG REQUIRED)
-
 # Add library
 add_library(GifBolt.Native SHARED
     src/GifBoltRenderer.cpp
@@ -22,10 +18,7 @@ target_include_directories(GifBolt.Native
 # Link libraries
 target_link_libraries(GifBolt.Native
     PRIVATE
-        directx-headers::directx-headers
-        directxmath::directxmath
-        d3d11
-        dxgi
+        gif
 )
 
 # Set compile options

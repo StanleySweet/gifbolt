@@ -1,15 +1,9 @@
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
 #include "GifBoltRenderer.h"
 
 using namespace GifBolt;
 
-class GifBoltRendererTest : public ::testing::Test {
-protected:
+TEST_CASE("GifBoltRenderer can be created", "[GifBoltRenderer]") {
     GifBoltRenderer renderer;
-};
-
-TEST_F(GifBoltRendererTest, CanCreateRenderer) {
-    EXPECT_TRUE(true);  // Placeholder test
+    REQUIRE(renderer.GetFrameCount() == 0);
 }
-
-// TODO: Add more comprehensive tests

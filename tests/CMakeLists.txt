@@ -1,8 +1,5 @@
 project(GifBolt.Tests LANGUAGES CXX)
 
-# Find testing framework
-find_package(GTest REQUIRED)
-
 # Create test executable
 add_executable(GifBolt.Tests
     GifDecoderTests.cpp
@@ -13,9 +10,11 @@ add_executable(GifBolt.Tests
 target_link_libraries(GifBolt.Tests
     PRIVATE
         GifBolt.Native
-        GTest::gtest
-        GTest::gtest_main
+        Catch2::Catch2WithMain
 )
 
 # Add tests to CTest
-add_test(NAME GifBoltTests COMMAND GifBolt.Tests)
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+include(CTest)
+include(Catch)
+catch_discover_tests(GifBolt.Tests)

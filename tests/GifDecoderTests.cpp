@@ -1,15 +1,21 @@
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
 #include "GifDecoder.h"
 
 using namespace GifBolt;
 
-class GifDecoderTest : public ::testing::Test {
-protected:
+TEST_CASE("GifDecoder can be created", "[GifDecoder]") {
     GifDecoder decoder;
-};
-
-TEST_F(GifDecoderTest, CanCreateDecoder) {
-    EXPECT_TRUE(true);  // Placeholder test
+    REQUIRE(decoder.GetFrameCount() == 0);
+    REQUIRE(decoder.GetWidth() == 0);
+    REQUIRE(decoder.GetHeight() == 0);
 }
 
-// TODO: Add more comprehensive tests
+TEST_CASE("GifDecoder handles invalid file", "[GifDecoder]") {
+    GifDecoder decoder;
+    REQUIRE_FALSE(decoder.LoadFromFile("nonexistent.gif"));
+}
+
+TEST_CASE("GifDecoder can get frame properties", "[GifDecoder]") {
+    GifDecoder decoder;
+    REQUIRE(decoder.IsLooping() == false);
+}

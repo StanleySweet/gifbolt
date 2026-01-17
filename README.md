@@ -28,13 +28,11 @@ GifBolt/
 ### macOS
 
 - **Xcode Command Line Tools**: `xcode-select --install`
-- **Homebrew**: Package manager
-- **LLVM + Clang 21+**: `brew install llvm clang-format`
 - **CMake 3.20+**: `brew install cmake`
-- **Node.js**: `brew install node`
 - **Python 3.13+**: Included with Homebrew
+- **Node.js**: `brew install node`
+- **Ruby 3+**: `brew install ruby` (for markdown linting)
 - **.NET SDK**: Download from [dotnet.microsoft.com](https://dotnet.microsoft.com)
-- **vcpkg**: For C++ dependencies
 
 ### Windows
 
@@ -43,7 +41,6 @@ GifBolt/
 - **Python 3.13+**: Download from [python.org](https://www.python.org)
 - **Node.js**: Download from [nodejs.org](https://nodejs.org)
 - **.NET SDK**: Download from [dotnet.microsoft.com](https://dotnet.microsoft.com)
-- **vcpkg**: Clone from [microsoft/vcpkg](https://github.com/microsoft/vcpkg)
 
 ## Setup & Building
 
@@ -59,8 +56,8 @@ GifBolt/
 2. **Install dependencies**
 
    ```bash
-   # Install build tools
-   brew install llvm clang-format cmake node ruby
+   # Install build tools and runtime dependencies only
+   brew install cmake llvm clang-format node ruby
 
    # Install Python dependencies in virtual environment
    python3 -m venv venv
@@ -71,24 +68,15 @@ GifBolt/
    pre-commit install
    ```
 
-3. **Install C++ dependencies (using vcpkg)**
-
-   ```bash
-   git clone https://github.com/microsoft/vcpkg.git
-   cd vcpkg && ./bootstrap-vcpkg.sh
-   cd ../
-   ./vcpkg/vcpkg install directx-headers directxmath gtest --triplet arm64-osx
-   ```
-
-4. **Build**
+3. **Build** (CMake will automatically download and build giflib and Catch2)
 
    ```bash
    mkdir build && cd build
-   cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake
+   cmake ..
    cmake --build . --config Release
    ```
 
-5. **Run tests**
+4. **Run tests**
 
    ```bash
    ctest -C Release --verbose
@@ -115,25 +103,16 @@ GifBolt/
    pre-commit install
    ```
 
-3. **Install C++ dependencies (using vcpkg)**
-
-   ```powershell
-   git clone https://github.com/microsoft/vcpkg.git
-   cd vcpkg && .\bootstrap-vcpkg.bat
-   cd ../
-   .\vcpkg\vcpkg install directx-headers:x64-windows directxmath:x64-windows gtest:x64-windows
-   ```
-
-4. **Build**
+3. **Build** (CMake will automatically download and build giflib and Catch2)
 
    ```powershell
    mkdir build
    cd build
-   cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -A x64
+   cmake .. -A x64
    cmake --build . --config Release
    ```
 
-5. **Run tests**
+4. **Run tests**
 
    ```powershell
    ctest -C Release --verbose
