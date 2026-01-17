@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "gifbolt_version.h"
+
 #ifdef __cplusplus
 extern "C"
 {

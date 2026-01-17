@@ -6,7 +6,8 @@ add_library(
     src/GifBoltRenderer.cpp
     src/GifDecoder.cpp
     src/DummyDeviceCommandContext.cpp
-    src/gifbolt_c.cpp)
+    src/gifbolt_c.cpp
+    src/gifbolt_version.cpp)
 
 # Include directories
 target_include_directories(GifBolt.Native

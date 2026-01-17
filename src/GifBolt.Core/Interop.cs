@@ -156,5 +156,50 @@ namespace GifBolt.Internal
         public static extern IntPtr gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
             IntPtr decoder, int index, int targetWidth, int targetHeight,
             out int outWidth, out int outHeight, out int byteCount, int filterType);
+
+        /// <summary>
+        /// Gets the major version number of the native library.
+        /// </summary>
+        /// <returns>The major version number.</returns>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int gb_version_get_major();
+
+        /// <summary>
+        /// Gets the minor version number of the native library.
+        /// </summary>
+        /// <returns>The minor version number.</returns>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int gb_version_get_minor();
+
+        /// <summary>
+        /// Gets the patch version number of the native library.
+        /// </summary>
+        /// <returns>The patch version number.</returns>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int gb_version_get_patch();
+
+        /// <summary>
+        /// Gets the full semantic version string of the native library.
+        /// </summary>
+        /// <returns>A version string (e.g., "1.0.0").</returns>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr gb_version_get_string();
+
+        /// <summary>
+        /// Gets the packed integer version of the native library.
+        /// </summary>
+        /// <returns>The version as an integer (major * 10000 + minor * 100 + patch).</returns>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int gb_version_get_int();
+
+        /// <summary>
+        /// Checks if the native library version is at least the specified version.
+        /// </summary>
+        /// <param name="major">Minimum required major version.</param>
+        /// <param name="minor">Minimum required minor version.</param>
+        /// <param name="patch">Minimum required patch version.</param>
+        /// <returns>1 if runtime version >= specified version; 0 otherwise.</returns>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int gb_version_check(int major, int minor, int patch);
     }
 }
