@@ -597,9 +597,13 @@ bool MetalDeviceCommandContext::ConvertRGBAToBGRAPremultipliedGPU(const void* in
     [computeEncoder setBuffer:outputBuffer offset:0 atIndex:1];
     [computeEncoder setBuffer:paramBuffer offset:0 atIndex:2];
 
-    // Dispatch threads
-    MTLSize threadgroupSize = MTLSizeMake(256, 1, 1);
-    MTLSize threadgroups = MTLSizeMake((pixelCount + 255) / 256, 1, 1);
+    // Optimize threadgroup size for Metal
+    // Use maxTotalThreadsPerThreadgroup for better occupancy
+    NSUInteger maxThreadsPerGroup = [_impl->conversionPipeline maxTotalThreadsPerThreadgroup];
+    NSUInteger optimalThreads = std::min(maxThreadsPerGroup, static_cast<NSUInteger>(1024));
+
+    MTLSize threadgroupSize = MTLSizeMake(optimalThreads, 1, 1);
+    MTLSize threadgroups = MTLSizeMake((pixelCount + optimalThreads - 1) / optimalThreads, 1, 1);
     [computeEncoder dispatchThreadgroups:threadgroups threadsPerThreadgroup:threadgroupSize];
 
     [computeEncoder endEncoding];

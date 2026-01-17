@@ -26,6 +26,10 @@ constexpr size_t THREADING_THRESHOLD = 100000;  // ~316x316 image
 // Thread pool size (reuse threads to avoid creation/destruction overhead)
 constexpr unsigned int MAX_WORKER_THREADS = 8;
 
+// GPU threshold: below this size, CPU is faster due to buffer transfer overhead
+// Benchmark shows GPU wins at 256x256 (65k pixels) but loses below
+constexpr size_t GPU_THRESHOLD = 65536;  // ~256x256 image
+
 /// \brief Converts RGBA pixels to BGRA format.
 /// \param source Source buffer containing RGBA pixel data.
 /// \param dest Destination buffer for BGRA pixel data (must be pre-allocated).
@@ -242,8 +246,9 @@ inline void ConvertRGBAToBGRAPremultipliedChunk(const uint8_t* source, uint8_t* 
 inline void ConvertRGBAToBGRAPremultiplied(const uint8_t* source, uint8_t* dest, size_t pixelCount,
                                            IDeviceCommandContext* deviceContext = nullptr)
 {
-    // Try GPU acceleration first if available
-    if (deviceContext)
+    // Try GPU acceleration first if image is large enough and context available
+    // Below GPU_THRESHOLD, CPU is faster due to buffer transfer overhead
+    if (deviceContext && pixelCount >= GPU_THRESHOLD)
     {
         if (deviceContext->ConvertRGBAToBGRAPremultipliedGPU(source, dest,
                                                              static_cast<uint32_t>(pixelCount)))
