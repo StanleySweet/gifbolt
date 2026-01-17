@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+
 #include "GifDecoder.h"
 #include <gif_lib.h>
 #include <fstream>

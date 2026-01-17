@@ -144,3 +144,5 @@ pre-commit run --all-files
 ## License
 
 [Add license information]
+
+MIT License - See [LICENSE](LICENSE) for details

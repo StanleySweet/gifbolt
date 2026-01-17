@@ -1,20 +1,31 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+
 #pragma once
 
 #include <cstdint>
 #include <memory>
 #include <string>
 
+#include "IDeviceCommandContext.h"
+
 namespace GifBolt
 {
+
+class GifDecoder;
 
 class GifBoltRenderer
 {
    public:
     GifBoltRenderer();
+    explicit GifBoltRenderer(std::shared_ptr<Renderer::IDeviceCommandContext> context);
     ~GifBoltRenderer();
 
-    // Initialize the renderer with a window handle
-    bool Initialize(void* hwnd, uint32_t width, uint32_t height);
+    // Initialize the renderer
+    bool Initialize(uint32_t width, uint32_t height);
+
+    // Set the device context (allows swapping backends)
+    void SetDeviceContext(std::shared_ptr<Renderer::IDeviceCommandContext> context);
 
     // Load a GIF from file or URL
     bool LoadGif(const std::string& path);

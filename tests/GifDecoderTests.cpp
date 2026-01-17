@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+
 #include <catch2/catch_test_macros.hpp>
 #include "GifDecoder.h"
 
