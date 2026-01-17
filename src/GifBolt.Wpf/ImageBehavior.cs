@@ -108,10 +108,10 @@ namespace GifBolt.Wpf
                 typeof(ImageBehavior),
                 new PropertyMetadata(null));
 
-        private static GifAnimationController GetAnimationController(Image image) =>
-            (GifAnimationController)image.GetValue(_animationControllerProperty);
+        private static GifAnimationController? GetAnimationController(Image image) =>
+            (GifAnimationController?)image.GetValue(_animationControllerProperty);
 
-        private static void SetAnimationController(Image image, GifAnimationController value) =>
+        private static void SetAnimationController(Image image, GifAnimationController? value) =>
             image.SetValue(_animationControllerProperty, value);
 
         #endregion
@@ -129,7 +129,7 @@ namespace GifBolt.Wpf
             if (controller != null)
             {
                 controller.Dispose();
-                SetAnimationController(image, null);
+                SetAnimationController(image, (GifAnimationController?)null);
             }
 
             if (e.NewValue == null)
@@ -137,13 +137,13 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            string path = GetPathFromSource(e.NewValue);
+            string? path = GetPathFromSource(e.NewValue);
             if (string.IsNullOrWhiteSpace(path))
             {
                 return;
             }
 
-            controller = new GifAnimationController(image, path);
+            controller = new GifAnimationController(image, path!);
             SetAnimationController(image, controller);
 
             var repeatBehavior = GetRepeatBehavior(image);
@@ -181,10 +181,9 @@ namespace GifBolt.Wpf
             image.Unloaded -= OnImageUnloaded;
             var controller = GetAnimationController(image);
             if (controller is not null)
-                {
-                    controller.Dispose();
-                    SetAnimationController(image, null);
-                }
+            {
+                controller.Dispose();
+                SetAnimationController(image, null);
             }
         }
 
@@ -192,7 +191,7 @@ namespace GifBolt.Wpf
 
         #region Helpers
 
-        private static string GetPathFromSource(object source)
+        private static string? GetPathFromSource(object source)
         {
             if (source is string str)
             {

@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using GifBolt.Internal;
 
 namespace GifBolt.Wpf
 {
@@ -16,6 +17,22 @@ namespace GifBolt.Wpf
     {
         private IntPtr _native;
         private bool _isLoaded;
+        /// <summary>
+        /// Gets or sets the scaling filter used when resizing GIF frames (Nearest, Bilinear, Bicubic, Lanczos).
+        /// </summary>
+        public ScalingFilter ScalingFilter
+        {
+            get => (ScalingFilter)this.GetValue(ScalingFilterProperty);
+            set => this.SetValue(ScalingFilterProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the <see cref="ScalingFilter"/> dependency property.
+        /// </summary>
+        public static readonly DependencyProperty ScalingFilterProperty =
+            DependencyProperty.Register(
+                nameof(ScalingFilter), typeof(ScalingFilter), typeof(GifBoltControl),
+                new PropertyMetadata(ScalingFilter.Bilinear));
 
         static GifBoltControl()
         {
