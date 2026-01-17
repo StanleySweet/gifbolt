@@ -4,10 +4,6 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net472</TargetFramework>
     <UseWPF>true</UseWPF>
-    <AssemblyName>GifBolt.SampleApp</AssemblyName>
-    <RootNamespace>GifBolt.SampleApp</RootNamespace>
-    <Nullable>disable</Nullable>
-    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
