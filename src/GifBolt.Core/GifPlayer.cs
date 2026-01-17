@@ -21,7 +21,7 @@ public sealed class GifPlayer : IDisposable
     /// <summary>Gets the total number of frames in the GIF.</summary>
     public int FrameCount { get; private set; }
     /// <summary>Gets the index of the current frame.</summary>
-    public int CurrentFrame { get; private set; }
+    public int CurrentFrame { get; set; }
     /// <summary>Gets the width of the image in pixels.</summary>
     public int Width { get; private set; }
     /// <summary>Gets the height of the image in pixels.</summary>
@@ -91,6 +91,31 @@ public sealed class GifPlayer : IDisposable
         if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
             return 0;
         return Native.gb_decoder_get_frame_delay_ms(this._decoder.DangerousGetHandle(), frameIndex);
+    }
+
+    /// <summary>
+    /// Sets the minimum frame delay (in ms) for GIF playback.
+    /// </summary>
+    /// <param name="minDelayMs">Minimum delay in milliseconds.</param>
+    public void SetMinFrameDelayMs(int minDelayMs)
+    {
+        if (this._decoder != null)
+        {
+            Native.gb_decoder_set_min_frame_delay_ms(this._decoder.DangerousGetHandle(), minDelayMs);
+        }
+    }
+
+    /// <summary>
+    /// Gets the minimum frame delay (in ms) for GIF playback.
+    /// </summary>
+    /// <returns>Minimum delay in milliseconds.</returns>
+    public int GetMinFrameDelayMs()
+    {
+        if (this._decoder != null)
+        {
+            return Native.gb_decoder_get_min_frame_delay_ms(this._decoder.DangerousGetHandle());
+        }
+        return 0;
     }
 
     private void DisposeDecoder()

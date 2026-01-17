@@ -1,0 +1,73 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [
+            "src/GifBolt.Core/GifBolt.Core.csproj",
+            "src/GifBolt.Wpf/GifBolt.Wpf.csproj"
+          ],
+          "exclude": [
+            "**/bin/**",
+            "**/obj/**",
+            "**/*.Tests.csproj"
+          ]
+        }
+      ],
+      "dest": "api-csharp",
+      "disableGitFeatures": false
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "api/**.yml",
+          "api/toc.yml"
+        ]
+      },
+      {
+        "files": [
+          "**.md",
+          "toc.yml"
+        ],
+        "src": ".",
+        "dest": "."
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**",
+          "styles/**"
+        ]
+      }
+    ],
+    "overwrite": [
+      {
+        "files": [
+          "apidoc/**.md"
+        ],
+        "exclude": [
+          "**/bin/**",
+          "**/obj/**",
+          "_site/**"
+        ]
+      }
+    ],
+    "dest": "docs_build/csharp-api",
+    "globalMetadataFiles": [],
+    "fileMetadataFiles": [],
+    "template": [
+      "default",
+      "material"
+    ],
+    "postProcessors": [],
+    "keepFileLink": false,
+    "disableGitFeatures": false,
+    "sitemap": {
+      "baseUrl": "https://yourusername.github.io/gifbolt/",
+      "fileOptions": {}
+    }
+  }
+}

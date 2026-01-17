@@ -47,6 +47,25 @@ All these rules are defined in:
 5. **Use explicit this** for all member access
 6. **Follow naming conventions** from the start
 
+## Project & Repository Management
+
+### .csproj File Standards
+
+- **Keep .csproj files optimized** - Remove all unnecessary elements
+- Use SDK-style project format with minimal explicit configuration
+- Only include explicit references when required
+- Avoid redundant file includes and metadata
+
+### Repository Structure Policy
+
+- **DO NOT create "_new" or temporary folders**
+- The repository is version-controlled - use Git for changes
+- Refactor files in-place or move them properly with Git
+- Use branches for experimental work, not parallel folder structures
+- Temporary folders (e.g., `docs_new`, `src_new`) are not acceptable
+
+---
+
 ## Code Review Checklist
 
 When reviewing or generating C# code, verify:
@@ -57,10 +76,13 @@ When reviewing or generating C# code, verify:
 - [ ] Naming follows: `PascalCase` (public), `_camelCase` (private), `camelCase` (local/params)
 - [ ] Opening braces on new line (Allman style)
 - [ ] All control structures have braces
+- [ ] .csproj files are clean and optimized
+- [ ] No temporary or "_new" folder structures
 
 ## IDE Integration
 
 These rules are automatically enforced in:
+
 - **Visual Studio** - Via EditorConfig support
 - **Visual Studio Code** - Via C# extension and EditorConfig
 - **JetBrains Rider** - Via EditorConfig support
@@ -68,6 +90,7 @@ These rules are automatically enforced in:
 ## CI/CD Enforcement
 
 The project includes pre-commit hooks and CI checks that will:
+
 - Validate code formatting
 - Check naming conventions
 - Ensure Doxygen comments are present
@@ -98,7 +121,7 @@ GifBolt/
 └── COMMITS.md             # Commit message guidelines
 ```
 
-## Questions?
+## Questions
 
 For detailed examples and explanations, see:
 - Code standards: [.llm](.llm)

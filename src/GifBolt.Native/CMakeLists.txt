@@ -32,6 +32,20 @@ if(WIN32)
     target_compile_definitions(GifBolt.Native PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
+# macOS/iOS Metal backend
+if(APPLE)
+    enable_language(OBJCXX)
+    target_sources(GifBolt.Native PRIVATE
+        src/MetalDeviceCommandContext.mm
+        include/MetalDeviceCommandContext.h)
+    target_link_libraries(GifBolt.Native PRIVATE
+        "-framework Metal"
+        "-framework QuartzCore"
+        "-framework Foundation")
+    set_source_files_properties(src/MetalDeviceCommandContext.mm PROPERTIES
+        COMPILE_FLAGS "-x objective-c++")
+endif()
+
 # Set compile options
 if(NOT MSVC)
     target_compile_options(GifBolt.Native PRIVATE -fPIC)

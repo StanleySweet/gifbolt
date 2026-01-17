@@ -1,32 +1,35 @@
 # GifBolt
 
-A high-performance WPF library for rendering animated GIFs with DirectX 11 acceleration.
+A high-performance cross-platform library for rendering animated GIFs with GPU acceleration.
 
 **Drop-in replacement for [WpfAnimatedGif](https://github.com/XamlAnimatedGif/WpfAnimatedGif)** - see [MIGRATION.md](MIGRATION.md) for migration guide.
 
 ## Features
 
-- 🚀 **DirectX 11 GPU-accelerated rendering** on Windows
-- 📦 **Cross-platform decoder** (C++ with giflib)
+- 🚀 **GPU-accelerated rendering** - DirectX 11 (Windows) and Metal (macOS)
+- 🌍 **Cross-platform** - WPF (Windows) and Avalonia (Windows/macOS/Linux)
+- 📦 **Native GIF decoder** - C++ with giflib for high performance
 - 🎯 **.NET Standard 2.0 core** for broad compatibility
-- 🖼️ **WPF control** with XAML data binding support
-- 🔄 **Play/pause/stop controls** with looping support
-- 🏗️ **Clean architecture** with backend abstraction layer (inspired by 0 A.D.)
-- ✨ **Drop-in replacement for WpfAnimatedGif** - supports attached properties on standard Image controls
+- 🖼️ **XAML controls** with data binding support
+- 🔄 **Full playback controls** - Play/pause/stop with looping
+- 🏗️ **Clean architecture** - Pluggable backend abstraction (inspired by 0 A.D.)
+- ✨ **Drop-in replacement** - Compatible with WpfAnimatedGif attached properties
 
 ## Project Structure
 
 ```
 GifBolt/
 ├── src/
-│   ├── GifBolt.Native/          # C++ native library (decoder + D3D11 renderer)
+│   ├── GifBolt.Native/          # C++ native library (decoder + Metal/D3D11 renderers)
 │   ├── GifBolt.Core/            # .NET Standard 2.0 core (P/Invoke layer)
-│   └── GifBolt.Wpf/             # WPF control (.NET Framework 4.7.2)
+│   ├── GifBolt.Wpf/             # WPF control (.NET Framework 4.7.2)
+│   └── GifBolt.Avalonia/        # Avalonia control (.NET 6.0) - Cross-platform
 ├── tests/
 │   ├── GifBolt.Tests/           # Native C++ tests (Catch2)
 │   └── GifBolt.Core.Tests/      # .NET P/Invoke integration tests
 ├── samples/
-│   └── GifBolt.SampleApp/       # WPF sample application
+│   ├── GifBolt.SampleApp/       # WPF sample application (Windows)
+│   └── GifBolt.AvaloniaApp/     # Avalonia sample (Windows/macOS/Linux)
 ├── .github/workflows/            # GitHub Actions CI/CD
 ├── CMakeLists.txt               # Root CMake configuration
 ├── .editorconfig                # C# code standards
@@ -204,10 +207,14 @@ gifControl.Stop();
 
 ### Components
 
-1. **GifBolt.Native** (C++): Cross-platform GIF decoder using giflib, with DirectX 11 backend for Windows rendering
+1. **GifBolt.Native** (C++): Cross-platform GIF decoder using giflib, with pluggable rendering backends:
+   - **DirectX 11** (Windows) - GPU-accelerated rendering for WPF
+   - **Metal** (macOS/iOS) - GPU-accelerated rendering for Avalonia
+   - **Dummy** (All platforms) - CPU-based testing backend
 2. **GifBolt.Core** (.NET Standard 2.0): P/Invoke layer and managed decoder wrapper
-3. **GifBolt.Wpf** (.NET Framework 4.7.2): WPF control with dependency properties
-4. **DeviceCommandContext**: Backend abstraction layer supporting DUMMY (testing) and D3D11 (production)
+3. **GifBolt.Wpf** (.NET Framework 4.7.2): WPF control with dependency properties (Windows only)
+4. **GifBolt.Avalonia** (.NET 6.0): Avalonia control with styled properties (Cross-platform)
+5. **DeviceCommandContext**: Backend abstraction layer inspired by 0 A.D. game engine
 
 ### C ABI Layer
 
@@ -244,23 +251,34 @@ source venv/bin/activate  # On Windows: .\venv\Scripts\Activate.ps1
 pre-commit run --all-files
 ```
 
-
-
 ## Development Status
 
 ✅ **Completed:**
+
 - Core architecture and backend abstraction
-- GIF decoder with giflib integration
+- GIF decoder with giflib integration (with transparency support)
 - C ABI for P/Invoke interop
 - .NET Standard 2.0 core library
 - WPF control with dependency properties
-- D3D11 backend (minimal implementation)
+- Avalonia control with styled properties
+- D3D11 backend for Windows
+- Metal backend for macOS
+- Dummy backend for testing
 - Cross-platform CI (Windows + macOS)
+- Sample applications (WPF and Avalonia)
 
 🚧 **In Progress:**
-- D3D11 rendering pipeline and WPF interop
-- Sample application refinement
+
+- Complete Metal rendering pipeline (shaders, vertex buffers)
+- D3D11 rendering pipeline optimization
+- Surface integration with WPF/Avalonia
 - Documentation and examples
+
+🔮 **Future:**
+
+- OpenGL backend for Linux
+- Vulkan backend for high-performance scenarios
+- iOS/Android support via Avalonia
 
 ## License
 

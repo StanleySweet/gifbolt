@@ -9,8 +9,20 @@
 
 using namespace GifBolt;
 
-extern "C"
+extern "C" {
+GB_API void gb_decoder_set_min_frame_delay_ms(gb_decoder_t decoder, int minDelayMs)
 {
+    if (!decoder) return;
+    auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+    ptr->SetMinFrameDelayMs(static_cast<uint32_t>(minDelayMs));
+}
+
+GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
+{
+    if (!decoder) return 0;
+    auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+    return static_cast<int>(ptr->GetMinFrameDelayMs());
+}
     GB_API gb_decoder_t gb_decoder_create(void)
     {
         try
@@ -114,6 +126,14 @@ extern "C"
         {
             return nullptr;
         }
+    }
+
+    GB_API unsigned int gb_decoder_get_background_color(gb_decoder_t decoder)
+    {
+        if (!decoder)
+            return 0xFF000000;
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        return ptr->GetBackgroundColor();
     }
 
     // Renderer C API

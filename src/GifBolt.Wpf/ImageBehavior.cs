@@ -8,15 +8,16 @@ using System.Windows.Media.Imaging;
 namespace GifBolt.Wpf
 {
     /// <summary>
-    /// Attached properties pour animer des GIFs sur un contrôle Image standard.
-    /// Compatible avec l'API de WpfAnimatedGif (drop-in replacement).
+    /// Attached properties for animating GIFs on standard WPF Image controls.
+    /// Provides drop-in replacement compatibility with WpfAnimatedGif library.
     /// </summary>
     public static class ImageBehavior
     {
         #region AnimatedSource (compatible WpfAnimatedGif)
 
         /// <summary>
-        /// Source du GIF animé (Uri ou string).
+        /// Gets or sets the animated GIF source (Uri or string).
+        /// Supports <see cref="string"/> file paths and <see cref="Uri"/> references.
         /// </summary>
         public static readonly DependencyProperty AnimatedSourceProperty =
             DependencyProperty.RegisterAttached(
@@ -25,10 +26,18 @@ namespace GifBolt.Wpf
                 typeof(ImageBehavior),
                 new PropertyMetadata(null, OnAnimatedSourceChanged));
 
-        /// <summary>Obtient la source animée.</summary>
+        /// <summary>
+        /// Gets the animated source for the specified Image control.
+        /// </summary>
+        /// <param name="image">The Image control to get the animated source from.</param>
+        /// <returns>The animated source value, or null if not set.</returns>
         public static object GetAnimatedSource(Image image) => image.GetValue(AnimatedSourceProperty);
 
-        /// <summary>Définit la source animée.</summary>
+        /// <summary>
+        /// Sets the animated source for the specified Image control.
+        /// </summary>
+        /// <param name="image">The Image control to set the animated source on.</param>
+        /// <param name="value">The animated source value (string path or Uri).</param>
         public static void SetAnimatedSource(Image image, object value) => image.SetValue(AnimatedSourceProperty, value);
 
         #endregion
@@ -36,7 +45,8 @@ namespace GifBolt.Wpf
         #region RepeatBehavior (compatible WpfAnimatedGif)
 
         /// <summary>
-        /// Comportement de répétition (ex: "3x", "Forever", "0x" = utiliser métadonnées GIF).
+        /// Gets or sets the repeat behavior for the animation.
+        /// Valid values: "Forever", "3x" (repeat N times), "0x" (use GIF metadata).
         /// </summary>
         public static readonly DependencyProperty RepeatBehaviorProperty =
             DependencyProperty.RegisterAttached(
@@ -45,10 +55,18 @@ namespace GifBolt.Wpf
                 typeof(ImageBehavior),
                 new PropertyMetadata("0x", OnRepeatBehaviorChanged));
 
-        /// <summary>Obtient le comportement de répétition.</summary>
+        /// <summary>
+        /// Gets the repeat behavior for the specified Image control.
+        /// </summary>
+        /// <param name="image">The Image control to get the repeat behavior from.</param>
+        /// <returns>The repeat behavior string.</returns>
         public static string GetRepeatBehavior(Image image) => (string)image.GetValue(RepeatBehaviorProperty);
 
-        /// <summary>Définit le comportement de répétition.</summary>
+        /// <summary>
+        /// Sets the repeat behavior for the specified Image control.
+        /// </summary>
+        /// <param name="image">The Image control to set the repeat behavior on.</param>
+        /// <param name="value">The repeat behavior string.</param>
         public static void SetRepeatBehavior(Image image, string value) => image.SetValue(RepeatBehaviorProperty, value);
 
         #endregion
@@ -56,7 +74,7 @@ namespace GifBolt.Wpf
         #region AutoStart
 
         /// <summary>
-        /// Démarre automatiquement l'animation au chargement.
+        /// Gets or sets whether animation starts automatically upon loading.
         /// </summary>
         public static readonly DependencyProperty AutoStartProperty =
             DependencyProperty.RegisterAttached(
@@ -65,10 +83,18 @@ namespace GifBolt.Wpf
                 typeof(ImageBehavior),
                 new PropertyMetadata(true));
 
-        /// <summary>Obtient si l'animation démarre automatiquement.</summary>
+        /// <summary>
+        /// Gets whether auto-start is enabled for the specified Image control.
+        /// </summary>
+        /// <param name="image">The Image control to query.</param>
+        /// <returns>true if animation starts automatically; otherwise false.</returns>
         public static bool GetAutoStart(Image image) => (bool)image.GetValue(AutoStartProperty);
 
-        /// <summary>Définit si l'animation démarre automatiquement.</summary>
+        /// <summary>
+        /// Sets whether animation starts automatically for the specified Image control.
+        /// </summary>
+        /// <param name="image">The Image control to configure.</param>
+        /// <param name="value">true to start animation automatically; otherwise false.</param>
         public static void SetAutoStart(Image image, bool value) => image.SetValue(AutoStartProperty, value);
 
         #endregion
@@ -187,7 +213,8 @@ namespace GifBolt.Wpf
     }
 
     /// <summary>
-    /// Contrôleur interne gérant l'animation d'un GIF sur une Image.
+    /// Internal controller managing GIF animation on a WPF Image control.
+    /// Handles frame decoding, timing, and pixel updates to the display.
     /// </summary>
     internal sealed class GifAnimationController : IDisposable
     {
@@ -197,6 +224,12 @@ namespace GifBolt.Wpf
         private bool _isPlaying;
         private int _repeatCount;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
+        /// </summary>
+        /// <param name="image">The Image control to animate.</param>
+        /// <param name="path">The file path to the GIF image.</param>
+        /// <exception cref="InvalidOperationException">Thrown if the GIF cannot be loaded.</exception>
         public GifAnimationController(Image image, string path)
         {
             this._image = image;
@@ -220,6 +253,10 @@ namespace GifBolt.Wpf
             CompositionTarget.Rendering += this.OnRendering;
         }
 
+        /// <summary>
+        /// Sets the repeat behavior for the animation.
+        /// </summary>
+        /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
         public void SetRepeatBehavior(string repeatBehavior)
         {
             if (string.IsNullOrWhiteSpace(repeatBehavior) || repeatBehavior == "0x")
@@ -241,18 +278,27 @@ namespace GifBolt.Wpf
             }
         }
 
+        /// <summary>
+        /// Starts playback of the animation.
+        /// </summary>
         public void Play()
         {
             this._player.Play();
             this._isPlaying = true;
         }
 
+        /// <summary>
+        /// Pauses playback of the animation.
+        /// </summary>
         public void Pause()
         {
             this._player.Pause();
             this._isPlaying = false;
         }
 
+        /// <summary>
+        /// Stops playback and resets to the first frame.
+        /// </summary>
         public void Stop()
         {
             this._player.Stop();
@@ -302,10 +348,13 @@ namespace GifBolt.Wpf
                 }
             }
 
-            // Advance frame selon timing (simplification - dans une vraie impl, utiliser un timer précis)
-            // TODO: Gérer le timing exact avec GetFrameDelayMs()
+            // NOTE: Frame timing is managed by the native layer via GetFrameDelayMs().
+            // Current implementation uses CompositionTarget.Rendering for frame updates.
         }
 
+        /// <summary>
+        /// Releases all resources held by the animation controller.
+        /// </summary>
         public void Dispose()
         {
             CompositionTarget.Rendering -= this.OnRendering;

@@ -29,9 +29,9 @@ namespace GifBolt.Wpf
         /// </summary>
         public GifBoltControl()
         {
-            Loaded += OnLoaded;
-            Unloaded += OnUnloaded;
-            CompositionTarget.Rendering += OnRendering;
+            this.Loaded += this.OnLoaded;
+            this.Unloaded += this.OnUnloaded;
+            CompositionTarget.Rendering += this.OnRendering;
         }
 
         #region Dependency Properties

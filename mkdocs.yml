@@ -1,0 +1,102 @@
+site_name: GifBolt Renderer
+site_description: High-performance GPU-accelerated GIF renderer for WPF and Avalonia
+site_author: GifBolt Contributors
+site_url: https://yourusername.github.io/gifbolt/
+repo_url: https://github.com/yourusername/gifbolt
+repo_name: GitHub
+edit_uri: edit/main/docs_new/
+docs_dir: docs_new
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: blue
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+    - scheme: default
+      primary: blue
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - toc.integrate
+    - content.code.copy
+    - content.action.edit
+    - content.action.view
+  logo: assets/logo.png
+  favicon: assets/favicon.ico
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - abbr
+  - attr_list
+
+extra:
+  version:
+    provider: mike
+    default: latest
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/yourusername/gifbolt
+
+nav:
+  - Home: index.md
+
+  - Getting Started:
+    - Overview: getting-started/index.md
+    - 30-Second Summary: getting-started/start-here.md
+    - Documentation Map: getting-started/map.md
+
+  - Architecture:
+    - Overview: architecture/index.md
+    - Renderer Architecture: architecture/renderer-architecture.md
+    - Data Flow: architecture/data-flow.md
+
+  - Backends:
+    - Overview: backends/index.md
+
+  - Integration:
+    - Home: integration/index.md
+    - WPF Integration: integration/wpf.md
+    - Avalonia Integration: integration/avalonia.md
+
+  - Reference:
+    - Quick Reference: reference/quick-reference.md
+    - Diagram Index: reference/diagram-index.md
+
+  - API Reference:
+    - C++ API: cpp-api/index.html
+    - C# API: csharp-api/index.html
+
+watch:
+  - docs_new
+  - src

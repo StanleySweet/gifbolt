@@ -11,6 +11,16 @@
 namespace GifBolt
 {
 
+/// \enum DisposalMethod
+/// \brief Specifies how to dispose of a frame before rendering the next one.
+enum class DisposalMethod : uint8_t
+{
+    None = 0,               ///< No disposal specified (leave pixels as-is)
+    DoNotDispose = 1,       ///< Leave frame pixels in place
+    RestoreBackground = 2,  ///< Clear frame area to background color
+    RestorePrevious = 3     ///< Restore to previous frame state
+};
+
 /// \struct GifFrame
 /// \brief Represents a single frame in a GIF image.
 /// Contains pixel data and timing information for rendering.
@@ -19,7 +29,11 @@ struct GifFrame
     std::vector<uint32_t> pixels;  ///< RGBA pixel data (32 bits per pixel)
     uint32_t width;                ///< Frame width in pixels
     uint32_t height;               ///< Frame height in pixels
+    uint32_t offsetX;              ///< Frame horizontal offset within canvas
+    uint32_t offsetY;              ///< Frame vertical offset within canvas
     uint32_t delayMs;              ///< Display duration in milliseconds
+    DisposalMethod disposal;       ///< Frame disposal method
+    int32_t transparentIndex;      ///< Index of transparent color (-1 if none)
 };
 
 /// \class GifDecoder
@@ -30,6 +44,13 @@ struct GifFrame
 class GifDecoder
 {
    public:
+    /// \brief Définit le délai minimal appliqué à chaque frame GIF (en ms).
+    /// \param minDelayMs Délai minimal en millisecondes.
+    void SetMinFrameDelayMs(uint32_t minDelayMs);
+
+    /// \brief Obtient le délai minimal appliqué à chaque frame GIF (en ms).
+    /// \return Délai minimal en millisecondes.
+    uint32_t GetMinFrameDelayMs() const;
     /// \brief Initializes a new instance of the GifDecoder class.
     GifDecoder();
 
@@ -67,6 +88,10 @@ class GifDecoder
     /// \brief Determines whether the GIF loops indefinitely.
     /// \return true if the GIF should loop; false otherwise.
     bool IsLooping() const;
+
+    /// \brief Gets the background color of the GIF.
+    /// \return The background color as RGBA32 (0xAABBGGRR).
+    uint32_t GetBackgroundColor() const;
 
    private:
     class Impl;

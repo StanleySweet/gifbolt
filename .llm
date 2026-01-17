@@ -392,6 +392,98 @@ GifDecoder* CreateDecoder()  // No clear ownership semantics
 
 ---
 
+## Project Management Standards (MANDATORY)
+
+### .csproj File Optimization
+
+All C# project files (.csproj) MUST be kept minimal and clean:
+
+**Requirements:**
+- Use SDK-style project format: `<Project Sdk="Microsoft.NET.Sdk">`
+- Remove unnecessary properties and item groups
+- Rely on SDK defaults for common settings
+- Only include explicit `<PackageReference>` or `<ProjectReference>` when needed
+- Do not include redundant file listings (use SDK glob patterns)
+- Remove auto-generated metadata comments
+
+**Example - Optimal .csproj:**
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GifBolt.Core\GifBolt.Core.csproj" />
+  </ItemGroup>
+</Project>
+```
+
+**Avoid:**
+```xml
+<!-- DO NOT include redundant configurations -->
+<PropertyGroup>
+  <OutputType>Library</OutputType>  <!-- SDK infers this -->
+  <RootNamespace>GifBolt</RootNamespace>  <!-- SDK infers from folder -->
+  <AssemblyName>GifBolt</AssemblyName>  <!-- SDK infers from project name -->
+</PropertyGroup>
+
+<!-- DO NOT explicitly list source files -->
+<ItemGroup>
+  <Compile Include="File1.cs" />
+  <Compile Include="File2.cs" />
+  <!-- SDK includes all .cs files automatically -->
+</ItemGroup>
+```
+
+### Repository Structure Policy
+
+**CRITICAL RULE**: DO NOT create temporary or versioned folder names.
+
+The repository is under version control (Git). There is **NO NEED** to create parallel folder structures with suffixes like:
+- `_new` (e.g., `docs_new`, `src_new`)
+- `_old` (e.g., `docs_old`, `backup`)
+- `_backup`
+- `_temp`
+- Date suffixes (e.g., `src_2026-01`)
+
+**Correct Approach:**
+1. **Modify files in-place** - Git tracks changes
+2. **Use Git branches** for experimental work
+3. **Use Git history** to see previous versions
+4. **Move/rename properly** using Git commands
+
+**Examples:**
+
+**WRONG:**
+```
+GifBolt/
+├── docs/          # Old documentation
+├── docs_new/      # New documentation (WRONG - use branches!)
+├── src/
+└── src_backup/    # Backup copy (WRONG - use Git history!)
+```
+
+**CORRECT:**
+```
+GifBolt/
+├── docs/          # Current documentation (modify in-place)
+└── src/           # Current source (use Git for history)
+```
+
+If restructuring is needed:
+- Create a feature branch: `git checkout -b refactor/docs-restructure`
+- Make changes in the original folders
+- Commit changes with clear messages
+- Merge when ready
+
+---
+
 ## For LLM Agents
 
 ### C# Code Standards
@@ -406,6 +498,8 @@ When generating, refactoring, or reviewing C# code:
 6. **Follow the brace style** (Allman with newline)
 7. **Use PascalCase** for public, camelCase for parameters/locals
 8. **Use _camelCase** for private fields
+9. **Keep .csproj files minimal and optimized**
+10. **Never create "_new" or temporary folder structures**
 
 When reviewing code, flag violations as errors. **No warnings are acceptable.**
 

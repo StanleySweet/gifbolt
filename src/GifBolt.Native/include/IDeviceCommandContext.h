@@ -16,7 +16,8 @@ namespace Renderer
 enum class Backend
 {
     DUMMY,  ///< Dummy/testing backend for cross-platform development
-    D3D11   ///< DirectX 11 backend (WPF-compatible)
+    D3D11,  ///< DirectX 11 backend (WPF-compatible)
+    Metal   ///< Apple Metal backend (macOS/iOS Avalonia-compatible)
 };
 
 class ITexture;

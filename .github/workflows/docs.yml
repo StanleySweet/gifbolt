@@ -1,0 +1,149 @@
+name: Build & Deploy Documentation
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - 'mkdocs.yml'
+      - 'docfx.json'
+      - 'src/GifBolt.Native/Doxyfile'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install mkdocs mkdocs-material mkdocs-mermaid2-plugin
+
+      - name: Install DocFX
+        run: dotnet tool install -g docfx
+
+      - name: Build C++ API documentation with Doxygen
+        working-directory: src/GifBolt.Native
+        run: |
+          doxygen Doxyfile
+          echo "C++ API documentation built successfully"
+
+      - name: Build C# API documentation with DocFX
+        run: |
+          docfx docfx.json
+          echo "C# API documentation built successfully"
+
+      - name: Copy API documentation to docs folder
+        run: |
+          mkdir -p docs/api
+
+          # Copy Doxygen HTML output
+          if [ -d "docs_build/cpp-api" ]; then
+            mkdir -p docs/api/cpp
+            cp -r docs_build/cpp-api/* docs/api/cpp/
+            echo "C++ API docs copied"
+          fi
+
+          # Copy DocFX HTML output
+          if [ -d "docs_build/csharp-api/_site" ]; then
+            mkdir -p docs/api/csharp
+            cp -r docs_build/csharp-api/_site/* docs/api/csharp/
+            echo "C# API docs copied"
+          fi
+
+      - name: Create .nojekyll file
+        run: touch site/.nojekyll 2>/dev/null || touch docs/.nojekyll
+
+      - name: Build MkDocs site
+        run: mkdocs build -f mkdocs.yml
+        env:
+          CI: true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: site
+          path: site/
+          retention-days: 30
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: site
+          path: site
+
+      - name: Upload artifact to GitHub Pages
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+  notify:
+    name: Notify Deployment Status
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Set status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Documentation deployed successfully!"
+            echo "📖 View at: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          else
+            echo "❌ Documentation build failed"
+            exit 1
+          fi

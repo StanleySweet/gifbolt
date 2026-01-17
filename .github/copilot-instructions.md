@@ -5,6 +5,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
 ## C# Code Standards (MANDATORY - ZERO WARNINGS)
 
 ### Naming Conventions (ENFORCED)
+
 - **Types** (classes, structs, enums): `PascalCase`
 - **Interfaces**: `PascalCase` with `I` prefix (e.g., `IGifDecoder`)
 - **Public Members** (properties, methods, fields, events): `PascalCase`
@@ -24,9 +25,11 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
    - Example: `public sealed class GifBoltControl : Control { }`
 
 3. **Doxygen Documentation (MANDATORY)**
+
    - ALL public types, methods, properties, and events require XML documentation
    - Include `<summary>`, `<param>`, `<returns>`, and `<exception>` tags
    - Example:
+
      ```csharp
      /// <summary>
      /// Loads a GIF from the specified file path.
@@ -41,6 +44,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
    - Opening braces on new line for all blocks
    - Use braces for all control structures
    - Example:
+
      ```csharp
      public bool Load(string path)
      {
@@ -53,6 +57,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
      ```
 
 5. **No Warnings Policy**
+
    - ALL naming violations are ERRORS (not warnings)
    - ALL style violations are ERRORS (not warnings)
    - Code must pass `.editorconfig` validation without any errors
@@ -63,6 +68,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
 ## C++ Code Standards (MANDATORY - ZERO WARNINGS)
 
 ### Naming Conventions
+
 - **Classes/Structs**: `PascalCase`
 - **Functions**: `camelCase`
 - **Member Variables**: `_camelCase` with leading underscore
@@ -123,11 +129,30 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
 
 ---
 
+## Project File Management (MANDATORY)
+
+### .csproj Optimization
+- Keep .csproj files **minimal and clean**
+- Remove unnecessary properties and item groups
+- Rely on SDK-style defaults (e.g., `<Project Sdk="Microsoft.NET.Sdk">`)
+- Only include explicit `<PackageReference>` or `<ProjectReference>` when needed
+- Avoid redundant metadata (e.g., explicit file includes when using globs)
+
+### Repository Structure
+- **DO NOT create "new" folders** (e.g., `docs_new`, `src_new`)
+- The repository is version-controlled - use Git for versioning
+- When refactoring, modify files in-place or move them properly
+- Temporary or experimental folders indicate poor workflow
+- Use branches for experimental work, not parallel folder structures
+
+---
+
 ## Code Review Checklist
 
 Before submitting code, verify:
 
 ### C#
+
 - [ ] All public members have Doxygen documentation
 - [ ] All field/property access uses explicit `this`
 - [ ] Classes are marked `sealed` (unless base class or abstract)
@@ -135,8 +160,11 @@ Before submitting code, verify:
 - [ ] Braces on new line (Allman style)
 - [ ] All control structures have braces
 - [ ] No warnings in build output
+- [ ] .csproj files are optimized and minimal
+- [ ] No "_new" or temporary folder structures created
 
 ### C++
+
 - [ ] All public classes/functions are documented
 - [ ] All dynamic allocations use smart pointers
 - [ ] Follows RAII pattern

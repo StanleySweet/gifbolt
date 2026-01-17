@@ -82,6 +82,11 @@ extern "C"
     ///         The pointer is valid until the next decoder operation.
     GB_API const void* gb_decoder_get_frame_pixels_rgba32(gb_decoder_t decoder, int index,
                                                           int* byteCount);
+
+    /// \brief Gets the background color of the GIF.
+    /// \param decoder The decoder handle.
+    /// \return The background color as RGBA32 (0xAABBGGRR), or 0xFF000000 (black) on error.
+    GB_API unsigned int gb_decoder_get_background_color(gb_decoder_t decoder);
     /// @}
 
     /// \typedef gb_renderer_t
@@ -133,6 +138,9 @@ extern "C"
     /// \param renderer The renderer handle.
     /// \return 1 if rendering succeeded; 0 otherwise.
     GB_API int GifBolt_Render(gb_renderer_t renderer);
+
+    GB_API void gb_decoder_set_min_frame_delay_ms(gb_decoder_t decoder, int minDelayMs);
+    GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder);
     /// @}
 
 #ifdef __cplusplus
