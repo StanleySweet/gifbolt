@@ -1,8 +1,11 @@
 # GifBolt
 
-A high-performance cross-platform library for rendering animated GIFs with GPU acceleration.
+A high-performance cross-platform library for rendering animated GIFs with
+GPU acceleration.
 
-**Drop-in replacement for [WpfAnimatedGif](https://github.com/XamlAnimatedGif/WpfAnimatedGif)** - see [MIGRATION.md](MIGRATION.md) for migration guide.
+**Drop-in replacement for [WpfAnimatedGif](
+https://github.com/XamlAnimatedGif/WpfAnimatedGif)** - see
+[MIGRATION.md](MIGRATION.md) for migration guide.
 
 ## Features
 
@@ -17,7 +20,7 @@ A high-performance cross-platform library for rendering animated GIFs with GPU a
 
 ## Project Structure
 
-```
+```text
 GifBolt/
 ├── src/
 │   ├── GifBolt.Native/          # C++ native library (decoder + Metal/D3D11 renderers)
@@ -87,8 +90,6 @@ gifControl.Play();
 gifControl.Pause();
 gifControl.Stop();
 ```
-
-
 
 ## Requirements
 
@@ -207,14 +208,19 @@ gifControl.Stop();
 
 ### Components
 
-1. **GifBolt.Native** (C++): Cross-platform GIF decoder using giflib, with pluggable rendering backends:
+1. **GifBolt.Native** (C++): Cross-platform GIF decoder using giflib,
+   with pluggable rendering backends:
    - **DirectX 11** (Windows) - GPU-accelerated rendering for WPF
    - **Metal** (macOS/iOS) - GPU-accelerated rendering for Avalonia
    - **Dummy** (All platforms) - CPU-based testing backend
-2. **GifBolt.Core** (.NET Standard 2.0): P/Invoke layer and managed decoder wrapper
-3. **GifBolt.Wpf** (.NET Framework 4.7.2): WPF control with dependency properties (Windows only)
-4. **GifBolt.Avalonia** (.NET 6.0): Avalonia control with styled properties (Cross-platform)
-5. **DeviceCommandContext**: Backend abstraction layer inspired by 0 A.D. game engine
+2. **GifBolt.Core** (.NET Standard 2.0): P/Invoke layer and managed
+   decoder wrapper
+3. **GifBolt.Wpf** (.NET Framework 4.7.2): WPF control with dependency
+   properties (Windows only)
+4. **GifBolt.Avalonia** (.NET 6.0): Avalonia control with styled
+   properties (Cross-platform)
+5. **DeviceCommandContext**: Backend abstraction layer inspired by
+   0 A.D. game engine
 
 ### C ABI Layer
 
@@ -230,11 +236,11 @@ int gb_decoder_get_frame_count(gb_decoder_t decoder);
 
 ### Code Standards
 
-- **C#**: Sealed classes by default, explicit `this`, Doxygen XML docs (enforced via `.editorconfig`)
-- **C++**: Smart pointers, RAII pattern, Allman braces, zero warnings (`-Wall -Wextra -Wpedantic -Werror`)
+- **C#**: Sealed classes by default, explicit `this`, Doxygen XML docs
+  (enforced via `.editorconfig`)
+- **C++**: Smart pointers, RAII pattern, Allman braces, zero warnings
+  (`-Wall -Wextra -Wpedantic -Werror`)
 - See [.llm](.llm) and [agents.md](agents.md) for detailed guidelines
-
-
 
 ## Code Quality
 

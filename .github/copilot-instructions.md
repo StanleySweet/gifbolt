@@ -75,7 +75,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
 - **Constants**: `UPPER_SNAKE_CASE`
 - **Local Variables**: `camelCase`
 
-### Critical Requirements
+### C++ Critical Requirements
 
 1. **Smart Pointers Required (ERROR)**
    - Use `std::unique_ptr` and `std::shared_ptr` for dynamic allocation
@@ -92,6 +92,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
    - Use Doxygen-style C++ comments
    - Document parameters, return values, and exceptions
    - Example:
+
      ```cpp
      /// \brief Decodes a GIF file from the specified path.
      /// \param filePath The file system path to the GIF image.
@@ -103,6 +104,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
    - Opening braces on new line
    - Use braces for all blocks
    - Example:
+
      ```cpp
      bool GifRenderer::render(size_t frameIndex)
      {
@@ -132,6 +134,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
 ## Project File Management (MANDATORY)
 
 ### .csproj Optimization
+
 - Keep .csproj files **minimal and clean**
 - Remove unnecessary properties and item groups
 - Rely on SDK-style defaults (e.g., `<Project Sdk="Microsoft.NET.Sdk">`)
@@ -139,6 +142,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
 - Avoid redundant metadata (e.g., explicit file includes when using globs)
 
 ### Repository Structure
+
 - **DO NOT create "new" folders** (e.g., `docs_new`, `src_new`)
 - The repository is version-controlled - use Git for versioning
 - When refactoring, modify files in-place or move them properly
@@ -151,7 +155,7 @@ This file configures GitHub Copilot to follow GifBolt's mandatory code standards
 
 Before submitting code, verify:
 
-### C#
+### CSharp
 
 - [ ] All public members have Doxygen documentation
 - [ ] All field/property access uses explicit `this`
@@ -187,6 +191,10 @@ Before submitting code, verify:
 
 ## Philosophy
 
-**ZERO TOLERANCE POLICY**: All code standards are enforced as ERRORS, not suggestions. There are no warnings in GifBolt code—violations must be fixed immediately. This ensures consistency, readability, and maintainability across the entire codebase.
+**ZERO TOLERANCE POLICY**: All code standards are enforced as ERRORS,
+not suggestions. There are no warnings in GifBolt code—violations must be
+fixed immediately. This ensures consistency, readability, and
+maintainability across the entire codebase.
 
-When writing code, apply standards **immediately**. Don't plan to fix them later. Follow the conventions from the start.
+When writing code, apply standards **immediately**. Don't plan to fix
+them later. Follow the conventions from the start.

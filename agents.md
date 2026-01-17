@@ -1,10 +1,12 @@
 # Agent Guidelines for GifBolt Development
 
-This document provides guidance for LLM agents and human contributors working on the GifBolt project.
+This document provides guidance for LLM agents and human contributors
+working on the GifBolt project.
 
 ## Code Standards Reference
 
-For detailed code standards, refer to [.llm](.llm) - this is the authoritative source for all code conventions.
+For detailed code standards, refer to [.llm](.llm) - this is the
+authoritative source for all code conventions.
 
 ## C# Development Standards
 
@@ -34,6 +36,7 @@ For detailed code standards, refer to [.llm](.llm) - this is the authoritative s
 ### Configuration
 
 All these rules are defined in:
+
 - `.editorconfig` - Enforced by IDE and CI/CD
 - `.llm` - Detailed documentation with examples
 - `.clang-format` and `.clang-tidy` - For C++ code
@@ -73,7 +76,8 @@ When reviewing or generating C# code, verify:
 - [ ] All public members have Doxygen documentation
 - [ ] All field/property access uses explicit `this`
 - [ ] Classes are marked `sealed` (unless base class or abstract)
-- [ ] Naming follows: `PascalCase` (public), `_camelCase` (private), `camelCase` (local/params)
+- [ ] Naming follows: `PascalCase` (public), `_camelCase` (private),
+  `camelCase` (local/params)
 - [ ] Opening braces on new line (Allman style)
 - [ ] All control structures have braces
 - [ ] .csproj files are clean and optimized
@@ -108,7 +112,7 @@ Follow the standards in [COMMITS.md](COMMITS.md):
 
 ## Project Structure
 
-```
+```text
 GifBolt/
 ├── src/
 │   ├── GifBolt.Core/       # Cross-platform core library
@@ -124,5 +128,6 @@ GifBolt/
 ## Questions
 
 For detailed examples and explanations, see:
+
 - Code standards: [.llm](.llm)
 - Commit standards: [COMMITS.md](COMMITS.md)
