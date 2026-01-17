@@ -1,0 +1,3 @@
+[codespell]
+ignore-words-list = accumule,individuels,explicite,fram
+skip = docs_new/*,docs_new/cpp-api/jquery.js
