@@ -52,6 +52,42 @@ public partial class MainWindow : Window
         {
             backendInfo.Text = "Backend: Metal (macOS GPU-accelerated)";
         }
+
+        // Update version info
+        this.UpdateVersionInfo();
+    }
+
+    private void UpdateVersionInfo()
+    {
+        try
+        {
+            var versionInfo = this.FindControl<global::Avalonia.Controls.TextBlock>("versionInfo");
+            var versionDetails = this.FindControl<global::Avalonia.Controls.TextBlock>("versionDetails");
+
+            if (versionInfo != null)
+            {
+                var version = GifBolt.NativeVersion.VersionString;
+                versionInfo.Text = $"GifBolt.Native v{version}";
+            }
+
+            if (versionDetails != null)
+            {
+                var major = GifBolt.NativeVersion.Major;
+                var minor = GifBolt.NativeVersion.Minor;
+                var patch = GifBolt.NativeVersion.Patch;
+                versionDetails.Text = $"Version: {major}.{minor}.{patch} (Semantic Versioning 2.0.0)\n" +
+                                     $"API Level: {GifBolt.NativeVersion.Version}\n" +
+                                     "Compatible with version 1.0.0+";
+            }
+        }
+        catch (Exception ex)
+        {
+            var versionInfo = this.FindControl<global::Avalonia.Controls.TextBlock>("versionInfo");
+            if (versionInfo != null)
+            {
+                versionInfo.Text = $"Version unavailable: {ex.Message}";
+            }
+        }
     }
 
     private void OnPlayClick(object? sender, RoutedEventArgs e)

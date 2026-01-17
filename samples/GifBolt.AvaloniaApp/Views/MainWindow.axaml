@@ -113,13 +113,24 @@
 
             <!-- Info Tab -->
             <TabItem Header="System Info">
-                <StackPanel Spacing="10" Margin="20">
-                    <TextBlock Text="Backend Information" FontSize="16" FontWeight="Bold"/>
-                    <TextBlock x:Name="backendInfo" Text="Backend: Loading..." Margin="0,10,0,0"/>
-                    <TextBlock Text="Platform: macOS" />
-                    <TextBlock Text="Renderer: Metal (Apple GPU)" />
-                    <TextBlock Text="Framework: Avalonia 11.3.11" />
-                    <TextBlock Text="Target: .NET 6.0" />
+                <StackPanel Spacing="15" Margin="20">
+                    <!-- Backend Information -->
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Backend Information" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock x:Name="backendInfo" Text="Backend: Loading..." Margin="0,10,0,0"/>
+                        <TextBlock Text="Platform: macOS" />
+                        <TextBlock Text="Renderer: Metal (Apple GPU)" />
+                        <TextBlock Text="Framework: Avalonia 11.3.11" />
+                        <TextBlock Text="Target: .NET 6.0" />
+                    </StackPanel>
+
+                    <!-- Version Information -->
+                    <Separator Margin="0,10"/>
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Native Library Version" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock x:Name="versionInfo" Text="Loading version..." Margin="0,10,0,0"/>
+                        <TextBlock x:Name="versionDetails" Text="" TextWrapping="Wrap" Foreground="Gray"/>
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
         </TabControl>
