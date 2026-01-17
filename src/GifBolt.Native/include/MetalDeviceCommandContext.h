@@ -75,6 +75,19 @@ class MetalDeviceCommandContext : public IDeviceCommandContext
     bool ConvertRGBAToBGRAPremultipliedGPU(const void* inputRGBA, void* outputBGRA,
                                            uint32_t pixelCount) override;
 
+    /// \brief Scales an image using GPU acceleration with the specified filter.
+    /// \param inputBGRA Pointer to input BGRA32 premultiplied pixel data.
+    /// \param inputWidth Width of the input image.
+    /// \param inputHeight Height of the input image.
+    /// \param outputBGRA Pointer to output buffer for scaled BGRA32 pixels.
+    /// \param outputWidth Desired output width.
+    /// \param outputHeight Desired output height.
+    /// \param filterType The scaling filter to use (Nearest, Bilinear, Bicubic, Lanczos).
+    /// \return true if GPU scaling succeeded; false if not supported or failed.
+    bool ScaleImageGPU(const void* inputBGRA, uint32_t inputWidth, uint32_t inputHeight,
+                       void* outputBGRA, uint32_t outputWidth, uint32_t outputHeight,
+                       int filterType) override;
+
    private:
     struct Impl;
     Impl* _impl;  ///< Opaque implementation pointer

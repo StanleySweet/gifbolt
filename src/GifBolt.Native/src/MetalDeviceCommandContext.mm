@@ -102,18 +102,47 @@ struct MetalDeviceCommandContext::Impl
     id<MTLRenderPipelineState> pipelineState;
     MTLRenderPassDescriptor* renderPassDescriptor;
     id<MTLComputePipelineState> conversionPipeline;
+    id<MTLComputePipelineState> scalingNearestPipeline;
+    id<MTLComputePipelineState> scalingBilinearPipeline;
+    id<MTLComputePipelineState> scalingBicubicPipeline;
+    id<MTLComputePipelineState> scalingLanczosPipeline;
     id<MTLLibrary> shaderLibrary;
+    id<MTLLibrary> scalingLibrary;
     bool computeShaderReady;
+    bool scalingShadersReady;
 
     Impl()
         : device(nil), commandQueue(nil), commandBuffer(nil), renderEncoder(nil),
           pipelineState(nil), renderPassDescriptor(nil), conversionPipeline(nil),
-          shaderLibrary(nil), computeShaderReady(false)
+          scalingNearestPipeline(nil), scalingBilinearPipeline(nil),
+          scalingBicubicPipeline(nil), scalingLanczosPipeline(nil),
+          shaderLibrary(nil), scalingLibrary(nil),
+          computeShaderReady(false), scalingShadersReady(false)
     {
     }
 
     ~Impl()
     {
+        if (scalingLanczosPipeline)
+        {
+            [scalingLanczosPipeline release];
+        }
+        if (scalingBicubicPipeline)
+        {
+            [scalingBicubicPipeline release];
+        }
+        if (scalingBilinearPipeline)
+        {
+            [scalingBilinearPipeline release];
+        }
+        if (scalingNearestPipeline)
+        {
+            [scalingNearestPipeline release];
+        }
+        if (scalingLibrary)
+        {
+            [scalingLibrary release];
+        }
         if (conversionPipeline)
         {
             [conversionPipeline release];
@@ -149,6 +178,7 @@ struct MetalDeviceCommandContext::Impl
     }
 
     bool InitializeComputeShader();
+    bool InitializeScalingShaders();
 };
 
 MetalDeviceCommandContext::MetalDeviceCommandContext()
@@ -306,6 +336,259 @@ bool MetalDeviceCommandContext::Impl::InitializeComputeShader()
     return (this->conversionPipeline != nil && !error);
 }
 
+bool MetalDeviceCommandContext::Impl::InitializeScalingShaders()
+{
+    NSError* error = nil;
+
+    // Try to load the compiled shader library from bundle or current directory
+    NSString* shaderPath = nil;
+
+    // First try in bundle
+    NSBundle* bundle = [NSBundle mainBundle];
+    if (bundle)
+    {
+        shaderPath = [bundle pathForResource:@"ScalingShaders" ofType:@"metallib"];
+    }
+
+    // If not in bundle, try in current directory and common locations
+    if (!shaderPath || ![[NSFileManager defaultManager] fileExistsAtPath:shaderPath])
+    {
+        NSArray* searchPaths = @[
+            @"./ScalingShaders.metallib",
+            @"./build/src/GifBolt.Native/ScalingShaders.metallib",
+            @"../build/src/GifBolt.Native/ScalingShaders.metallib",
+            [[NSFileManager defaultManager] currentDirectoryPath]
+        ];
+
+        for (NSString* path in searchPaths)
+        {
+            NSString* expandedPath = [path stringByExpandingTildeInPath];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:expandedPath])
+            {
+                shaderPath = expandedPath;
+                break;
+            }
+
+            NSString* withFilename = [expandedPath stringByAppendingPathComponent:@"ScalingShaders.metallib"];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:withFilename])
+            {
+                shaderPath = withFilename;
+                break;
+            }
+        }
+    }
+
+    if (shaderPath && [[NSFileManager defaultManager] fileExistsAtPath:shaderPath])
+    {
+        this->scalingLibrary = [this->device newLibraryWithFile:shaderPath error:&error];
+        if (!this->scalingLibrary || error)
+        {
+            NSLog(@"Failed to load Metal shader library from %@: %@", shaderPath, error);
+            return false;
+        }
+    }
+    else
+    {
+        NSLog(@"Metal shader library not found, falling back to runtime compilation");
+
+        // Compile shaders from embedded source code
+        NSString* shaderSource = @R"(
+            #include <metal_stdlib>
+            using namespace metal;
+
+            kernel void scaleNearest(
+                texture2d<float, access::read> inputTexture [[texture(0)]],
+                texture2d<float, access::write> outputTexture [[texture(1)]],
+                uint2 gid [[thread_position_in_grid]])
+            {
+                const uint2 outputSize = uint2(outputTexture.get_width(), outputTexture.get_height());
+                const uint2 inputSize = uint2(inputTexture.get_width(), inputTexture.get_height());
+
+                if (gid.x >= outputSize.x || gid.y >= outputSize.y) return;
+
+                const float xRatio = float(inputSize.x) / float(outputSize.x);
+                const float yRatio = float(inputSize.y) / float(outputSize.y);
+                const uint2 srcPos = uint2(uint(gid.x * xRatio), uint(gid.y * yRatio));
+                const float4 color = inputTexture.read(srcPos);
+                outputTexture.write(color, gid);
+            }
+
+            kernel void scaleBilinear(
+                texture2d<float, access::read> inputTexture [[texture(0)]],
+                texture2d<float, access::write> outputTexture [[texture(1)]],
+                uint2 gid [[thread_position_in_grid]])
+            {
+                const uint2 outputSize = uint2(outputTexture.get_width(), outputTexture.get_height());
+                const uint2 inputSize = uint2(inputTexture.get_width(), inputTexture.get_height());
+
+                if (gid.x >= outputSize.x || gid.y >= outputSize.y) return;
+
+                const float xRatio = float(inputSize.x) / float(outputSize.x);
+                const float yRatio = float(inputSize.y) / float(outputSize.y);
+                const float srcX = float(gid.x) * xRatio;
+                const float srcY = float(gid.y) * yRatio;
+
+                const uint x0 = uint(srcX);
+                const uint y0 = uint(srcY);
+                const uint x1 = min(x0 + 1, inputSize.x - 1);
+                const uint y1 = min(y0 + 1, inputSize.y - 1);
+                const float fracX = srcX - float(x0);
+                const float fracY = srcY - float(y0);
+
+                const float4 c00 = inputTexture.read(uint2(x0, y0));
+                const float4 c10 = inputTexture.read(uint2(x1, y0));
+                const float4 c01 = inputTexture.read(uint2(x0, y1));
+                const float4 c11 = inputTexture.read(uint2(x1, y1));
+
+                const float4 cTop = mix(c00, c10, fracX);
+                const float4 cBottom = mix(c01, c11, fracX);
+                const float4 result = mix(cTop, cBottom, fracY);
+
+                outputTexture.write(result, gid);
+            }
+
+            float cubicWeight(float x)
+            {
+                const float a = -0.5;
+                const float absX = abs(x);
+                if (absX <= 1.0) {
+                    return ((a + 2.0) * absX - (a + 3.0)) * absX * absX + 1.0;
+                } else if (absX < 2.0) {
+                    return ((a * absX - 5.0 * a) * absX + 8.0 * a) * absX - 4.0 * a;
+                }
+                return 0.0;
+            }
+
+            kernel void scaleBicubic(
+                texture2d<float, access::read> inputTexture [[texture(0)]],
+                texture2d<float, access::write> outputTexture [[texture(1)]],
+                uint2 gid [[thread_position_in_grid]])
+            {
+                const uint2 outputSize = uint2(outputTexture.get_width(), outputTexture.get_height());
+                const uint2 inputSize = uint2(inputTexture.get_width(), inputTexture.get_height());
+
+                if (gid.x >= outputSize.x || gid.y >= outputSize.y) return;
+
+                const float xRatio = float(inputSize.x) / float(outputSize.x);
+                const float yRatio = float(inputSize.y) / float(outputSize.y);
+                const float srcX = float(gid.x) * xRatio;
+                const float srcY = float(gid.y) * yRatio;
+                const int x = int(srcX);
+                const int y = int(srcY);
+                const float dx = srcX - float(x);
+                const float dy = srcY - float(y);
+
+                float4 result = float4(0.0);
+                float weightSum = 0.0;
+                for (int j = -1; j <= 2; ++j) {
+                    for (int i = -1; i <= 2; ++i) {
+                        const int sx = clamp(x + i, 0, int(inputSize.x) - 1);
+                        const int sy = clamp(y + j, 0, int(inputSize.y) - 1);
+                        const float wx = cubicWeight(float(i) - dx);
+                        const float wy = cubicWeight(float(j) - dy);
+                        const float weight = wx * wy;
+                        const float4 sample = inputTexture.read(uint2(sx, sy));
+                        result += sample * weight;
+                        weightSum += weight;
+                    }
+                }
+                if (weightSum > 0.0) result /= weightSum;
+                outputTexture.write(result, gid);
+            }
+
+            float lanczosWeight(float x, float a)
+            {
+                if (abs(x) < 0.001) return 1.0;
+                if (abs(x) >= a) return 0.0;
+                const float pi = 3.14159265359;
+                const float piX = pi * x;
+                return a * sin(piX) * sin(piX / a) / (piX * piX);
+            }
+
+            kernel void scaleLanczos(
+                texture2d<float, access::read> inputTexture [[texture(0)]],
+                texture2d<float, access::write> outputTexture [[texture(1)]],
+                uint2 gid [[thread_position_in_grid]])
+            {
+                const uint2 outputSize = uint2(outputTexture.get_width(), outputTexture.get_height());
+                const uint2 inputSize = uint2(inputTexture.get_width(), inputTexture.get_height());
+
+                if (gid.x >= outputSize.x || gid.y >= outputSize.y) return;
+
+                const float a = 3.0;
+                const float xRatio = float(inputSize.x) / float(outputSize.x);
+                const float yRatio = float(inputSize.y) / float(outputSize.y);
+                const float srcX = float(gid.x) * xRatio;
+                const float srcY = float(gid.y) * yRatio;
+                const int x = int(srcX);
+                const int y = int(srcY);
+                const float dx = srcX - float(x);
+                const float dy = srcY - float(y);
+
+                float4 result = float4(0.0);
+                float weightSum = 0.0;
+                const int radius = int(ceil(a));
+                for (int j = -radius; j <= radius; ++j) {
+                    for (int i = -radius; i <= radius; ++i) {
+                        const int sx = clamp(x + i, 0, int(inputSize.x) - 1);
+                        const int sy = clamp(y + j, 0, int(inputSize.y) - 1);
+                        const float wx = lanczosWeight(float(i) - dx, a);
+                        const float wy = lanczosWeight(float(j) - dy, a);
+                        const float weight = wx * wy;
+                        const float4 sample = inputTexture.read(uint2(sx, sy));
+                        result += sample * weight;
+                        weightSum += weight;
+                    }
+                }
+                if (weightSum > 0.0) result /= weightSum;
+                outputTexture.write(result, gid);
+            }
+        )";
+
+        this->scalingLibrary = [this->device newLibraryWithSource:shaderSource
+                                                           options:nil
+                                                             error:&error];
+
+        if (!this->scalingLibrary || error)
+        {
+            NSLog(@"Failed to compile Metal shaders: %@", error);
+            return false;
+        }
+    }
+
+    // Create pipeline states for each filter
+    id<MTLFunction> nearestFunc = [this->scalingLibrary newFunctionWithName:@"scaleNearest"];
+    id<MTLFunction> bilinearFunc = [this->scalingLibrary newFunctionWithName:@"scaleBilinear"];
+    id<MTLFunction> bicubicFunc = [this->scalingLibrary newFunctionWithName:@"scaleBicubic"];
+    id<MTLFunction> lanczosFunc = [this->scalingLibrary newFunctionWithName:@"scaleLanczos"];
+
+    if (nearestFunc)
+    {
+        this->scalingNearestPipeline = [this->device newComputePipelineStateWithFunction:nearestFunc error:&error];
+        [nearestFunc release];
+    }
+
+    if (bilinearFunc)
+    {
+        this->scalingBilinearPipeline = [this->device newComputePipelineStateWithFunction:bilinearFunc error:&error];
+        [bilinearFunc release];
+    }
+
+    if (bicubicFunc)
+    {
+        this->scalingBicubicPipeline = [this->device newComputePipelineStateWithFunction:bicubicFunc error:&error];
+        [bicubicFunc release];
+    }
+
+    if (lanczosFunc)
+    {
+        this->scalingLanczosPipeline = [this->device newComputePipelineStateWithFunction:lanczosFunc error:&error];
+        [lanczosFunc release];
+    }
+
+    return (this->scalingNearestPipeline != nil && this->scalingBilinearPipeline != nil);
+}
+
 bool MetalDeviceCommandContext::ConvertRGBAToBGRAPremultipliedGPU(const void* inputRGBA,
                                                                    void* outputBGRA,
                                                                    uint32_t pixelCount)
@@ -379,6 +662,126 @@ bool MetalDeviceCommandContext::ConvertRGBAToBGRAPremultipliedGPU(const void* in
     [inputBuffer release];
     [outputBuffer release];
     [paramBuffer release];
+
+    return true;
+}
+
+bool MetalDeviceCommandContext::ScaleImageGPU(const void* inputBGRA, uint32_t inputWidth,
+                                               uint32_t inputHeight, void* outputBGRA,
+                                               uint32_t outputWidth, uint32_t outputHeight,
+                                               int filterType)
+{
+    if (!_impl || !_impl->device || !_impl->commandQueue)
+    {
+        return false;
+    }
+
+    // Initialize scaling shaders if not already done
+    if (!_impl->scalingShadersReady)
+    {
+        _impl->scalingShadersReady = _impl->InitializeScalingShaders();
+        if (!_impl->scalingShadersReady)
+        {
+            return false;
+        }
+    }
+
+    // Select pipeline based on filter type
+    id<MTLComputePipelineState> pipeline = nil;
+    switch (filterType)
+    {
+        case 0: // Nearest
+            pipeline = _impl->scalingNearestPipeline;
+            break;
+        case 1: // Bilinear
+            pipeline = _impl->scalingBilinearPipeline;
+            break;
+        case 2: // Bicubic
+            pipeline = _impl->scalingBicubicPipeline;
+            break;
+        case 3: // Lanczos
+            pipeline = _impl->scalingLanczosPipeline;
+            break;
+        default:
+            pipeline = _impl->scalingBilinearPipeline;
+            break;
+    }
+
+    if (!pipeline)
+    {
+        return false;
+    }
+
+    // Create input texture
+    MTLTextureDescriptor* inputDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                          width:inputWidth
+                                                                                         height:inputHeight
+                                                                                      mipmapped:NO];
+    inputDesc.usage = MTLTextureUsageShaderRead;
+    inputDesc.storageMode = MTLStorageModeManaged;
+
+    id<MTLTexture> inputTexture = [_impl->device newTextureWithDescriptor:inputDesc];
+    if (!inputTexture)
+    {
+        return false;
+    }
+
+    MTLRegion inputRegion = MTLRegionMake2D(0, 0, inputWidth, inputHeight);
+    [inputTexture replaceRegion:inputRegion mipmapLevel:0 withBytes:inputBGRA bytesPerRow:inputWidth * 4];
+
+    // Create output texture
+    MTLTextureDescriptor* outputDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                           width:outputWidth
+                                                                                          height:outputHeight
+                                                                                       mipmapped:NO];
+    outputDesc.usage = MTLTextureUsageShaderWrite;
+    outputDesc.storageMode = MTLStorageModeManaged;
+
+    id<MTLTexture> outputTexture = [_impl->device newTextureWithDescriptor:outputDesc];
+    if (!outputTexture)
+    {
+        [inputTexture release];
+        return false;
+    }
+
+    // Create command buffer
+    id<MTLCommandBuffer> commandBuffer = [_impl->commandQueue commandBuffer];
+    if (!commandBuffer)
+    {
+        [inputTexture release];
+        [outputTexture release];
+        return false;
+    }
+
+    // Create compute encoder
+    id<MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoder];
+    [computeEncoder setComputePipelineState:pipeline];
+    [computeEncoder setTexture:inputTexture atIndex:0];
+    [computeEncoder setTexture:outputTexture atIndex:1];
+
+    // Dispatch threads
+    MTLSize threadgroupSize = MTLSizeMake(8, 8, 1);
+    MTLSize threadgroups = MTLSizeMake(
+        (outputWidth + 7) / 8,
+        (outputHeight + 7) / 8,
+        1
+    );
+    [computeEncoder dispatchThreadgroups:threadgroups threadsPerThreadgroup:threadgroupSize];
+
+    [computeEncoder endEncoding];
+    [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
+
+    // Copy result to output
+    MTLRegion outputRegion = MTLRegionMake2D(0, 0, outputWidth, outputHeight);
+    [outputTexture getBytes:outputBGRA
+                bytesPerRow:outputWidth * 4
+                 fromRegion:outputRegion
+                mipmapLevel:0];
+
+    // Cleanup
+    [inputTexture release];
+    [outputTexture release];
 
     return true;
 }

@@ -44,6 +44,9 @@ if(APPLE)
         "-framework Foundation")
     set_source_files_properties(src/MetalDeviceCommandContext.mm PROPERTIES
         COMPILE_FLAGS "-x objective-c++")
+
+    # Note: Metal shaders are compiled at runtime from embedded source
+    # No need to pre-compile .metallib files
 endif()
 
 # Set compile options

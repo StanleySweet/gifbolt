@@ -3,6 +3,10 @@
 
 #include "GifDecoder.h"
 #include "PixelConversion.h"
+#include "IDeviceCommandContext.h"
+#if defined(__APPLE__)
+#include "MetalDeviceCommandContext.h"
+#endif
 #include <gif_lib.h>
 #include <fstream>
 #include <stdexcept>
@@ -31,6 +35,7 @@ class GifDecoder::Impl
     uint32_t backgroundColor = 0xFF000000;  ///< Default: opaque black
     bool looping = false;
     std::vector<uint8_t> bgraPremultipliedCache;  ///< Cache for BGRA premultiplied pixels
+    std::shared_ptr<Renderer::IDeviceCommandContext> deviceContext;  ///< GPU context for scaling
 
     // Background loading support
     GifFileType* gif = nullptr;  ///< GIF file handle after slurp
@@ -339,7 +344,20 @@ void GifDecoder::Impl::ComposeFrame(const GifFrame& frame, std::vector<uint32_t>
 }
 
 GifDecoder::GifDecoder()
-    : pImpl(std::make_unique<Impl>()) {
+    : pImpl(std::make_unique<Impl>())
+{
+    // Initialize GPU context for hardware-accelerated scaling
+#if defined(__APPLE__)
+    try
+    {
+        pImpl->deviceContext = std::make_shared<Renderer::MetalDeviceCommandContext>();
+    }
+    catch (...)
+    {
+        // GPU context initialization failed, will use CPU fallback
+        pImpl->deviceContext = nullptr;
+    }
+#endif
 }
 
 GifDecoder::~GifDecoder() = default;
@@ -470,7 +488,23 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
         return nullptr;
     }
 
-    // Scaling implementation based on filter type
+    // Try GPU scaling first if available
+    if (pImpl->deviceContext)
+    {
+        bool gpuSuccess = pImpl->deviceContext->ScaleImageGPU(
+            sourceBGRA, sourceWidth, sourceHeight,
+            scaledCache.data(), targetWidth, targetHeight,
+            static_cast<int>(filter)
+        );
+
+        if (gpuSuccess)
+        {
+            return scaledCache.data();
+        }
+        // If GPU fails, fall back to CPU
+    }
+
+    // CPU scaling implementation based on filter type
     const float xRatio = static_cast<float>(sourceWidth) / targetWidth;
     const float yRatio = static_cast<float>(sourceHeight) / targetHeight;
 
