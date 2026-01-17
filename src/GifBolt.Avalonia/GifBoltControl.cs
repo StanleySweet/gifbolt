@@ -20,7 +20,6 @@ namespace GifBolt.Avalonia
     /// </summary>
         public sealed class GifBoltControl : Control
         {
-            // ...existing code...
             /// <summary>
             /// Gets or sets the minimum frame delay in milliseconds for GIF playback.
             /// </summary>
