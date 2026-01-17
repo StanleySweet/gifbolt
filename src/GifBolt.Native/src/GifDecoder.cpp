@@ -7,6 +7,9 @@
 #include <fstream>
 #include <stdexcept>
 #include <cstring>
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 namespace GifBolt {
 
@@ -29,21 +32,32 @@ class GifDecoder::Impl
     bool looping = false;
     std::vector<uint8_t> bgraPremultipliedCache;  ///< Cache for BGRA premultiplied pixels
 
-    // Lazy decoding support
-    GifFileType* gif = nullptr;  ///< Keep GIF file open for lazy decoding
+    // Background loading support
+    GifFileType* gif = nullptr;  ///< GIF file handle after slurp
     uint32_t frameCount = 0;  ///< Total number of frames
+    std::string filePath;  ///< Stored for background loading
+
+    std::thread backgroundLoader;  ///< Background thread for DGifSlurp
+    std::mutex gifMutex;  ///< Protect gif pointer access
+    std::atomic<bool> slurpComplete{false};  ///< Whether DGifSlurp finished
+    std::atomic<bool> slurpFailed{false};  ///< Whether DGifSlurp failed
 
     bool LoadGif(const std::string& filePath);
+    void BackgroundSlurp();  ///< Background thread function
+    void WaitForSlurp();  ///< Wait for background slurp to complete
     void EnsureFrameDecoded(uint32_t frameIndex);  ///< Decode frame on-demand
-    void DecodeFrame(GifFileType* gif, int frameIndex);
+    void DecodeFrame(GifFileType* gif, uint32_t frameIndex);
     void ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
                        std::vector<uint32_t>& pixels, int width, int height,
                        int transparentIndex = -1);
     void ComposeFrame(const GifFrame& frame, std::vector<uint32_t>& canvas);
-    DisposalMethod GetDisposalMethod(const SavedImage* image);
 
     ~Impl()
     {
+        if (backgroundLoader.joinable())
+        {
+            backgroundLoader.join();
+        }
         if (this->gif)
         {
             int error = 0;
@@ -54,73 +68,105 @@ class GifDecoder::Impl
 };
 
 bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
+    this->filePath = filePath;
     int error = 0;
-    this->gif = DGifOpenFileName(filePath.c_str(), &error);
+    GifFileType* tempGif = DGifOpenFileName(filePath.c_str(), &error);
 
-    if (!this->gif) {
+    if (!tempGif) {
         return false;
     }
 
-    if (DGifSlurp(this->gif) == GIF_ERROR) {
-        DGifCloseFile(this->gif, &error);
-        this->gif = nullptr;
-        return false;
-    }
+    // Read ONLY header info (instant)
+    this->width = tempGif->SWidth;
+    this->height = tempGif->SHeight;
 
-    this->width = this->gif->SWidth;
-    this->height = this->gif->SHeight;
-    this->frameCount = this->gif->ImageCount;
-
-    // Extract background color from global color map
-    if (this->gif->SColorMap && this->gif->SBackGroundColor < this->gif->SColorMap->ColorCount)
+    // Extract background color
+    if (tempGif->SColorMap && tempGif->SBackGroundColor < tempGif->SColorMap->ColorCount)
     {
-        const GifColorType& bgColor = this->gif->SColorMap->Colors[this->gif->SBackGroundColor];
-        // Convert to RGBA32 format: 0xAABBGGRR (opaque)
+        const GifColorType& bgColor = tempGif->SColorMap->Colors[tempGif->SBackGroundColor];
         this->backgroundColor = 0xFF000000 | (bgColor.Blue << 16) | (bgColor.Green << 8) | bgColor.Red;
     }
     else
     {
-        // Default to transparent for proper composition with UI gradients/backgrounds
         this->backgroundColor = 0x00000000;
     }
 
-    // Initialize canvas with transparent pixels
-    this->canvas.resize(this->width * this->height, 0x00000000);
+    DGifCloseFile(tempGif, &error);
 
-    // Allocate frame cache but don't decode yet (lazy loading)
-    this->frames.resize(this->frameCount);
-    this->frameDecoded.resize(this->frameCount, false);
+    // Launch background thread to do DGifSlurp (heavy operation)
+    this->backgroundLoader = std::thread(&Impl::BackgroundSlurp, this);
 
-    // Check for looping extension
-    for (int i = 0; i < this->gif->ImageCount; ++i) {
-        SavedImage* image = &this->gif->SavedImages[i];
-        for (int j = 0; j < image->ExtensionBlockCount; ++j) {
-            ExtensionBlock* ext = &image->ExtensionBlocks[j];
-            if (ext->Function == APPLICATION_EXT_FUNC_CODE) {
-                if (std::memcmp(ext->Bytes, "NETSCAPE2.0", 11) == 0) {
-                    this->looping = true;
-                    break;
+    // Return IMMEDIATELY - DGifSlurp runs in background
+    return true;
+}
+
+void GifDecoder::Impl::BackgroundSlurp() {
+    int error = 0;
+    GifFileType* gif = DGifOpenFileName(this->filePath.c_str(), &error);
+
+    if (!gif) {
+        this->slurpFailed = true;
+        return;
+    }
+
+    // Do the heavy DGifSlurp in background thread
+    if (DGifSlurp(gif) == GIF_ERROR) {
+        DGifCloseFile(gif, &error);
+        this->slurpFailed = true;
+        return;
+    }
+
+    // Store results under mutex
+    {
+        std::lock_guard<std::mutex> lock(this->gifMutex);
+        this->gif = gif;
+        this->frameCount = gif->ImageCount;
+
+        // Check for looping extension
+        for (int i = 0; i < gif->ImageCount; ++i) {
+            SavedImage* image = &gif->SavedImages[i];
+            for (int j = 0; j < image->ExtensionBlockCount; ++j) {
+                ExtensionBlock* ext = &image->ExtensionBlocks[j];
+                if (ext->Function == APPLICATION_EXT_FUNC_CODE) {
+                    if (std::memcmp(ext->Bytes, "NETSCAPE2.0", 11) == 0) {
+                        this->looping = true;
+                        break;
+                    }
                 }
             }
         }
+
+        // Initialize frame storage
+        this->frames.resize(this->frameCount);
+        this->frameDecoded.resize(this->frameCount, false);
+        this->canvas.resize(this->width * this->height, 0x00000000);
     }
 
-    // Decode ONLY the first frame to enable immediate display
-    this->EnsureFrameDecoded(0);
+    this->slurpComplete = true;
+}
 
-    // Keep GIF open for lazy decoding (closed in destructor)
-    return true;
+void GifDecoder::Impl::WaitForSlurp() {
+    if (this->backgroundLoader.joinable()) {
+        this->backgroundLoader.join();
+    }
 }
 
 void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
 {
-    if (frameIndex >= this->frameCount || this->frameDecoded[frameIndex])
-    {
-        return;  // Already decoded or invalid index
+    // Wait for background slurp to complete
+    this->WaitForSlurp();
+
+    if (this->slurpFailed || !this->gif) {
+        return;
     }
 
-    // For proper frame composition, we need to decode all frames up to the requested one
-    // because GIF frames can depend on previous frames (disposal methods, transparency)
+    if (frameIndex >= this->frameCount || this->frameDecoded[frameIndex])
+    {
+        return;
+    }
+
+    // Decode all frames up to requested one (for proper composition)
+    std::lock_guard<std::mutex> lock(this->gifMutex);
     for (uint32_t i = 0; i <= frameIndex; ++i)
     {
         if (!this->frameDecoded[i])
@@ -131,7 +177,7 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
     }
 }
 
-void GifDecoder::Impl::DecodeFrame(GifFileType* gif, int frameIndex) {
+void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
     SavedImage* image = &gif->SavedImages[frameIndex];
     GifImageDesc* desc = &image->ImageDesc;
 
@@ -310,6 +356,8 @@ bool GifDecoder::LoadFromUrl(const std::string& url) {
 }
 
 uint32_t GifDecoder::GetFrameCount() const {
+    // Wait for background slurp to complete
+    pImpl->WaitForSlurp();
     return pImpl->frameCount;
 }
 
