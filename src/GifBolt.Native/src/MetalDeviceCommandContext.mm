@@ -340,59 +340,11 @@ bool MetalDeviceCommandContext::Impl::InitializeScalingShaders()
 {
     NSError* error = nil;
 
-    // Try to load the compiled shader library from bundle or current directory
-    NSString* shaderPath = nil;
+    // Always use runtime compilation of shaders from embedded source
+    // This is more portable and doesn't require pre-compiled metallib files
 
-    // First try in bundle
-    NSBundle* bundle = [NSBundle mainBundle];
-    if (bundle)
-    {
-        shaderPath = [bundle pathForResource:@"ScalingShaders" ofType:@"metallib"];
-    }
-
-    // If not in bundle, try in current directory and common locations
-    if (!shaderPath || ![[NSFileManager defaultManager] fileExistsAtPath:shaderPath])
-    {
-        NSArray* searchPaths = @[
-            @"./ScalingShaders.metallib",
-            @"./build/src/GifBolt.Native/ScalingShaders.metallib",
-            @"../build/src/GifBolt.Native/ScalingShaders.metallib",
-            [[NSFileManager defaultManager] currentDirectoryPath]
-        ];
-
-        for (NSString* path in searchPaths)
-        {
-            NSString* expandedPath = [path stringByExpandingTildeInPath];
-            if ([[NSFileManager defaultManager] fileExistsAtPath:expandedPath])
-            {
-                shaderPath = expandedPath;
-                break;
-            }
-
-            NSString* withFilename = [expandedPath stringByAppendingPathComponent:@"ScalingShaders.metallib"];
-            if ([[NSFileManager defaultManager] fileExistsAtPath:withFilename])
-            {
-                shaderPath = withFilename;
-                break;
-            }
-        }
-    }
-
-    if (shaderPath && [[NSFileManager defaultManager] fileExistsAtPath:shaderPath])
-    {
-        this->scalingLibrary = [this->device newLibraryWithFile:shaderPath error:&error];
-        if (!this->scalingLibrary || error)
-        {
-            NSLog(@"Failed to load Metal shader library from %@: %@", shaderPath, error);
-            return false;
-        }
-    }
-    else
-    {
-        NSLog(@"Metal shader library not found, falling back to runtime compilation");
-
-        // Compile shaders from embedded source code
-        NSString* shaderSource = @R"(
+    // Compile shaders from embedded source code
+    NSString* shaderSource = @R"(
             #include <metal_stdlib>
             using namespace metal;
 
@@ -545,15 +497,14 @@ bool MetalDeviceCommandContext::Impl::InitializeScalingShaders()
             }
         )";
 
-        this->scalingLibrary = [this->device newLibraryWithSource:shaderSource
-                                                           options:nil
-                                                             error:&error];
+    this->scalingLibrary = [this->device newLibraryWithSource:shaderSource
+                                                       options:nil
+                                                         error:&error];
 
-        if (!this->scalingLibrary || error)
-        {
-            NSLog(@"Failed to compile Metal shaders: %@", error);
-            return false;
-        }
+    if (!this->scalingLibrary || error)
+    {
+        NSLog(@"Failed to compile Metal shaders: %@", error);
+        return false;
     }
 
     // Create pipeline states for each filter
