@@ -1,3 +1,11 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+
+#include <catch2/catch_test_macros.hpp>
+#include "GifDecoder.h"
+
+using namespace GifBolt;
+
 TEST_CASE("GifDecoder applies minFrameDelayMs to all frames in artillery_tower6.gif", "[GifDecoder][Timing]")
 {
     GifDecoder decoder;
@@ -13,13 +21,6 @@ TEST_CASE("GifDecoder applies minFrameDelayMs to all frames in artillery_tower6.
         REQUIRE(frame.delayMs >= minDelay);
     }
 }
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2026 GifBolt Contributors
-
-#include <catch2/catch_test_macros.hpp>
-#include "GifDecoder.h"
-
-using namespace GifBolt;
 
 TEST_CASE("GifDecoder can be created", "[GifDecoder]") {
     GifDecoder decoder;

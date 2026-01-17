@@ -4,6 +4,7 @@ project(GifBolt.Tests LANGUAGES CXX)
 add_executable(GifBolt.Tests
     GifDecoderTests.cpp
     GifBoltRendererTests.cpp
+    GifProfilingTests.cpp
 )
 
 # Link dependencies

@@ -13,10 +13,10 @@ namespace GifBolt {
 class GifDecoder::Impl
 {
    public:
-    std::vector<GifFrame> frames;
+    std::vector<GifFrame> frames;  ///< Decoded frames cache
+    std::vector<bool> frameDecoded;  ///< Track which frames have been decoded
     std::vector<uint32_t> canvas;  ///< Accumulated canvas for frame composition
     DisposalMethod previousDisposal = DisposalMethod::None;  ///< Previous frame disposal
-    // Track previous frame rectangle for proper RestoreBackground handling
     uint32_t prevFrameWidth = 0;
     uint32_t prevFrameHeight = 0;
     uint32_t prevFrameOffsetX = 0;
@@ -29,71 +29,106 @@ class GifDecoder::Impl
     bool looping = false;
     std::vector<uint8_t> bgraPremultipliedCache;  ///< Cache for BGRA premultiplied pixels
 
+    // Lazy decoding support
+    GifFileType* gif = nullptr;  ///< Keep GIF file open for lazy decoding
+    uint32_t frameCount = 0;  ///< Total number of frames
+
     bool LoadGif(const std::string& filePath);
+    void EnsureFrameDecoded(uint32_t frameIndex);  ///< Decode frame on-demand
     void DecodeFrame(GifFileType* gif, int frameIndex);
     void ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
                        std::vector<uint32_t>& pixels, int width, int height,
                        int transparentIndex = -1);
     void ComposeFrame(const GifFrame& frame, std::vector<uint32_t>& canvas);
     DisposalMethod GetDisposalMethod(const SavedImage* image);
+
+    ~Impl()
+    {
+        if (this->gif)
+        {
+            int error = 0;
+            DGifCloseFile(this->gif, &error);
+            this->gif = nullptr;
+        }
+    }
 };
 
 bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
     int error = 0;
-    GifFileType* gif = DGifOpenFileName(filePath.c_str(), &error);
+    this->gif = DGifOpenFileName(filePath.c_str(), &error);
 
-    if (!gif) {
+    if (!this->gif) {
         return false;
     }
 
-    if (DGifSlurp(gif) == GIF_ERROR) {
-        DGifCloseFile(gif, &error);
+    if (DGifSlurp(this->gif) == GIF_ERROR) {
+        DGifCloseFile(this->gif, &error);
+        this->gif = nullptr;
         return false;
     }
 
-    width = gif->SWidth;
-    height = gif->SHeight;
+    this->width = this->gif->SWidth;
+    this->height = this->gif->SHeight;
+    this->frameCount = this->gif->ImageCount;
 
     // Extract background color from global color map
-    if (gif->SColorMap && gif->SBackGroundColor < gif->SColorMap->ColorCount)
+    if (this->gif->SColorMap && this->gif->SBackGroundColor < this->gif->SColorMap->ColorCount)
     {
-        const GifColorType& bgColor = gif->SColorMap->Colors[gif->SBackGroundColor];
+        const GifColorType& bgColor = this->gif->SColorMap->Colors[this->gif->SBackGroundColor];
         // Convert to RGBA32 format: 0xAABBGGRR (opaque)
-        backgroundColor = 0xFF000000 | (bgColor.Blue << 16) | (bgColor.Green << 8) | bgColor.Red;
+        this->backgroundColor = 0xFF000000 | (bgColor.Blue << 16) | (bgColor.Green << 8) | bgColor.Red;
     }
     else
     {
         // Default to transparent for proper composition with UI gradients/backgrounds
-        backgroundColor = 0x00000000;
+        this->backgroundColor = 0x00000000;
     }
 
-    // Initialize canvas with transparent pixels for proper alpha composition
-    canvas.resize(width * height, 0x00000000);
+    // Initialize canvas with transparent pixels
+    this->canvas.resize(this->width * this->height, 0x00000000);
 
-    // Decode all frames
-    frames.clear();
-    frames.reserve(gif->ImageCount);
-
-    for (int i = 0; i < gif->ImageCount; ++i) {
-        DecodeFrame(gif, i);
-    }
+    // Allocate frame cache but don't decode yet (lazy loading)
+    this->frames.resize(this->frameCount);
+    this->frameDecoded.resize(this->frameCount, false);
 
     // Check for looping extension
-    for (int i = 0; i < gif->ImageCount; ++i) {
-        SavedImage* image = &gif->SavedImages[i];
+    for (int i = 0; i < this->gif->ImageCount; ++i) {
+        SavedImage* image = &this->gif->SavedImages[i];
         for (int j = 0; j < image->ExtensionBlockCount; ++j) {
             ExtensionBlock* ext = &image->ExtensionBlocks[j];
             if (ext->Function == APPLICATION_EXT_FUNC_CODE) {
                 if (std::memcmp(ext->Bytes, "NETSCAPE2.0", 11) == 0) {
-                    looping = true;
+                    this->looping = true;
                     break;
                 }
             }
         }
     }
 
-    DGifCloseFile(gif, &error);
+    // Decode ONLY the first frame to enable immediate display
+    this->EnsureFrameDecoded(0);
+
+    // Keep GIF open for lazy decoding (closed in destructor)
     return true;
+}
+
+void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
+{
+    if (frameIndex >= this->frameCount || this->frameDecoded[frameIndex])
+    {
+        return;  // Already decoded or invalid index
+    }
+
+    // For proper frame composition, we need to decode all frames up to the requested one
+    // because GIF frames can depend on previous frames (disposal methods, transparency)
+    for (uint32_t i = 0; i <= frameIndex; ++i)
+    {
+        if (!this->frameDecoded[i])
+        {
+            this->DecodeFrame(this->gif, i);
+            this->frameDecoded[i] = true;
+        }
+    }
 }
 
 void GifDecoder::Impl::DecodeFrame(GifFileType* gif, int frameIndex) {
@@ -149,7 +184,7 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, int frameIndex) {
     composedFrame.offsetY = 0;
     composedFrame.pixels = canvas;  // Store the full canvas as frame result
 
-    frames.push_back(composedFrame);  // Copy instead of move to preserve pixels
+    frames[frameIndex] = composedFrame;  // Store at specific index instead of push_back
 }
 
 void GifDecoder::Impl::ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
@@ -275,13 +310,15 @@ bool GifDecoder::LoadFromUrl(const std::string& url) {
 }
 
 uint32_t GifDecoder::GetFrameCount() const {
-    return static_cast<uint32_t>(pImpl->frames.size());
+    return pImpl->frameCount;
 }
 
 const GifFrame& GifDecoder::GetFrame(uint32_t index) const {
-    if (index >= pImpl->frames.size()) {
+    if (index >= pImpl->frameCount) {
         throw std::out_of_range("Frame index out of range");
     }
+    // Ensure frame is decoded before returning (lazy loading)
+    pImpl->EnsureFrameDecoded(index);
     return pImpl->frames[index];
 }
 
@@ -315,10 +352,13 @@ uint32_t GifBolt::GifDecoder::GetMinFrameDelayMs() const
 
 const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
 {
-    if (index >= pImpl->frames.size())
+    if (index >= pImpl->frameCount)
     {
         return nullptr;
     }
+
+    // Ensure frame is decoded (lazy loading)
+    pImpl->EnsureFrameDecoded(index);
 
     const GifFrame& frame = pImpl->frames[index];
     const size_t pixelCount = frame.pixels.size();
