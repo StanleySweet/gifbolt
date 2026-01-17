@@ -428,7 +428,8 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
 const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t index, uint32_t targetWidth,
                                                                      uint32_t targetHeight,
                                                                      uint32_t& outWidth,
-                                                                     uint32_t& outHeight)
+                                                                     uint32_t& outHeight,
+                                                                     ScalingFilter filter)
 {
     if (index >= pImpl->frameCount)
     {
@@ -469,48 +470,111 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
         return nullptr;
     }
 
-    // Bilinear scaling (CPU implementation, fast for typical UI sizes)
+    // Scaling implementation based on filter type
     const float xRatio = static_cast<float>(sourceWidth) / targetWidth;
     const float yRatio = static_cast<float>(sourceHeight) / targetHeight;
 
-    for (uint32_t y = 0; y < targetHeight; ++y)
+    switch (filter)
     {
-        for (uint32_t x = 0; x < targetWidth; ++x)
-        {
-            // Calculate source position
-            const float srcX = x * xRatio;
-            const float srcY = y * yRatio;
-
-            // Get integer and fractional parts
-            const uint32_t x0 = static_cast<uint32_t>(srcX);
-            const uint32_t y0 = static_cast<uint32_t>(srcY);
-            const uint32_t x1 = (x0 + 1 < sourceWidth) ? (x0 + 1) : x0;
-            const uint32_t y1 = (y0 + 1 < sourceHeight) ? (y0 + 1) : y0;
-
-            const float fracX = srcX - x0;
-            const float fracY = srcY - y0;
-
-            // Get four surrounding pixels
-            const uint32_t idx00 = (y0 * sourceWidth + x0) * 4;
-            const uint32_t idx10 = (y0 * sourceWidth + x1) * 4;
-            const uint32_t idx01 = (y1 * sourceWidth + x0) * 4;
-            const uint32_t idx11 = (y1 * sourceWidth + x1) * 4;
-
-            // Bilinear interpolation for each channel (BGRA)
-            for (int c = 0; c < 4; ++c)
+        case ScalingFilter::Nearest:
+            // Nearest-neighbor (point sampling) - fastest
+            for (uint32_t y = 0; y < targetHeight; ++y)
             {
-                const float v00 = sourceBGRA[idx00 + c];
-                const float v10 = sourceBGRA[idx10 + c];
-                const float v01 = sourceBGRA[idx01 + c];
-                const float v11 = sourceBGRA[idx11 + c];
+                for (uint32_t x = 0; x < targetWidth; ++x)
+                {
+                    const uint32_t srcX = static_cast<uint32_t>(x * xRatio);
+                    const uint32_t srcY = static_cast<uint32_t>(y * yRatio);
+                    const uint32_t srcIdx = (srcY * sourceWidth + srcX) * 4;
+                    const uint32_t dstIdx = (y * targetWidth + x) * 4;
 
-                const float vTop = v00 * (1.0f - fracX) + v10 * fracX;
-                const float vBottom = v01 * (1.0f - fracX) + v11 * fracX;
-                const float vFinal = vTop * (1.0f - fracY) + vBottom * fracY;
-
-                scaledCache[(y * targetWidth + x) * 4 + c] = static_cast<uint8_t>(vFinal + 0.5f);
+                    scaledCache[dstIdx + 0] = sourceBGRA[srcIdx + 0];
+                    scaledCache[dstIdx + 1] = sourceBGRA[srcIdx + 1];
+                    scaledCache[dstIdx + 2] = sourceBGRA[srcIdx + 2];
+                    scaledCache[dstIdx + 3] = sourceBGRA[srcIdx + 3];
+                }
             }
-        }
+            break;
+
+        case ScalingFilter::Bilinear:
+        default:
+            // Bilinear interpolation - good balance
+            for (uint32_t y = 0; y < targetHeight; ++y)
+            {
+                for (uint32_t x = 0; x < targetWidth; ++x)
+                {
+                    const float srcX = x * xRatio;
+                    const float srcY = y * yRatio;
+
+                    const uint32_t x0 = static_cast<uint32_t>(srcX);
+                    const uint32_t y0 = static_cast<uint32_t>(srcY);
+                    const uint32_t x1 = (x0 + 1 < sourceWidth) ? (x0 + 1) : x0;
+                    const uint32_t y1 = (y0 + 1 < sourceHeight) ? (y0 + 1) : y0;
+
+                    const float fracX = srcX - x0;
+                    const float fracY = srcY - y0;
+
+                    const uint32_t idx00 = (y0 * sourceWidth + x0) * 4;
+                    const uint32_t idx10 = (y0 * sourceWidth + x1) * 4;
+                    const uint32_t idx01 = (y1 * sourceWidth + x0) * 4;
+                    const uint32_t idx11 = (y1 * sourceWidth + x1) * 4;
+
+                    for (int c = 0; c < 4; ++c)
+                    {
+                        const float v00 = sourceBGRA[idx00 + c];
+                        const float v10 = sourceBGRA[idx10 + c];
+                        const float v01 = sourceBGRA[idx01 + c];
+                        const float v11 = sourceBGRA[idx11 + c];
+
+                        const float vTop = v00 * (1.0f - fracX) + v10 * fracX;
+                        const float vBottom = v01 * (1.0f - fracX) + v11 * fracX;
+                        const float vFinal = vTop * (1.0f - fracY) + vBottom * fracY;
+
+                        scaledCache[(y * targetWidth + x) * 4 + c] = static_cast<uint8_t>(vFinal + 0.5f);
+                    }
+                }
+            }
+            break;
+
+        case ScalingFilter::Bicubic:
+        case ScalingFilter::Lanczos:
+            // TODO: Implement Bicubic and Lanczos filters
+            // For now, fall back to bilinear
+            for (uint32_t y = 0; y < targetHeight; ++y)
+            {
+                for (uint32_t x = 0; x < targetWidth; ++x)
+                {
+                    const float srcX = x * xRatio;
+                    const float srcY = y * yRatio;
+
+                    const uint32_t x0 = static_cast<uint32_t>(srcX);
+                    const uint32_t y0 = static_cast<uint32_t>(srcY);
+                    const uint32_t x1 = (x0 + 1 < sourceWidth) ? (x0 + 1) : x0;
+                    const uint32_t y1 = (y0 + 1 < sourceHeight) ? (y0 + 1) : y0;
+
+                    const float fracX = srcX - x0;
+                    const float fracY = srcY - y0;
+
+                    const uint32_t idx00 = (y0 * sourceWidth + x0) * 4;
+                    const uint32_t idx10 = (y0 * sourceWidth + x1) * 4;
+                    const uint32_t idx01 = (y1 * sourceWidth + x0) * 4;
+                    const uint32_t idx11 = (y1 * sourceWidth + x1) * 4;
+
+                    for (int c = 0; c < 4; ++c)
+                    {
+                        const float v00 = sourceBGRA[idx00 + c];
+                        const float v10 = sourceBGRA[idx10 + c];
+                        const float v01 = sourceBGRA[idx01 + c];
+                        const float v11 = sourceBGRA[idx11 + c];
+
+                        const float vTop = v00 * (1.0f - fracX) + v10 * fracX;
+                        const float vBottom = v01 * (1.0f - fracX) + v11 * fracX;
+                        const float vFinal = vTop * (1.0f - fracY) + vBottom * fracY;
+
+                        scaledCache[(y * targetWidth + x) * 4 + c] = static_cast<uint8_t>(vFinal + 0.5f);
+                    }
+                }
+            }
+            break;
     }
 
     return scaledCache.data();

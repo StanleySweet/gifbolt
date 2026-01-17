@@ -5,6 +5,21 @@ using System.Runtime.InteropServices;
 namespace GifBolt.Internal
 {
     /// <summary>
+    /// Image scaling filter types for resizing operations.
+    /// </summary>
+    public enum ScalingFilter
+    {
+        /// <summary>Nearest-neighbor (point) sampling - fastest, lowest quality.</summary>
+        Nearest = 0,
+        /// <summary>Bilinear interpolation - good balance of speed and quality.</summary>
+        Bilinear = 1,
+        /// <summary>Bicubic interpolation - higher quality, slower.</summary>
+        Bicubic = 2,
+        /// <summary>Lanczos resampling - highest quality, slowest.</summary>
+        Lanczos = 3
+    }
+
+    /// <summary>
     /// P/Invoke declarations for the GifBolt.Native C API.
     /// Provides managed access to native decoder functions.
     /// </summary>
@@ -135,10 +150,11 @@ namespace GifBolt.Internal
         /// <param name="outWidth">Output parameter receiving the actual output width.</param>
         /// <param name="outHeight">Output parameter receiving the actual output height.</param>
         /// <param name="byteCount">Output parameter receiving the size of the pixel buffer in bytes.</param>
+        /// <param name="filterType">The scaling filter to use (0=Nearest, 1=Bilinear, 2=Bicubic, 3=Lanczos).</param>
         /// <returns>A pointer to the BGRA32 premultiplied scaled pixel buffer, or <see cref="IntPtr.Zero"/> if retrieval failed.</returns>
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
             IntPtr decoder, int index, int targetWidth, int targetHeight,
-            out int outWidth, out int outHeight, out int byteCount);
+            out int outWidth, out int outHeight, out int byteCount, int filterType);
     }
 }

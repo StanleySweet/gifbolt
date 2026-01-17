@@ -42,8 +42,20 @@
                                           Source="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
                                           AutoStart="True"
                                           Loop="True"
-                                          Stretch="Uniform"/>
+                                          Stretch="Uniform"
+                                          ScalingFilter="Bilinear"/>
                     </Border>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
+                        <TextBlock Text="Scaling Filter:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                        <ComboBox x:Name="filterComboBox" SelectedIndex="1" Width="120"
+                                  SelectionChanged="OnFilterChanged">
+                            <ComboBoxItem Content="Nearest"/>
+                            <ComboBoxItem Content="Bilinear"/>
+                            <ComboBoxItem Content="Bicubic"/>
+                            <ComboBoxItem Content="Lanczos"/>
+                        </ComboBox>
+                    </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button Content="Play" Click="OnPlayClick" Width="80"/>

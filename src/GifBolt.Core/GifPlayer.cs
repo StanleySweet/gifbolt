@@ -109,10 +109,12 @@ public sealed class GifPlayer : IDisposable
     /// <param name="pixels">The output buffer containing BGRA32 premultiplied scaled pixel data.</param>
     /// <param name="outWidth">The actual output width in pixels.</param>
     /// <param name="outHeight">The actual output height in pixels.</param>
+    /// <param name="filter">The scaling filter to use (Nearest, Bilinear, Bicubic, Lanczos).</param>
     /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
     /// <remarks>This method uses GPU acceleration for high-quality bilinear scaling.</remarks>
     public bool TryGetFramePixelsBgra32PremultipliedScaled(int frameIndex, int targetWidth, int targetHeight,
-                                                            out byte[] pixels, out int outWidth, out int outHeight)
+                                                            out byte[] pixels, out int outWidth, out int outHeight,
+                                                            Internal.ScalingFilter filter = Internal.ScalingFilter.Bilinear)
     {
         pixels = Array.Empty<byte>();
         outWidth = 0;
@@ -122,7 +124,7 @@ public sealed class GifPlayer : IDisposable
         int byteCount;
         var ptr = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
             this._decoder.DangerousGetHandle(), frameIndex, targetWidth, targetHeight,
-            out outWidth, out outHeight, out byteCount);
+            out outWidth, out outHeight, out byteCount, (int)filter);
         if (ptr == IntPtr.Zero || byteCount <= 0)
             return false;
         pixels = new byte[byteCount];

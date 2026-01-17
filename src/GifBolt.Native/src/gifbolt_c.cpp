@@ -160,7 +160,7 @@ GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
 
     GB_API const void* gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
         gb_decoder_t decoder, int index, int targetWidth, int targetHeight,
-        int* outWidth, int* outHeight, int* byteCount)
+        int* outWidth, int* outHeight, int* byteCount, int filterType)
     {
         if (byteCount)
             *byteCount = 0;
@@ -182,7 +182,8 @@ GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
                 static_cast<uint32_t>(targetWidth),
                 static_cast<uint32_t>(targetHeight),
                 actualWidth,
-                actualHeight);
+                actualHeight,
+                static_cast<ScalingFilter>(filterType));
 
             if (!bgraPixels)
                 return nullptr;

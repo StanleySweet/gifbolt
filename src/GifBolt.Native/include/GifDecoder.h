@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "ScalingFilter.h"
+
 namespace GifBolt
 {
 
@@ -106,11 +108,12 @@ class GifDecoder
     /// \param targetHeight The desired output height in pixels.
     /// \param outWidth Output parameter receiving the actual output width.
     /// \param outHeight Output parameter receiving the actual output height.
+    /// \param filter The scaling filter to use (Nearest, Bilinear, Bicubic, Lanczos).
     /// \return A pointer to BGRA32 premultiplied scaled pixel data, or nullptr on error.
     ///         The data is cached internally and valid until the next call to this function.
-    const uint8_t* GetFramePixelsBGRA32PremultipliedScaled(uint32_t index, uint32_t targetWidth,
-                                                           uint32_t targetHeight,
-                                                           uint32_t& outWidth, uint32_t& outHeight);
+    const uint8_t* GetFramePixelsBGRA32PremultipliedScaled(
+        uint32_t index, uint32_t targetWidth, uint32_t targetHeight, uint32_t& outWidth,
+        uint32_t& outHeight, ScalingFilter filter = ScalingFilter::Bilinear);
 
    private:
     class Impl;

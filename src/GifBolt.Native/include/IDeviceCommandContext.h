@@ -88,6 +88,30 @@ class IDeviceCommandContext
         (void)pixelCount;
         return false;  // Default: not supported, use CPU fallback
     }
+
+    /// \brief Scales an image using GPU acceleration with the specified filter.
+    /// \param inputBGRA Pointer to input BGRA32 premultiplied pixel data.
+    /// \param inputWidth Width of the input image.
+    /// \param inputHeight Height of the input image.
+    /// \param outputBGRA Pointer to output buffer for scaled BGRA32 pixels.
+    /// \param outputWidth Desired output width.
+    /// \param outputHeight Desired output height.
+    /// \param filter The scaling filter to use (Nearest, Bilinear, Bicubic, Lanczos).
+    /// \return true if GPU scaling succeeded; false if not supported or failed.
+    /// \note Falls back to CPU scaling if GPU acceleration is not available.
+    virtual bool ScaleImageGPU(const void* inputBGRA, uint32_t inputWidth, uint32_t inputHeight,
+                               void* outputBGRA, uint32_t outputWidth, uint32_t outputHeight,
+                               int filterType)
+    {
+        (void)inputBGRA;
+        (void)inputWidth;
+        (void)inputHeight;
+        (void)outputBGRA;
+        (void)outputWidth;
+        (void)outputHeight;
+        (void)filterType;
+        return false;  // Default: not supported, use CPU fallback
+    }
 };
 
 }  // namespace Renderer

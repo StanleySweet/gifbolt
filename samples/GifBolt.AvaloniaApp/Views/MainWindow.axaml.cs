@@ -95,6 +95,17 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnFilterChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (this._gifControl != null && e.AddedItems.Count > 0)
+        {
+            var selectedIndex = (sender as ComboBox)?.SelectedIndex ?? 1;
+            this._gifControl.ScalingFilter = (GifBolt.Internal.ScalingFilter)selectedIndex;
+            this._gifControl.InvalidateVisual();
+            this.UpdateStatus($"Scaling filter: {(GifBolt.Internal.ScalingFilter)selectedIndex}");
+        }
+    }
+
     private void UpdateStatus(string message)
     {
         var statusText = this.FindControl<global::Avalonia.Controls.TextBlock>("statusText");

@@ -111,6 +111,23 @@ namespace GifBolt.Avalonia
             get => this.GetValue(StretchProperty);
             set => this.SetValue(StretchProperty, value);
         }
+
+        /// <summary>
+        /// Defines the <see cref="ScalingFilter"/> property.
+        /// </summary>
+        public static readonly StyledProperty<GifBolt.Internal.ScalingFilter> ScalingFilterProperty =
+            AvaloniaProperty.Register<GifBoltControl, GifBolt.Internal.ScalingFilter>(
+                nameof(ScalingFilter),
+                defaultValue: GifBolt.Internal.ScalingFilter.Bilinear);
+
+        /// <summary>
+        /// Gets or sets the scaling filter used when resizing GIF frames (Nearest, Bilinear, Bicubic, Lanczos).
+        /// </summary>
+        public GifBolt.Internal.ScalingFilter ScalingFilter
+        {
+            get => this.GetValue(ScalingFilterProperty);
+            set => this.SetValue(ScalingFilterProperty, value);
+        }
         #endregion
 
         static GifBoltControl()
@@ -177,10 +194,11 @@ namespace GifBolt.Avalonia
                 if (targetWidth > 0 && targetHeight > 0 &&
                     (targetWidth != this._bitmap.PixelSize.Width || targetHeight != this._bitmap.PixelSize.Height))
                 {
-                    // Request scaled frame from C++ (GPU-accelerated bilinear filtering)
+                    // Request scaled frame from C++ with selected filter
                     if (this._player.TryGetFramePixelsBgra32PremultipliedScaled(
                         this._player.CurrentFrame, targetWidth, targetHeight,
-                        out byte[] scaledPixels, out int actualWidth, out int actualHeight))
+                        out byte[] scaledPixels, out int actualWidth, out int actualHeight,
+                        this.ScalingFilter))
                     {
                         if (scaledPixels.Length > 0 && actualWidth > 0 && actualHeight > 0)
                         {
