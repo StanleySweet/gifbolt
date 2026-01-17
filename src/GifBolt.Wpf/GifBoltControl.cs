@@ -144,6 +144,43 @@ namespace GifBolt.Wpf
             }
         }
 
+        #region Public Control Methods
+        /// <summary>Démarre la lecture du GIF.</summary>
+        public void Play()
+        {
+            if (this._native != IntPtr.Zero)
+            {
+                GifBolt_Play(this._native);
+            }
+        }
+
+        /// <summary>Met en pause la lecture du GIF.</summary>
+        public void Pause()
+        {
+            if (this._native != IntPtr.Zero)
+            {
+                GifBolt_Pause(this._native);
+            }
+        }
+
+        /// <summary>Arrête la lecture et revient au début.</summary>
+        public void Stop()
+        {
+            if (this._native != IntPtr.Zero)
+            {
+                GifBolt_Stop(this._native);
+            }
+        }
+
+        /// <summary>Charge un nouveau GIF depuis un chemin.</summary>
+        /// <param name="path">Chemin du fichier GIF.</param>
+        public void LoadGif(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            this.Source = path;
+        }
+        #endregion
+
         #region Native Interop
         private const string NativeLib = "GifBolt.Native";
 

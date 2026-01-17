@@ -16,17 +16,17 @@ namespace GifBolt.SampleApp
 
         private void OnPlay(object sender, RoutedEventArgs e)
         {
-            // Control's internal Play() will be exposed via native layer
+            this.GifControl.Play();
         }
 
         private void OnPause(object sender, RoutedEventArgs e)
         {
-            // Control's internal Pause() will be exposed via native layer
+            this.GifControl.Pause();
         }
 
         private void OnStop(object sender, RoutedEventArgs e)
         {
-            // Control's internal Stop() will be exposed via native layer
+            this.GifControl.Stop();
         }
 
         private void OnLoadGif(object sender, RoutedEventArgs e)
@@ -38,7 +38,7 @@ namespace GifBolt.SampleApp
             };
             if (dlg.ShowDialog() == true)
             {
-                this.GifControl.Source = dlg.FileName;
+                this.GifControl.LoadGif(dlg.FileName);
             }
         }
     }
