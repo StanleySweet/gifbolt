@@ -1,0 +1,213 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+
+#pragma once
+
+#include <cstdint>
+#include <cstring>
+
+#include "PixelFormat.h"
+
+namespace GifBolt
+{
+namespace Renderer
+{
+namespace PixelFormats
+{
+
+/// \brief Converts RGBA pixels to BGRA format.
+/// \param source Source buffer containing RGBA pixel data.
+/// \param dest Destination buffer for BGRA pixel data (must be pre-allocated).
+/// \param pixelCount Number of pixels to convert.
+inline void ConvertRGBAToBGRA(const uint8_t* source, uint8_t* dest, size_t pixelCount)
+{
+    for (size_t i = 0; i < pixelCount; ++i)
+    {
+        const size_t offset = i * 4;
+        dest[offset + 0] = source[offset + 2];  // B
+        dest[offset + 1] = source[offset + 1];  // G
+        dest[offset + 2] = source[offset + 0];  // R
+        dest[offset + 3] = source[offset + 3];  // A
+    }
+}
+
+/// \brief Converts BGRA pixels to RGBA format.
+/// \param source Source buffer containing BGRA pixel data.
+/// \param dest Destination buffer for RGBA pixel data (must be pre-allocated).
+/// \param pixelCount Number of pixels to convert.
+inline void ConvertBGRAToRGBA(const uint8_t* source, uint8_t* dest, size_t pixelCount)
+{
+    // BGRA to RGBA is symmetric with RGBA to BGRA
+    ConvertRGBAToBGRA(source, dest, pixelCount);
+}
+
+/// \brief Premultiplies alpha in RGBA format.
+/// \param pixels Pixel buffer containing RGBA data (modified in-place).
+/// \param pixelCount Number of pixels to process.
+inline void PremultiplyAlphaRGBA(uint8_t* pixels, size_t pixelCount)
+{
+    for (size_t i = 0; i < pixelCount; ++i)
+    {
+        const size_t offset = i * 4;
+        uint8_t& r = pixels[offset + 0];
+        uint8_t& g = pixels[offset + 1];
+        uint8_t& b = pixels[offset + 2];
+        uint8_t alpha = pixels[offset + 3];
+
+        if (alpha == 0)
+        {
+            // Fully transparent: zero out RGB to avoid color bleed
+            r = 0;
+            g = 0;
+            b = 0;
+        }
+        else if (alpha < 255)
+        {
+            // Premultiply RGB by alpha
+            const float alphaFactor = alpha / 255.0f;
+            r = static_cast<uint8_t>(r * alphaFactor);
+            g = static_cast<uint8_t>(g * alphaFactor);
+            b = static_cast<uint8_t>(b * alphaFactor);
+        }
+        // If alpha == 255, no premultiplication needed
+    }
+}
+
+/// \brief Premultiplies alpha in BGRA format.
+/// \param pixels Pixel buffer containing BGRA data (modified in-place).
+/// \param pixelCount Number of pixels to process.
+inline void PremultiplyAlphaBGRA(uint8_t* pixels, size_t pixelCount)
+{
+    for (size_t i = 0; i < pixelCount; ++i)
+    {
+        const size_t offset = i * 4;
+        uint8_t& b = pixels[offset + 0];
+        uint8_t& g = pixels[offset + 1];
+        uint8_t& r = pixels[offset + 2];
+        uint8_t alpha = pixels[offset + 3];
+
+        if (alpha == 0)
+        {
+            // Fully transparent: zero out RGB to avoid color bleed
+            b = 0;
+            g = 0;
+            r = 0;
+        }
+        else if (alpha < 255)
+        {
+            // Premultiply RGB by alpha
+            const float alphaFactor = alpha / 255.0f;
+            b = static_cast<uint8_t>(b * alphaFactor);
+            g = static_cast<uint8_t>(g * alphaFactor);
+            r = static_cast<uint8_t>(r * alphaFactor);
+        }
+        // If alpha == 255, no premultiplication needed
+    }
+}
+
+/// \brief Converts RGBA to BGRA with premultiplied alpha in a single pass.
+/// \param source Source buffer containing RGBA pixel data.
+/// \param dest Destination buffer for BGRA premultiplied pixel data (must be pre-allocated).
+/// \param pixelCount Number of pixels to convert.
+///
+/// This is more efficient than calling ConvertRGBAToBGRA followed by PremultiplyAlphaBGRA.
+inline void ConvertRGBAToBGRAPremultiplied(const uint8_t* source, uint8_t* dest, size_t pixelCount)
+{
+    for (size_t i = 0; i < pixelCount; ++i)
+    {
+        const size_t offset = i * 4;
+        const uint8_t r = source[offset + 0];
+        const uint8_t g = source[offset + 1];
+        const uint8_t b = source[offset + 2];
+        const uint8_t alpha = source[offset + 3];
+
+        if (alpha == 0)
+        {
+            // Fully transparent: zero out RGB to avoid color bleed
+            dest[offset + 0] = 0;  // B
+            dest[offset + 1] = 0;  // G
+            dest[offset + 2] = 0;  // R
+            dest[offset + 3] = 0;  // A
+        }
+        else if (alpha < 255)
+        {
+            // Premultiply RGB by alpha and swap R/B channels
+            const float alphaFactor = alpha / 255.0f;
+            dest[offset + 0] = static_cast<uint8_t>(b * alphaFactor);  // B
+            dest[offset + 1] = static_cast<uint8_t>(g * alphaFactor);  // G
+            dest[offset + 2] = static_cast<uint8_t>(r * alphaFactor);  // R
+            dest[offset + 3] = alpha;                                  // A
+        }
+        else
+        {
+            // Fully opaque: just swap R/B channels, no premultiplication
+            dest[offset + 0] = b;      // B
+            dest[offset + 1] = g;      // G
+            dest[offset + 2] = r;      // R
+            dest[offset + 3] = alpha;  // A
+        }
+    }
+}
+
+/// \brief Converts pixel data from one format to another.
+/// \param source Source buffer containing pixel data.
+/// \param sourceFormat The format of the source pixels.
+/// \param dest Destination buffer (must be pre-allocated).
+/// \param destFormat The desired destination format.
+/// \param pixelCount Number of pixels to convert.
+/// \param premultiplyAlpha If true and dest has alpha, premultiply alpha.
+/// \return true if conversion succeeded; false if formats are incompatible.
+inline bool ConvertPixelFormat(const uint8_t* source, Format sourceFormat, uint8_t* dest,
+                               Format destFormat, size_t pixelCount, bool premultiplyAlpha = false)
+{
+    // Same format: direct copy
+    if (sourceFormat == destFormat)
+    {
+        const size_t sourceBytes = GetFormatBytesPerPixel(sourceFormat) * pixelCount;
+        std::memcpy(dest, source, sourceBytes);
+
+        if (premultiplyAlpha && HasAlphaChannel(destFormat))
+        {
+            if (destFormat == Format::R8G8B8A8_UNORM)
+            {
+                PremultiplyAlphaRGBA(dest, pixelCount);
+            }
+            else if (destFormat == Format::B8G8R8A8_UNORM)
+            {
+                PremultiplyAlphaBGRA(dest, pixelCount);
+            }
+        }
+        return true;
+    }
+
+    // RGBA8 <-> BGRA8 conversions
+    if (sourceFormat == Format::R8G8B8A8_UNORM && destFormat == Format::B8G8R8A8_UNORM)
+    {
+        if (premultiplyAlpha)
+        {
+            ConvertRGBAToBGRAPremultiplied(source, dest, pixelCount);
+        }
+        else
+        {
+            ConvertRGBAToBGRA(source, dest, pixelCount);
+        }
+        return true;
+    }
+
+    if (sourceFormat == Format::B8G8R8A8_UNORM && destFormat == Format::R8G8B8A8_UNORM)
+    {
+        ConvertBGRAToRGBA(source, dest, pixelCount);
+        if (premultiplyAlpha)
+        {
+            PremultiplyAlphaRGBA(dest, pixelCount);
+        }
+        return true;
+    }
+
+    // Unsupported conversion
+    return false;
+}
+
+}  // namespace PixelFormats
+}  // namespace Renderer
+}  // namespace GifBolt

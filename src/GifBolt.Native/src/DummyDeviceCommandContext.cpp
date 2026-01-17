@@ -33,9 +33,9 @@ class DummyTexture : public ITexture
     {
         return m_Height;
     }
-    TextureFormat GetFormat() const override
+    PixelFormats::Format GetFormat() const override
     {
-        return TextureFormat::RGBA8;
+        return PixelFormats::Format::R8G8B8A8_UNORM;
     }
 
     bool Update(const void* data, size_t dataSize) override

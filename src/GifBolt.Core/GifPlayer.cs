@@ -83,6 +83,25 @@ public sealed class GifPlayer : IDisposable
         return true;
     }
 
+    /// <summary>Gets the BGRA32 pixel data with premultiplied alpha for the specified frame.</summary>
+    /// <param name="frameIndex">The index of the frame.</param>
+    /// <param name="pixels">The output buffer containing BGRA32 premultiplied pixel data.</param>
+    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
+    /// <remarks>This method is optimized for Avalonia and other frameworks requiring premultiplied alpha.</remarks>
+    public bool TryGetFramePixelsBgra32Premultiplied(int frameIndex, out byte[] pixels)
+    {
+        pixels = Array.Empty<byte>();
+        if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+            return false;
+        int byteCount;
+        var ptr = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied(this._decoder.DangerousGetHandle(), frameIndex, out byteCount);
+        if (ptr == IntPtr.Zero || byteCount <= 0)
+            return false;
+        pixels = new byte[byteCount];
+        System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, byteCount);
+        return true;
+    }
+
     /// <summary>Gets the display duration of the specified frame.</summary>
     /// <param name="frameIndex">The index of the frame.</param>
     /// <returns>The frame delay in milliseconds.</returns>

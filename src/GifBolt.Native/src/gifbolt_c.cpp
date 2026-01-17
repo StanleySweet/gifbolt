@@ -128,6 +128,36 @@ GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
         }
     }
 
+    GB_API const void* gb_decoder_get_frame_pixels_bgra32_premultiplied(gb_decoder_t decoder,
+                                                                        int index, int* byteCount)
+    {
+        if (byteCount)
+            *byteCount = 0;
+        if (!decoder)
+            return nullptr;
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        if (index < 0)
+            return nullptr;
+        try
+        {
+            const uint8_t* bgraPixels = ptr->GetFramePixelsBGRA32Premultiplied(static_cast<uint32_t>(index));
+            if (!bgraPixels)
+                return nullptr;
+
+            if (byteCount)
+            {
+                // Get frame dimensions to calculate byte count
+                const GifFrame& f = ptr->GetFrame(static_cast<uint32_t>(index));
+                *byteCount = static_cast<int>(f.pixels.size() * sizeof(uint32_t));
+            }
+            return reinterpret_cast<const void*>(bgraPixels);
+        }
+        catch (...)
+        {
+            return nullptr;
+        }
+    }
+
     GB_API unsigned int gb_decoder_get_background_color(gb_decoder_t decoder)
     {
         if (!decoder)

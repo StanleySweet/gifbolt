@@ -93,6 +93,12 @@ class GifDecoder
     /// \return The background color as RGBA32 (0xAABBGGRR).
     uint32_t GetBackgroundColor() const;
 
+    /// \brief Gets BGRA pixel data with premultiplied alpha for the specified frame.
+    /// \param index The zero-based index of the frame.
+    /// \return A pointer to BGRA32 premultiplied pixel data, or nullptr on error.
+    ///         The data is cached internally and valid until the next call to this function.
+    const uint8_t* GetFramePixelsBGRA32Premultiplied(uint32_t index);
+
    private:
     class Impl;
     std::unique_ptr<Impl> pImpl;  ///< Opaque implementation (Pimpl pattern)

@@ -5,19 +5,12 @@
 
 #include <cstdint>
 
+#include "PixelFormat.h"
+
 namespace GifBolt
 {
 namespace Renderer
 {
-
-/// \enum TextureFormat
-/// \brief Pixel format for textures.
-enum class TextureFormat
-{
-    RGBA8,  ///< 32-bit RGBA format (8 bits per channel)
-    BGRA8,  ///< 32-bit BGRA format (8 bits per channel, DirectX native)
-    RGB8    ///< 24-bit RGB format (8 bits per channel)
-};
 
 /// \class ITexture
 /// \brief Abstract interface for GPU textures.
@@ -38,8 +31,8 @@ class ITexture
     virtual uint32_t GetHeight() const = 0;
 
     /// \brief Gets the pixel format of the texture.
-    /// \return The TextureFormat enum value.
-    virtual TextureFormat GetFormat() const = 0;
+    /// \return The PixelFormats::Format enum value.
+    virtual PixelFormats::Format GetFormat() const = 0;
 
     /// \brief Updates the texture with new pixel data.
     /// \param data Pointer to the pixel data.

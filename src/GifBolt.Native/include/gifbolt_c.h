@@ -83,6 +83,16 @@ extern "C"
     GB_API const void* gb_decoder_get_frame_pixels_rgba32(gb_decoder_t decoder, int index,
                                                           int* byteCount);
 
+    /// \brief Gets BGRA32 pixel data with premultiplied alpha for the specified frame.
+    /// \param decoder The decoder handle.
+    /// \param index The zero-based frame index.
+    /// \param[out] byteCount Pointer to receive the size of pixel data in bytes.
+    /// \return Pointer to BGRA32 premultiplied pixel data, or NULL on error.
+    ///         The pointer is valid until the next decoder operation.
+    ///         This is optimized for Avalonia and other frameworks requiring premultiplied alpha.
+    GB_API const void* gb_decoder_get_frame_pixels_bgra32_premultiplied(gb_decoder_t decoder,
+                                                                        int index, int* byteCount);
+
     /// \brief Gets the background color of the GIF.
     /// \param decoder The decoder handle.
     /// \return The background color as RGBA32 (0xAABBGGRR), or 0xFF000000 (black) on error.

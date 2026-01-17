@@ -154,6 +154,27 @@ namespace GifBolt.Avalonia
             }
         }
 
+        private void RenderCurrentFrame()
+        {
+            if (this._player == null || this._bitmap == null)
+            {
+                return;
+            }
+
+            // Get current frame pixels directly in BGRA format with premultiplied alpha (C++ optimized)
+            if (this._player.TryGetFramePixelsBgra32Premultiplied(this._player.CurrentFrame, out byte[] bgraPixels))
+            {
+                if (bgraPixels.Length > 0)
+                {
+                    // Direct copy - no conversion needed as C++ already did the work
+                    using (var buffer = this._bitmap.Lock())
+                    {
+                        Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
+                    }
+                }
+            }
+        }
+
         private void OnRenderTick(object? sender, EventArgs e)
         {
             if (this._player == null || !this._isPlaying || this._bitmap == null || this._renderTimer == null)
@@ -163,60 +184,7 @@ namespace GifBolt.Avalonia
 
             try
             {
-                // Get current frame pixels
-                if (this._player.TryGetFramePixelsRgba32(this._player.CurrentFrame, out byte[] rgbaPixels))
-                {
-                    if (rgbaPixels.Length > 0)
-                    {
-                        // Log first frame for debugging
-                        if (this._player.CurrentFrame == 0)
-                        {
-                            Console.WriteLine($"[GifBolt] Frame 0: {rgbaPixels.Length} bytes, expected {this._player.Width * this._player.Height * 4}");
-                            Console.WriteLine($"[GifBolt] First 16 bytes (RGBA): {string.Join(",", rgbaPixels.Take(16))}");
-                        }
-
-                        // Convert RGBA to BGRA with premultiplied alpha for Avalonia
-                        byte[] bgraPixels = new byte[rgbaPixels.Length];
-                        for (int i = 0; i < rgbaPixels.Length; i += 4)
-                        {
-                            byte r = rgbaPixels[i];
-                            byte g = rgbaPixels[i + 1];
-                            byte b = rgbaPixels[i + 2];
-                            byte a = rgbaPixels[i + 3];
-
-                            // For premultiplied alpha: if alpha=0, RGB MUST be 0 to avoid color bleed
-                            if (a == 0)
-                            {
-                                bgraPixels[i] = 0;     // B
-                                bgraPixels[i + 1] = 0; // G
-                                bgraPixels[i + 2] = 0; // R
-                                bgraPixels[i + 3] = 0; // A
-                            }
-                            else if (a < 255)
-                            {
-                                // Premultiply alpha for proper composition
-                                float alpha = a / 255f;
-                                bgraPixels[i] = (byte)(b * alpha);     // B
-                                bgraPixels[i + 1] = (byte)(g * alpha); // G
-                                bgraPixels[i + 2] = (byte)(r * alpha); // R
-                                bgraPixels[i + 3] = a;                 // A
-                            }
-                            else
-                            {
-                                // Fully opaque, no premultiplication needed
-                                bgraPixels[i] = b;     // B
-                                bgraPixels[i + 1] = g; // G
-                                bgraPixels[i + 2] = r; // R
-                                bgraPixels[i + 3] = a; // A
-                            }
-                        }
-
-                        using (var buffer = this._bitmap.Lock())
-                        {
-                            Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
-                        }
-                    }
-                }
+                this.RenderCurrentFrame();
 
                 // Advance to next frame
                 int nextFrame = this._player.CurrentFrame + 1;
@@ -266,8 +234,6 @@ namespace GifBolt.Avalonia
             }
 
             var source = this.Source;
-            var startTime = DateTime.UtcNow;
-            Console.WriteLine($"[GifBolt] Starting GIF load from: {source}");
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
@@ -279,27 +245,25 @@ namespace GifBolt.Avalonia
                     if (!player.Load(source))
                     {
                         player.Dispose();
-                        Console.WriteLine($"[GifBolt] Failed to load GIF");
                         return;
                     }
 
-                    var loadTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                    Console.WriteLine($"[GifBolt] GIF loaded in {loadTime:F0}ms - {player.Width}x{player.Height}, {player.FrameCount} frames");
-
-// Create bitmap for display with premultiplied alpha for proper composition
+                    // Create bitmap for display with premultiplied alpha for proper composition
                     var bitmap = new WriteableBitmap(
                         new PixelSize(player.Width, player.Height),
                         new Vector(96, 96),
                         PixelFormat.Bgra8888,
                         AlphaFormat.Premul);
 
-                    Console.WriteLine($"[GifBolt] Bitmap created: {player.Width}x{player.Height}, format=Bgra8888, alpha=Premul");
-
                     global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                     {
                         this._player = player;
                         this._bitmap = bitmap;
                         this._repeatCount = this.Loop ? -1 : 1;
+
+                        // Render first frame immediately
+                        this.RenderCurrentFrame();
+                        this.InvalidateVisual();
 
                         if (this.AutoStart)
                         {

@@ -168,25 +168,20 @@ namespace GifBolt.Avalonia
 
             if (e.NewValue == null)
             {
-                Console.WriteLine("[GifBolt] AnimatedSource cleared");
                 return;
             }
 
             string? path = GetPathFromSource(e.NewValue);
             if (string.IsNullOrWhiteSpace(path))
             {
-                Console.WriteLine("[GifBolt] Invalid path from source");
                 return;
             }
-
-            Console.WriteLine($"[GifBolt] Loading GIF from: {path}");
 
             GifAnimationController? asyncController = null;
             asyncController = new GifAnimationController(image, path,
                 onLoaded: () =>
                 {
                     SetAnimationController(image, asyncController);
-                    Console.WriteLine($"[GifBolt] GIF loaded successfully: {asyncController.Width}x{asyncController.Height}, {asyncController.FrameCount} frames");
 
                     var repeatBehavior = GetRepeatBehavior(image);
                     asyncController.SetRepeatBehavior(repeatBehavior);
@@ -200,7 +195,6 @@ namespace GifBolt.Avalonia
                     if (GetAutoStart(image))
                     {
                         asyncController.Play();
-                        Console.WriteLine("[GifBolt] Animation started");
                     }
 
                     if (image != null)
@@ -303,7 +297,6 @@ namespace GifBolt.Avalonia
                         {
                             assets.CopyTo(fileStream);
                         }
-                        Console.WriteLine($"[GifBolt] Asset extracted to: {tempPath}");
                         return tempPath;
                     }
                     catch (Exception ex)
@@ -355,9 +348,6 @@ namespace GifBolt.Avalonia
             // Défaut : impose un délai minimal de 100ms par frame (Chrome/macOS/ezgif)
             this._player.SetMinFrameDelayMs(100);
 
-            var startTime = DateTime.UtcNow;
-            Console.WriteLine($"[ImageBehavior] Starting GIF load from: {path}");
-
             // Chargement du GIF en tâche de fond pour éviter le freeze UI
             System.Threading.Tasks.Task.Run(() =>
             {
@@ -371,16 +361,11 @@ namespace GifBolt.Avalonia
                         return;
                     }
 
-                    var loadTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                    Console.WriteLine($"[ImageBehavior] GIF loaded in {loadTime:F0}ms - {this._player.Width}x{this._player.Height}, {this._player.FrameCount} frames");
-
                     var wb = new WriteableBitmap(
                         new PixelSize(this._player.Width, this._player.Height),
                         new Vector(96, 96),
                         PixelFormat.Bgra8888,
                         AlphaFormat.Premul);
-
-                    Console.WriteLine($"[ImageBehavior] Bitmap created: {this._player.Width}x{this._player.Height}, format=Bgra8888, alpha=Premul");
 
                     // Affectation du bitmap et initialisation du timer sur le thread UI
                     global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -392,7 +377,6 @@ namespace GifBolt.Avalonia
                             Interval = TimeSpan.FromMilliseconds(16)
                         };
                         this._renderTimer.Tick += this.OnRenderTick;
-                        Console.WriteLine("[ImageBehavior] Timer initialized, invoking onLoaded callback");
                         onLoaded?.Invoke();
                     });
                 }

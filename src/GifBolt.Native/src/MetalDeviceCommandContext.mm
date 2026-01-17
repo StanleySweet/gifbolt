@@ -62,9 +62,9 @@ class MetalTexture : public ITexture
         return _height;
     }
 
-    TextureFormat GetFormat() const override
+    PixelFormats::Format GetFormat() const override
     {
-        return TextureFormat::RGBA8;
+        return PixelFormats::Format::R8G8B8A8_UNORM;
     }
 
     bool Update(const void* rgba32Pixels, size_t byteCount) override

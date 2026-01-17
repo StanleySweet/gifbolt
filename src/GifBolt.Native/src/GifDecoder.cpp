@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 #include "GifDecoder.h"
+#include "PixelConversion.h"
 #include <gif_lib.h>
 #include <fstream>
 #include <stdexcept>
@@ -26,6 +27,7 @@ class GifDecoder::Impl
     uint32_t height = 0;
     uint32_t backgroundColor = 0xFF000000;  ///< Default: opaque black
     bool looping = false;
+    std::vector<uint8_t> bgraPremultipliedCache;  ///< Cache for BGRA premultiplied pixels
 
     bool LoadGif(const std::string& filePath);
     void DecodeFrame(GifFileType* gif, int frameIndex);
@@ -146,10 +148,6 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, int frameIndex) {
     composedFrame.offsetX = 0;
     composedFrame.offsetY = 0;
     composedFrame.pixels = canvas;  // Store the full canvas as frame result
-
-    // Debug log
-    printf("[GifDecoder] Frame %d: frame.pixels=%zu, canvas.size=%zu, composedFrame.pixels=%zu\n",
-           frameIndex, frame.pixels.size(), canvas.size(), composedFrame.pixels.size());
 
     frames.push_back(composedFrame);  // Copy instead of move to preserve pixels
 }
@@ -313,6 +311,30 @@ void GifBolt::GifDecoder::SetMinFrameDelayMs(uint32_t minDelayMs)
 uint32_t GifBolt::GifDecoder::GetMinFrameDelayMs() const
 {
     return pImpl->minFrameDelayMs;
+}
+
+const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
+{
+    if (index >= pImpl->frames.size())
+    {
+        return nullptr;
+    }
+
+    const GifFrame& frame = pImpl->frames[index];
+    const size_t pixelCount = frame.pixels.size();
+    const size_t byteCount = pixelCount * 4;
+
+    // Resize cache if needed
+    if (pImpl->bgraPremultipliedCache.size() != byteCount)
+    {
+        pImpl->bgraPremultipliedCache.resize(byteCount);
+    }
+
+    // Convert RGBA to BGRA with premultiplied alpha in one pass
+    const uint8_t* sourceRGBA = reinterpret_cast<const uint8_t*>(frame.pixels.data());
+    Renderer::PixelFormats::ConvertRGBAToBGRAPremultiplied(sourceRGBA, pImpl->bgraPremultipliedCache.data(), pixelCount);
+
+    return pImpl->bgraPremultipliedCache.data();
 }
 
 }  // namespace GifBolt
