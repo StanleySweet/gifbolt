@@ -94,6 +94,23 @@ namespace GifBolt.Avalonia
             get => this.GetValue(LoopProperty);
             set => this.SetValue(LoopProperty, value);
         }
+
+        /// <summary>
+        /// Defines the <see cref="Stretch"/> property.
+        /// </summary>
+        public static readonly StyledProperty<Stretch> StretchProperty =
+            AvaloniaProperty.Register<GifBoltControl, Stretch>(
+                nameof(Stretch),
+                defaultValue: Stretch.Fill);
+
+        /// <summary>
+        /// Gets or sets how the GIF is stretched to fill the control bounds.
+        /// </summary>
+        public Stretch Stretch
+        {
+            get => this.GetValue(StretchProperty);
+            set => this.SetValue(StretchProperty, value);
+        }
         #endregion
 
         static GifBoltControl()
@@ -149,8 +166,56 @@ namespace GifBolt.Avalonia
 
             if (this._bitmap != null)
             {
-                var rect = new Rect(0, 0, this.Bounds.Width, this.Bounds.Height);
-                context.DrawImage(this._bitmap, rect);
+                var sourceSize = new Size(this._bitmap.PixelSize.Width, this._bitmap.PixelSize.Height);
+                var viewportSize = this.Bounds.Size;
+                var destRect = this.CalculateStretchRect(sourceSize, viewportSize);
+                context.DrawImage(this._bitmap, destRect);
+            }
+        }
+
+        /// <summary>
+        /// Calculates the destination rectangle based on the Stretch mode.
+        /// </summary>
+        /// <param name="sourceSize">The size of the source image.</param>
+        /// <param name="viewportSize">The size of the viewport.</param>
+        /// <returns>The calculated destination rectangle.</returns>
+        private Rect CalculateStretchRect(Size sourceSize, Size viewportSize)
+        {
+            if (sourceSize.Width == 0 || sourceSize.Height == 0)
+            {
+                return new Rect(0, 0, viewportSize.Width, viewportSize.Height);
+            }
+
+            switch (this.Stretch)
+            {
+                case Stretch.None:
+                    return new Rect(0, 0, sourceSize.Width, sourceSize.Height);
+
+                case Stretch.Fill:
+                    return new Rect(0, 0, viewportSize.Width, viewportSize.Height);
+
+                case Stretch.Uniform:
+                    {
+                        var scale = Math.Min(viewportSize.Width / sourceSize.Width, viewportSize.Height / sourceSize.Height);
+                        var scaledWidth = sourceSize.Width * scale;
+                        var scaledHeight = sourceSize.Height * scale;
+                        var x = (viewportSize.Width - scaledWidth) / 2;
+                        var y = (viewportSize.Height - scaledHeight) / 2;
+                        return new Rect(x, y, scaledWidth, scaledHeight);
+                    }
+
+                case Stretch.UniformToFill:
+                    {
+                        var scale = Math.Max(viewportSize.Width / sourceSize.Width, viewportSize.Height / sourceSize.Height);
+                        var scaledWidth = sourceSize.Width * scale;
+                        var scaledHeight = sourceSize.Height * scale;
+                        var x = (viewportSize.Width - scaledWidth) / 2;
+                        var y = (viewportSize.Height - scaledHeight) / 2;
+                        return new Rect(x, y, scaledWidth, scaledHeight);
+                    }
+
+                default:
+                    return new Rect(0, 0, viewportSize.Width, viewportSize.Height);
             }
         }
 

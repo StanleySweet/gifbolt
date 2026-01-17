@@ -41,7 +41,8 @@
                         <gif:GifBoltControl x:Name="gifControl"
                                           Source="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
                                           AutoStart="True"
-                                          Loop="True"/>
+                                          Loop="True"
+                                          Stretch="Uniform"/>
                     </Border>
 
                     <StackPanel Orientation="Horizontal" Spacing="10">
