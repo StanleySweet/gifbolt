@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 using System;
 using System.Windows;
+using GifBolt;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -261,23 +262,7 @@ namespace GifBolt.Wpf
         /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
         public void SetRepeatBehavior(string repeatBehavior)
         {
-            if (string.IsNullOrWhiteSpace(repeatBehavior) || repeatBehavior == "0x")
-            {
-                // Utiliser les métadonnées du GIF
-                this._repeatCount = this._player.IsLooping ? -1 : 1;
-            }
-            else if (repeatBehavior.Equals("Forever", StringComparison.OrdinalIgnoreCase))
-            {
-                this._repeatCount = -1;
-            }
-            else if (repeatBehavior.EndsWith("x", StringComparison.OrdinalIgnoreCase))
-            {
-                var countStr = repeatBehavior.Substring(0, repeatBehavior.Length - 1);
-                if (int.TryParse(countStr, out int count))
-                {
-                    this._repeatCount = count;
-                }
-            }
+            this._repeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this._player.IsLooping);
         }
 
         /// <summary>
