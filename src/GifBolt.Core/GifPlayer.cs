@@ -5,33 +5,31 @@ using GifBolt.Internal;
 namespace GifBolt;
 
 /// <summary>
-/// Surface core de lecture (netstandard2.0), sans UI.
-/// Les wrappers (WPF, etc.) s’appuient dessus.
-/// </summary>
-/// <summary>
-/// Lecteur GIF de base. Fournit le chargement, lecture/pause et accès aux pixels RGBA.
+/// Cross-platform GIF player for netstandard2.0.
+/// Provides loading, playback control, and RGBA pixel access.
+/// Platform wrappers (WPF, etc.) build on top of this.
 /// </summary>
 public sealed class GifPlayer : IDisposable
 {
     private DecoderHandle? _decoder;
 
-    /// <summary>Indique si la lecture est en cours.</summary>
+    /// <summary>Gets a value indicating whether playback is in progress.</summary>
     public bool IsPlaying { get; private set; }
-    /// <summary>Indique si le GIF boucle indéfiniment.</summary>
+    /// <summary>Gets a value indicating whether the GIF loops indefinitely.</summary>
     public bool IsLooping { get; private set; }
 
-    /// <summary>Nombre total d’images.</summary>
+    /// <summary>Gets the total number of frames in the GIF.</summary>
     public int FrameCount { get; private set; }
-    /// <summary>Index de l’image courante.</summary>
+    /// <summary>Gets the index of the current frame.</summary>
     public int CurrentFrame { get; private set; }
-    /// <summary>Largeur de l’image en pixels.</summary>
+    /// <summary>Gets the width of the image in pixels.</summary>
     public int Width { get; private set; }
-    /// <summary>Hauteur de l’image en pixels.</summary>
+    /// <summary>Gets the height of the image in pixels.</summary>
     public int Height { get; private set; }
 
-    /// <summary>Charge un GIF depuis un chemin de fichier.</summary>
-    /// <param name="path">Chemin du fichier GIF.</param>
-    /// <returns>true si chargé avec succès ; sinon false.</returns>
+    /// <summary>Loads a GIF from the specified file path.</summary>
+    /// <param name="path">The file path to the GIF image.</param>
+    /// <returns>true if the GIF was loaded successfully; otherwise false.</returns>
     public bool Load(string path)
     {
         this.DisposeDecoder();
@@ -56,21 +54,21 @@ public sealed class GifPlayer : IDisposable
         return true;
     }
 
-    /// <summary>Démarre la lecture.</summary>
+    /// <summary>Starts playback of the GIF.</summary>
     public void Play() => this.IsPlaying = true;
-    /// <summary>Met la lecture en pause.</summary>
+    /// <summary>Pauses playback of the GIF.</summary>
     public void Pause() => this.IsPlaying = false;
-    /// <summary>Arrête la lecture et revient à la première image.</summary>
+    /// <summary>Stops playback and resets to the first frame.</summary>
     public void Stop()
     {
         this.IsPlaying = false;
         this.CurrentFrame = 0;
     }
 
-    /// <summary>Récupère les pixels RGBA32 d’une image donnée.</summary>
-    /// <param name="frameIndex">Index de l’image.</param>
-    /// <param name="pixels">Buffer de pixels RGBA32 de sortie.</param>
-    /// <returns>true si disponible ; sinon false.</returns>
+    /// <summary>Gets the RGBA32 pixel data for the specified frame.</summary>
+    /// <param name="frameIndex">The index of the frame.</param>
+    /// <param name="pixels">The output buffer containing RGBA32 pixel data.</param>
+    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
     public bool TryGetFramePixelsRgba32(int frameIndex, out byte[] pixels)
     {
         pixels = Array.Empty<byte>();
@@ -85,9 +83,9 @@ public sealed class GifPlayer : IDisposable
         return true;
     }
 
-    /// <summary>Retourne le délai de l’image (ms).</summary>
-    /// <param name="frameIndex">Index de l’image.</param>
-    /// <returns>Délai en millisecondes.</returns>
+    /// <summary>Gets the display duration of the specified frame.</summary>
+    /// <param name="frameIndex">The index of the frame.</param>
+    /// <returns>The frame delay in milliseconds.</returns>
     public int GetFrameDelayMs(int frameIndex)
     {
         if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
@@ -104,7 +102,7 @@ public sealed class GifPlayer : IDisposable
         }
     }
 
-    /// <summary>Libère les resources natives associées.</summary>
+    /// <summary>Releases the unmanaged resources associated with the player.</summary>
     public void Dispose()
     {
         this.DisposeDecoder();

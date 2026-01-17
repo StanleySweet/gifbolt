@@ -73,6 +73,16 @@ The project includes pre-commit hooks and CI checks that will:
 - Ensure Doxygen comments are present
 - Prevent violations from being committed
 
+## Commit Message Standards
+
+Follow the standards in [COMMITS.md](COMMITS.md):
+
+- **Format**: `type(scope): subject`
+- **Subject**: Max 50 chars, imperative mood, no period
+- **Body**: Explain what and why, wrapped at 72 chars
+- **Atomic**: One logical change per commit
+- **Examples**: `feat(native): Add GPU optimization`, `fix(wpf): Fix null reference`
+
 ## Project Structure
 
 ```
@@ -84,9 +94,12 @@ GifBolt/
 ├── tests/                  # Unit tests
 ├── .editorconfig           # Style enforcement
 ├── .llm                    # LLM guidelines (detailed)
-└── agents.md              # This file
+├── agents.md              # This file
+└── COMMITS.md             # Commit message guidelines
 ```
 
 ## Questions?
 
-For detailed examples and explanations, see [.llm](.llm).
+For detailed examples and explanations, see:
+- Code standards: [.llm](.llm)
+- Commit standards: [COMMITS.md](COMMITS.md)

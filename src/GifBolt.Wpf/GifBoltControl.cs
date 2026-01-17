@@ -8,10 +8,9 @@ using System.Windows.Media;
 
 namespace GifBolt.Wpf
 {
-    public class GifBoltControl : Control
     /// <summary>
-    /// Contrôle WPF pour l’affichage de GIFs via GifBolt.
-    /// Expose des propriétés de dépendance: Source, AutoStart, Loop.
+    /// WPF control for displaying animated GIFs using GifBolt.
+    /// Exposes dependency properties: Source, AutoStart, Loop.
     /// </summary>
     public sealed class GifBoltControl : Control
     {
