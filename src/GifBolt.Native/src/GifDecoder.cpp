@@ -52,6 +52,14 @@ class GifDecoder::Impl
     Memory::FrameMemoryPool framePool;  ///< PMR pool for frame allocations
     Memory::ArenaAllocator tempArena;  ///< Arena for temporary decode buffers
 
+    // Async prefetching support
+    std::atomic<bool> prefetchingEnabled{true};  ///< Enable/disable prefetching
+    std::atomic<uint32_t> currentPlaybackFrame{0};  ///< Current frame being displayed
+    std::thread prefetchThread;  ///< Background thread for frame prefetching
+    std::atomic<bool> prefetchThreadRunning{false};  ///< Prefetch thread active
+    std::mutex prefetchMutex;  ///< Protect prefetch state
+    static constexpr uint32_t PREFETCH_AHEAD = 5;  ///< Number of frames to decode ahead
+
     bool LoadGif(const std::string& filePath);
     void BackgroundSlurp();  ///< Background thread function
     void WaitForSlurp();  ///< Wait for background slurp to complete
@@ -62,8 +70,16 @@ class GifDecoder::Impl
                        int transparentIndex = -1);
     void ComposeFrame(const GifFrame& frame, std::vector<uint32_t>& canvas);
 
+    // Async prefetching methods
+    void StartPrefetching(uint32_t startFrame);  ///< Start background prefetch
+    void StopPrefetching();  ///< Stop background prefetch thread
+    void PrefetchLoop();  ///< Prefetch thread worker function
+
     ~Impl()
     {
+        // Stop prefetch thread first
+        this->StopPrefetching();
+
         if (backgroundLoader.joinable())
         {
             backgroundLoader.join();
@@ -578,48 +594,163 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
             break;
 
         case ScalingFilter::Bicubic:
-        case ScalingFilter::Lanczos:
-            // TODO: Implement Bicubic and Lanczos filters
-            // For now, fall back to bilinear
+        {
+            // Bicubic (Catmull-Rom) interpolation - higher quality
+            auto cubicWeight = [](float x) -> float {
+                const float a = -0.5f; // Catmull-Rom parameter
+                const float absX = std::abs(x);
+                if (absX <= 1.0f) {
+                    return ((a + 2.0f) * absX - (a + 3.0f)) * absX * absX + 1.0f;
+                } else if (absX < 2.0f) {
+                    return ((a * absX - 5.0f * a) * absX + 8.0f * a) * absX - 4.0f * a;
+                }
+                return 0.0f;
+            };
+
             for (uint32_t y = 0; y < targetHeight; ++y)
             {
                 for (uint32_t x = 0; x < targetWidth; ++x)
                 {
                     const float srcX = x * xRatio;
                     const float srcY = y * yRatio;
+                    const int x0 = static_cast<int>(srcX);
+                    const int y0 = static_cast<int>(srcY);
+                    const float dx = srcX - x0;
+                    const float dy = srcY - y0;
 
-                    const uint32_t x0 = static_cast<uint32_t>(srcX);
-                    const uint32_t y0 = static_cast<uint32_t>(srcY);
-                    const uint32_t x1 = (x0 + 1 < sourceWidth) ? (x0 + 1) : x0;
-                    const uint32_t y1 = (y0 + 1 < sourceHeight) ? (y0 + 1) : y0;
+                    float result[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                    float weightSum = 0.0f;
 
-                    const float fracX = srcX - x0;
-                    const float fracY = srcY - y0;
+                    // Sample 4x4 neighborhood
+                    for (int j = -1; j <= 2; ++j) {
+                        for (int i = -1; i <= 2; ++i) {
+                            const int sx = std::min(std::max(x0 + i, 0), static_cast<int>(sourceWidth) - 1);
+                            const int sy = std::min(std::max(y0 + j, 0), static_cast<int>(sourceHeight) - 1);
+                            const float wx = cubicWeight(i - dx);
+                            const float wy = cubicWeight(j - dy);
+                            const float weight = wx * wy;
 
-                    const uint32_t idx00 = (y0 * sourceWidth + x0) * 4;
-                    const uint32_t idx10 = (y0 * sourceWidth + x1) * 4;
-                    const uint32_t idx01 = (y1 * sourceWidth + x0) * 4;
-                    const uint32_t idx11 = (y1 * sourceWidth + x1) * 4;
+                            const uint32_t srcIdx = (sy * sourceWidth + sx) * 4;
+                            for (int c = 0; c < 4; ++c) {
+                                result[c] += sourceBGRA[srcIdx + c] * weight;
+                            }
+                            weightSum += weight;
+                        }
+                    }
 
-                    for (int c = 0; c < 4; ++c)
-                    {
-                        const float v00 = sourceBGRA[idx00 + c];
-                        const float v10 = sourceBGRA[idx10 + c];
-                        const float v01 = sourceBGRA[idx01 + c];
-                        const float v11 = sourceBGRA[idx11 + c];
-
-                        const float vTop = v00 * (1.0f - fracX) + v10 * fracX;
-                        const float vBottom = v01 * (1.0f - fracX) + v11 * fracX;
-                        const float vFinal = vTop * (1.0f - fracY) + vBottom * fracY;
-
-                        scaledCache[(y * targetWidth + x) * 4 + c] = static_cast<uint8_t>(vFinal + 0.5f);
+                    const uint32_t dstIdx = (y * targetWidth + x) * 4;
+                    if (weightSum > 0.0f) {
+                        for (int c = 0; c < 4; ++c) {
+                            scaledCache[dstIdx + c] = static_cast<uint8_t>(std::min(std::max(result[c] / weightSum, 0.0f), 255.0f));
+                        }
                     }
                 }
             }
             break;
+        }
+
+        case ScalingFilter::Lanczos:
+        {
+            // Lanczos-3 resampling - highest quality
+            const float a = 3.0f;
+            auto lanczosWeight = [](float x, float a) -> float {
+                if (std::abs(x) < 0.001f) return 1.0f;
+                if (std::abs(x) >= a) return 0.0f;
+                const float pi = 3.14159265359f;
+                const float piX = pi * x;
+                return a * std::sin(piX) * std::sin(piX / a) / (piX * piX);
+            };
+
+            for (uint32_t y = 0; y < targetHeight; ++y)
+            {
+                for (uint32_t x = 0; x < targetWidth; ++x)
+                {
+                    const float srcX = x * xRatio;
+                    const float srcY = y * yRatio;
+                    const int x0 = static_cast<int>(srcX);
+                    const int y0 = static_cast<int>(srcY);
+                    const float dx = srcX - x0;
+                    const float dy = srcY - y0;
+
+                    float result[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                    float weightSum = 0.0f;
+
+                    const int radius = static_cast<int>(std::ceil(a));
+                    for (int j = -radius; j <= radius; ++j) {
+                        for (int i = -radius; i <= radius; ++i) {
+                            const int sx = std::min(std::max(x0 + i, 0), static_cast<int>(sourceWidth) - 1);
+                            const int sy = std::min(std::max(y0 + j, 0), static_cast<int>(sourceHeight) - 1);
+                            const float wx = lanczosWeight(i - dx, a);
+                            const float wy = lanczosWeight(j - dy, a);
+                            const float weight = wx * wy;
+
+                            const uint32_t srcIdx = (sy * sourceWidth + sx) * 4;
+                            for (int c = 0; c < 4; ++c) {
+                                result[c] += sourceBGRA[srcIdx + c] * weight;
+                            }
+                            weightSum += weight;
+                        }
+                    }
+
+                    const uint32_t dstIdx = (y * targetWidth + x) * 4;
+                    if (weightSum > 0.0f) {
+                        for (int c = 0; c < 4; ++c) {
+                            scaledCache[dstIdx + c] = static_cast<uint8_t>(std::min(std::max(result[c] / weightSum, 0.0f), 255.0f));
+                        }
+                    }
+                }
+            }
+            break;
+        }
     }
 
     return scaledCache.data();
+}
+
+// Async prefetching implementations
+void GifDecoder::Impl::StartPrefetching(uint32_t startFrame)
+{
+    if (!prefetchingEnabled || prefetchThreadRunning)
+    {
+        return;
+    }
+
+    currentPlaybackFrame = startFrame;
+    prefetchThreadRunning = true;
+    prefetchThread = std::thread(&Impl::PrefetchLoop, this);
+}
+
+void GifDecoder::Impl::StopPrefetching()
+{
+    prefetchThreadRunning = false;
+    if (prefetchThread.joinable())
+    {
+        prefetchThread.join();
+    }
+}
+
+void GifDecoder::Impl::PrefetchLoop()
+{
+    while (prefetchThreadRunning)
+    {
+        uint32_t currentFrame = currentPlaybackFrame.load();
+
+        // Prefetch next N frames
+        for (uint32_t ahead = 1; ahead <= PREFETCH_AHEAD && prefetchThreadRunning; ++ahead)
+        {
+            uint32_t targetFrame = (currentFrame + ahead) % frameCount;
+
+            // Check if already decoded
+            if (!frameDecoded[targetFrame])
+            {
+                // Decode frame in background
+                EnsureFrameDecoded(targetFrame);
+            }
+        }
+
+        // Sleep briefly to avoid busy loop
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
 }
 
 }  // namespace GifBolt
