@@ -217,20 +217,20 @@ namespace GifBolt.Avalonia
             asyncController = new GifAnimationController(image, path,
                 onLoaded: () =>
                 {
-                    SetAnimationController(image, asyncController);
+                    SetAnimationController(image, asyncController!);
 
                     var repeatBehavior = GetRepeatBehavior(image);
-                    asyncController.SetRepeatBehavior(repeatBehavior);
+                    asyncController!.SetRepeatBehavior(repeatBehavior);
 
                     int minDelayMs = GetMinFrameDelayMs(image);
                     if (minDelayMs > 0)
                     {
-                        asyncController.SetMinFrameDelayMs(minDelayMs);
+                        asyncController!.SetMinFrameDelayMs(minDelayMs);
                     }
 
                     if (GetAutoStart(image))
                     {
-                        asyncController.Play();
+                        asyncController!.Play();
                     }
 
                     if (image != null)
