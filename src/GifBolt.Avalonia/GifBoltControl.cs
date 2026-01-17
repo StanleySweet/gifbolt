@@ -18,8 +18,8 @@ namespace GifBolt.Avalonia
     /// Exposes styled properties: Source, AutoStart, Loop.
     /// Cross-platform support for Windows (D3D11), macOS (Metal), and Linux (future OpenGL).
     /// </summary>
-        public sealed class GifBoltControl : Control
-        {
+    public sealed class GifBoltControl : Control
+    {
             /// <summary>
             /// Gets or sets the minimum frame delay in milliseconds for GIF playback.
             /// </summary>
