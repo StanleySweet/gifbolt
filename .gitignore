@@ -25,6 +25,9 @@ lib/
 *.obj
 *.o
 
+# Native dynamic libraries placed in managed project folders (should not be checked in)
+**/libGifBolt.Native.*
+
 # Testing
 Testing/
 *.test
@@ -54,7 +57,12 @@ src/GifBolt.Core/obj/
 src/GifBolt.Core/bin/
 src/GifBolt.Wpf/obj/
 src/GifBolt.Wpf/bin/
+src/GifBolt.Avalonia/obj/
+src/GifBolt.Avalonia/bin/
 tests/**/obj/
 tests/**/bin/
 samples/**/obj/
 samples/**/bin/
+
+# Generated documentation sandbox (do not commit generated HTML)
+docs_new/
