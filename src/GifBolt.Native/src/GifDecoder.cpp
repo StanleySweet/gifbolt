@@ -4,6 +4,7 @@
 #include "GifDecoder.h"
 #include "PixelConversion.h"
 #include "IDeviceCommandContext.h"
+#include "MemoryPool.h"
 #if defined(__APPLE__)
 #include "MetalDeviceCommandContext.h"
 #endif
@@ -46,6 +47,10 @@ class GifDecoder::Impl
     std::mutex gifMutex;  ///< Protect gif pointer access
     std::atomic<bool> slurpComplete{false};  ///< Whether DGifSlurp finished
     std::atomic<bool> slurpFailed{false};  ///< Whether DGifSlurp failed
+
+    // Memory optimization: PMR allocator pool for frame data
+    Memory::FrameMemoryPool framePool;  ///< PMR pool for frame allocations
+    Memory::ArenaAllocator tempArena;  ///< Arena for temporary decode buffers
 
     bool LoadGif(const std::string& filePath);
     void BackgroundSlurp();  ///< Background thread function

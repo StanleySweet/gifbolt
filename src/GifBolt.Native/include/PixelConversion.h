@@ -84,10 +84,80 @@ inline void PremultiplyAlphaRGBA(uint8_t* pixels, size_t pixelCount)
     }
 }
 
+/// \brief Helper function to process a chunk of pixels for premultiplication.
+/// \param pixels Pixel buffer containing BGRA data.
+/// \param start Starting pixel index.
+/// \param end Ending pixel index (exclusive).
+inline void PremultiplyAlphaBGRAChunk(uint8_t* pixels, size_t start, size_t end)
+{
+    for (size_t i = start; i < end; ++i)
+    {
+        const size_t offset = i * 4;
+        uint8_t& b = pixels[offset + 0];
+        uint8_t& g = pixels[offset + 1];
+        uint8_t& r = pixels[offset + 2];
+        uint8_t alpha = pixels[offset + 3];
+
+        if (alpha == 0)
+        {
+            // Fully transparent: zero out RGB to avoid color bleed
+            b = 0;
+            g = 0;
+            r = 0;
+        }
+        else if (alpha < 255)
+        {
+            // Premultiply RGB by alpha
+            const float alphaFactor = alpha / 255.0f;
+            r = static_cast<uint8_t>(r * alphaFactor);
+            g = static_cast<uint8_t>(g * alphaFactor);
+            b = static_cast<uint8_t>(b * alphaFactor);
+        }
+        // If alpha == 255, no premultiplication needed
+    }
+}
+
 /// \brief Premultiplies alpha in BGRA format.
 /// \param pixels Pixel buffer containing BGRA data (modified in-place).
 /// \param pixelCount Number of pixels to process.
 inline void PremultiplyAlphaBGRA(uint8_t* pixels, size_t pixelCount)
+{
+    // Use single-threaded for small images
+    if (pixelCount < THREADING_THRESHOLD)
+    {
+        PremultiplyAlphaBGRAChunk(pixels, 0, pixelCount);
+        return;
+    }
+
+    // Multi-threaded for large images
+    const unsigned int hardwareThreads = std::thread::hardware_concurrency();
+    const unsigned int numThreads =
+        (hardwareThreads > 0) ? std::min(hardwareThreads, MAX_WORKER_THREADS) : 4;
+
+    const size_t pixelsPerThread = pixelCount / numThreads;
+    const size_t remainderPixels = pixelCount % numThreads;
+
+    std::vector<std::thread> threads;
+    threads.reserve(numThreads);
+
+    size_t startPixel = 0;
+    for (unsigned int t = 0; t < numThreads; ++t)
+    {
+        size_t chunkSize = pixelsPerThread + (t < remainderPixels ? 1 : 0);
+        size_t endPixel = startPixel + chunkSize;
+
+        threads.emplace_back(PremultiplyAlphaBGRAChunk, pixels, startPixel, endPixel);
+        startPixel = endPixel;
+    }
+
+    for (auto& thread : threads)
+    {
+        thread.join();
+    }
+}
+
+/// \brief Legacy single-threaded version (kept for compatibility).
+inline void PremultiplyAlphaBGRA_SingleThreaded(uint8_t* pixels, size_t pixelCount)
 {
     for (size_t i = 0; i < pixelCount; ++i)
     {
