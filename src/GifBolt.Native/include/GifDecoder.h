@@ -131,7 +131,7 @@ class GifDecoder
 
    private:
     class Impl;
-    std::unique_ptr<Impl> pImpl;  ///< Opaque implementation (Pimpl pattern)
+    std::unique_ptr<Impl> _pImpl;  ///< Opaque implementation (Pimpl pattern)
 };
 
 }  // namespace GifBolt

@@ -22,47 +22,47 @@ namespace GifBolt {
 class GifDecoder::Impl
 {
    public:
-    std::vector<GifFrame> frames;  ///< Decoded frames cache
-    std::vector<bool> frameDecoded;  ///< Track which frames have been decoded
-    std::vector<uint32_t> canvas;  ///< Accumulated canvas for frame composition
-    DisposalMethod previousDisposal = DisposalMethod::None;  ///< Previous frame disposal
-    uint32_t prevFrameWidth = 0;
-    uint32_t prevFrameHeight = 0;
-    uint32_t prevFrameOffsetX = 0;
-    uint32_t prevFrameOffsetY = 0;
-    uint32_t minFrameDelayMs = 10; ///< Délai minimal configurable
-    std::vector<uint32_t> previousCanvas;  ///< Saved canvas for RestorePrevious
-    uint32_t width = 0;
-    uint32_t height = 0;
-    uint32_t backgroundColor = 0xFF000000;  ///< Default: opaque black
-    bool looping = false;
-    std::vector<uint8_t> bgraPremultipliedCache;  ///< Cache for BGRA premultiplied pixels
-    std::shared_ptr<Renderer::IDeviceCommandContext> deviceContext;  ///< GPU context for scaling
+    std::vector<GifFrame> _frames;  ///< Decoded frames cache
+    std::vector<bool> _frameDecoded;  ///< Track which frames have been decoded
+    std::vector<uint32_t> _canvas;  ///< Accumulated canvas for frame composition
+    DisposalMethod _previousDisposal = DisposalMethod::None;  ///< Previous frame disposal
+    uint32_t _prevFrameWidth = 0;
+    uint32_t _prevFrameHeight = 0;
+    uint32_t _prevFrameOffsetX = 0;
+    uint32_t _prevFrameOffsetY = 0;
+    uint32_t _minFrameDelayMs = 10; ///< Délai minimal configurable
+    std::vector<uint32_t> _previousCanvas;  ///< Saved canvas for RestorePrevious
+    uint32_t _width = 0;
+    uint32_t _height = 0;
+    uint32_t _backgroundColor = 0xFF000000;  ///< Default: opaque black
+    bool _looping = false;
+    std::vector<uint8_t> _bgraPremultipliedCache;  ///< Cache for BGRA premultiplied pixels
+    std::shared_ptr<Renderer::IDeviceCommandContext> _deviceContext;  ///< GPU context for scaling
 
     // Background loading support
-    GifFileType* gif = nullptr;  ///< GIF file handle after slurp
-    uint32_t frameCount = 0;  ///< Total number of frames
-    std::string filePath;  ///< Stored for background loading
+    GifFileType* _gif = nullptr;  ///< GIF file handle after slurp
+    uint32_t _frameCount = 0;  ///< Total number of frames
+    std::string _filePath;  ///< Stored for background loading
 
-    std::thread backgroundLoader;  ///< Background thread for DGifSlurp
-    std::mutex gifMutex;  ///< Protect gif pointer access
-    std::atomic<bool> slurpComplete{false};  ///< Whether DGifSlurp finished
-    std::atomic<bool> slurpFailed{false};  ///< Whether DGifSlurp failed
+    std::thread _backgroundLoader;  ///< Background thread for DGifSlurp
+    std::mutex _gifMutex;  ///< Protect gif pointer access
+    std::atomic<bool> _slurpComplete{false};  ///< Whether DGifSlurp finished
+    std::atomic<bool> _slurpFailed{false};  ///< Whether DGifSlurp failed
 
     // Memory optimization: PMR allocator pool for frame data
-    Memory::FrameMemoryPool framePool;  ///< PMR pool for frame allocations
-    Memory::ArenaAllocator tempArena;  ///< Arena for temporary decode buffers
+    Memory::FrameMemoryPool _framePool;  ///< PMR pool for frame allocations
+    Memory::ArenaAllocator _tempArena;  ///< Arena for temporary decode buffers
 
     // Thread pool for parallel frame decoding
-    std::unique_ptr<ThreadPool> threadPool;  ///< Thread pool for parallel decoding
-    std::mutex decodeMutex;  ///< Protect frame decoding state
+    std::unique_ptr<ThreadPool> _threadPool;  ///< Thread pool for parallel decoding
+    std::mutex _decodeMutex;  ///< Protect frame decoding state
 
     // Async prefetching support
-    std::atomic<bool> prefetchingEnabled{true};  ///< Enable/disable prefetching
-    std::atomic<uint32_t> currentPlaybackFrame{0};  ///< Current frame being displayed
-    std::thread prefetchThread;  ///< Background thread for frame prefetching
-    std::atomic<bool> prefetchThreadRunning{false};  ///< Prefetch thread active
-    std::mutex prefetchMutex;  ///< Protect prefetch state
+    std::atomic<bool> _prefetchingEnabled{true};  ///< Enable/disable prefetching
+    std::atomic<uint32_t> _currentPlaybackFrame{0};  ///< Current frame being displayed
+    std::thread _prefetchThread;  ///< Background thread for frame prefetching
+    std::atomic<bool> _prefetchThreadRunning{false};  ///< Prefetch thread active
+    std::mutex _prefetchMutex;  ///< Protect prefetch state
     static constexpr uint32_t PREFETCH_AHEAD = 5;  ///< Number of frames to decode ahead
 
     bool LoadGif(const std::string& filePath);
@@ -85,21 +85,21 @@ class GifDecoder::Impl
         // Stop prefetch thread first
         this->StopPrefetching();
 
-        if (backgroundLoader.joinable())
+        if (_backgroundLoader.joinable())
         {
-            backgroundLoader.join();
+            _backgroundLoader.join();
         }
-        if (this->gif)
+        if (this->_gif)
         {
             int error = 0;
-            DGifCloseFile(this->gif, &error);
-            this->gif = nullptr;
+            DGifCloseFile(this->_gif, &error);
+            this->_gif = nullptr;
         }
     }
 };
 
 bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
-    this->filePath = filePath;
+    this->_filePath = filePath;
     int error = 0;
     GifFileType* tempGif = DGifOpenFileName(filePath.c_str(), &error);
 
@@ -108,18 +108,18 @@ bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
     }
 
     // Read ONLY header info (instant)
-    this->width = tempGif->SWidth;
-    this->height = tempGif->SHeight;
+    this->_width = tempGif->SWidth;
+    this->_height = tempGif->SHeight;
 
     // Extract background color
     if (tempGif->SColorMap && tempGif->SBackGroundColor < tempGif->SColorMap->ColorCount)
     {
         const GifColorType& bgColor = tempGif->SColorMap->Colors[tempGif->SBackGroundColor];
-        this->backgroundColor = 0xFF000000 | (bgColor.Blue << 16) | (bgColor.Green << 8) | bgColor.Red;
+        this->_backgroundColor = 0xFF000000 | (bgColor.Blue << 16) | (bgColor.Green << 8) | bgColor.Red;
     }
     else
     {
-        this->backgroundColor = 0x00000000;
+        this->_backgroundColor = 0x00000000;
     }
 
     DGifCloseFile(tempGif, &error);
@@ -127,10 +127,10 @@ bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
     // Initialize thread pool for parallel frame decoding
     // Use hardware_concurrency - 1 to leave one thread for main work
     size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
-    this->threadPool = std::make_unique<ThreadPool>(numThreads);
+    this->_threadPool = std::make_unique<ThreadPool>(numThreads);
 
     // Launch background thread to do DGifSlurp (heavy operation)
-    this->backgroundLoader = std::thread(&Impl::BackgroundSlurp, this);
+    this->_backgroundLoader = std::thread(&Impl::BackgroundSlurp, this);
 
     // Return IMMEDIATELY - DGifSlurp runs in background
     return true;
@@ -138,25 +138,25 @@ bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
 
 void GifDecoder::Impl::BackgroundSlurp() {
     int error = 0;
-    GifFileType* gif = DGifOpenFileName(this->filePath.c_str(), &error);
+    GifFileType* gif = DGifOpenFileName(this->_filePath.c_str(), &error);
 
     if (!gif) {
-        this->slurpFailed = true;
+        this->_slurpFailed = true;
         return;
     }
 
     // Do the heavy DGifSlurp in background thread
     if (DGifSlurp(gif) == GIF_ERROR) {
         DGifCloseFile(gif, &error);
-        this->slurpFailed = true;
+        this->_slurpFailed = true;
         return;
     }
 
     // Store results under mutex
     {
-        std::lock_guard<std::mutex> lock(this->gifMutex);
-        this->gif = gif;
-        this->frameCount = gif->ImageCount;
+        std::lock_guard<std::mutex> lock(this->_gifMutex);
+        this->_gif = gif;
+        this->_frameCount = gif->ImageCount;
 
         // Check for looping extension
         for (int i = 0; i < gif->ImageCount; ++i) {
@@ -165,7 +165,7 @@ void GifDecoder::Impl::BackgroundSlurp() {
                 ExtensionBlock* ext = &image->ExtensionBlocks[j];
                 if (ext->Function == APPLICATION_EXT_FUNC_CODE) {
                     if (std::memcmp(ext->Bytes, "NETSCAPE2.0", 11) == 0) {
-                        this->looping = true;
+                        this->_looping = true;
                         break;
                     }
                 }
@@ -173,17 +173,17 @@ void GifDecoder::Impl::BackgroundSlurp() {
         }
 
         // Initialize frame storage
-        this->frames.resize(this->frameCount);
-        this->frameDecoded.resize(this->frameCount, false);
-        this->canvas.resize(this->width * this->height, 0x00000000);
+        this->_frames.resize(this->_frameCount);
+        this->_frameDecoded.resize(this->_frameCount, false);
+        this->_canvas.resize(this->_width * this->_height, 0x00000000);
     }
 
-    this->slurpComplete = true;
+    this->_slurpComplete = true;
 }
 
 void GifDecoder::Impl::WaitForSlurp() {
-    if (this->backgroundLoader.joinable()) {
-        this->backgroundLoader.join();
+    if (this->_backgroundLoader.joinable()) {
+        this->_backgroundLoader.join();
     }
 }
 
@@ -192,11 +192,11 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
     // Wait for background slurp to complete
     this->WaitForSlurp();
 
-    if (this->slurpFailed || !this->gif) {
+    if (this->_slurpFailed || !this->_gif) {
         return;
     }
 
-    if (frameIndex >= this->frameCount || this->frameDecoded[frameIndex])
+    if (frameIndex >= this->_frameCount || this->_frameDecoded[frameIndex])
     {
         return;
     }
@@ -204,31 +204,31 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
     // Decode frames in parallel batches
     // We need to decode sequentially due to frame composition (each frame depends on previous)
     // BUT we can decode multiple frames ahead in parallel once dependencies are met
-    std::lock_guard<std::mutex> lock(this->decodeMutex);
+    std::lock_guard<std::mutex> lock(this->_decodeMutex);
 
     // Sequential decode up to requested frame (required for correct composition)
     for (uint32_t i = 0; i <= frameIndex; ++i)
     {
-        if (!this->frameDecoded[i])
+        if (!this->_frameDecoded[i])
         {
-            this->DecodeFrame(this->gif, i);
-            this->frameDecoded[i] = true;
+            this->DecodeFrame(this->_gif, i);
+            this->_frameDecoded[i] = true;
         }
     }
 
     // Opportunistic background decode: submit next few frames to thread pool
     // This only helps for sequential access patterns (common in GIF playback)
     constexpr uint32_t OPPORTUNISTIC_AHEAD = 3;
-    for (uint32_t ahead = 1; ahead <= OPPORTUNISTIC_AHEAD && (frameIndex + ahead) < this->frameCount; ++ahead)
+    for (uint32_t ahead = 1; ahead <= OPPORTUNISTIC_AHEAD && (frameIndex + ahead) < this->_frameCount; ++ahead)
     {
         uint32_t nextFrame = frameIndex + ahead;
-        if (!this->frameDecoded[nextFrame] && this->threadPool)
+        if (!this->_frameDecoded[nextFrame] && this->_threadPool)
         {
             // Check if all previous frames are decoded (dependency check)
             bool canDecode = true;
             for (uint32_t dep = 0; dep < nextFrame; ++dep)
             {
-                if (!this->frameDecoded[dep])
+                if (!this->_frameDecoded[dep])
                 {
                     canDecode = false;
                     break;
@@ -238,12 +238,12 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
             if (canDecode)
             {
                 // Submit to thread pool - will execute when worker is available
-                this->threadPool->Enqueue([this, nextFrame]() {
-                    std::lock_guard<std::mutex> decodeLock(this->decodeMutex);
-                    if (!this->frameDecoded[nextFrame])
+                this->_threadPool->Enqueue([this, nextFrame]() {
+                    std::lock_guard<std::mutex> decodeLock(this->_decodeMutex);
+                    if (!this->_frameDecoded[nextFrame])
                     {
-                        this->DecodeFrame(this->gif, nextFrame);
-                        this->frameDecoded[nextFrame] = true;
+                        this->DecodeFrame(this->_gif, nextFrame);
+                        this->_frameDecoded[nextFrame] = true;
                     }
                 });
             }
@@ -275,7 +275,7 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
             frame.disposal = static_cast<DisposalMethod>((packed >> 2) & 0x07);
 
             int delay = (ext->Bytes[2] << 8) | ext->Bytes[1];
-            frame.delayMs = std::max(delay * 10, static_cast<int>(minFrameDelayMs)); // Minimum configurable
+            frame.delayMs = std::max(delay * 10, static_cast<int>(_minFrameDelayMs)); // Minimum configurable
 
             // Check transparency flag (bit 0 of packed field)
             if (packed & 0x01)
@@ -296,18 +296,18 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
                   frame.transparentIndex);
 
     // Compose frame onto canvas for this frame
-    ComposeFrame(frame, canvas);
+    ComposeFrame(frame, _canvas);
 
     // Store the composed frame result as the final frame pixels
     GifFrame composedFrame = frame;
-    composedFrame.width = width;
-    composedFrame.height = height;
+    composedFrame.width = _width;
+    composedFrame.height = _height;
     composedFrame.offsetX = 0;
     composedFrame.offsetY = 0;
     // Move canvas to avoid copying millions of pixels
-    composedFrame.pixels = canvas;  // Still copy here for composition continuity
+    composedFrame.pixels = _canvas;  // Still copy here for composition continuity
 
-    frames[frameIndex] = std::move(composedFrame);  // Move instead of copy
+    _frames[frameIndex] = std::move(composedFrame);  // Move instead of copy
 }
 
 void GifDecoder::Impl::ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
@@ -339,35 +339,35 @@ void GifDecoder::Impl::ApplyColorMap(const GifByteType* raster, const ColorMapOb
 void GifDecoder::Impl::ComposeFrame(const GifFrame& frame, std::vector<uint32_t>& canvas)
 {
     // Handle disposal method from previous frame BEFORE compositing new frame
-    if (previousDisposal == DisposalMethod::RestoreBackground)
+    if (_previousDisposal == DisposalMethod::RestoreBackground)
     {
         // Clear only the area of the previous frame to TRANSPARENT to avoid color bleed
         // (UI composes over app background; GIF logical background color can cause fringing)
-        for (uint32_t y = 0; y < prevFrameHeight; ++y)
+        for (uint32_t y = 0; y < _prevFrameHeight; ++y)
         {
-            uint32_t canvasY = prevFrameOffsetY + y;
-            if (canvasY >= height)
+            uint32_t canvasY = _prevFrameOffsetY + y;
+            if (canvasY >= _height)
             {
                 continue;
             }
-            for (uint32_t x = 0; x < prevFrameWidth; ++x)
+            for (uint32_t x = 0; x < _prevFrameWidth; ++x)
             {
-                uint32_t canvasX = prevFrameOffsetX + x;
-                if (canvasX >= width)
+                uint32_t canvasX = _prevFrameOffsetX + x;
+                if (canvasX >= _width)
                 {
                     continue;
                 }
-                uint32_t canvasIndex = canvasY * width + canvasX;
+                uint32_t canvasIndex = canvasY * _width + canvasX;
                 canvas[canvasIndex] = 0x00000000; // fully transparent
             }
         }
     }
-    else if (previousDisposal == DisposalMethod::RestorePrevious)
+    else if (_previousDisposal == DisposalMethod::RestorePrevious)
     {
         // Restore to previous state
-        if (!previousCanvas.empty())
+        if (!_previousCanvas.empty())
         {
-            canvas = previousCanvas;
+            canvas = _previousCanvas;
         }
     }
     // Note: DoNotDispose and None just leave canvas as-is
@@ -375,7 +375,7 @@ void GifDecoder::Impl::ComposeFrame(const GifFrame& frame, std::vector<uint32_t>
     // Save current canvas BEFORE compositing if next frame might need it
     if (frame.disposal == DisposalMethod::RestorePrevious)
     {
-        previousCanvas = canvas;
+        _previousCanvas = canvas;
     }
 
     // Composite current frame onto canvas
@@ -386,7 +386,7 @@ void GifDecoder::Impl::ComposeFrame(const GifFrame& frame, std::vector<uint32_t>
             uint32_t canvasX = frame.offsetX + x;
             uint32_t canvasY = frame.offsetY + y;
 
-            if (canvasX >= width || canvasY >= height)
+            if (canvasX >= _width || canvasY >= _height)
             {
                 continue;
             }
@@ -401,33 +401,33 @@ void GifDecoder::Impl::ComposeFrame(const GifFrame& frame, std::vector<uint32_t>
             }
 
             // Write pixel to canvas
-            uint32_t canvasIndex = canvasY * width + canvasX;
+            uint32_t canvasIndex = canvasY * _width + canvasX;
             canvas[canvasIndex] = srcPixel;
         }
     }
 
     // Update disposal method for next iteration
-    previousDisposal = frame.disposal;
+    _previousDisposal = frame.disposal;
     // Track current frame rectangle for next RestoreBackground
-    prevFrameWidth = frame.width;
-    prevFrameHeight = frame.height;
-    prevFrameOffsetX = frame.offsetX;
-    prevFrameOffsetY = frame.offsetY;
+    _prevFrameWidth = frame.width;
+    _prevFrameHeight = frame.height;
+    _prevFrameOffsetX = frame.offsetX;
+    _prevFrameOffsetY = frame.offsetY;
 }
 
 GifDecoder::GifDecoder()
-    : pImpl(std::make_unique<Impl>())
+    : _pImpl(std::make_unique<Impl>())
 {
     // Initialize GPU context for hardware-accelerated scaling
 #if defined(__APPLE__)
     try
     {
-        pImpl->deviceContext = std::make_shared<Renderer::MetalDeviceCommandContext>();
+        _pImpl->_deviceContext = std::make_shared<Renderer::MetalDeviceCommandContext>();
     }
     catch (...)
     {
         // GPU context initialization failed, will use CPU fallback
-        pImpl->deviceContext = nullptr;
+        _pImpl->_deviceContext = nullptr;
     }
 #endif
 }
@@ -435,7 +435,7 @@ GifDecoder::GifDecoder()
 GifDecoder::~GifDecoder() = default;
 
 bool GifDecoder::LoadFromFile(const std::string& filePath) {
-    return pImpl->LoadGif(filePath);
+    return _pImpl->LoadGif(filePath);
 }
 
 bool GifDecoder::LoadFromUrl(const std::string& url) {
@@ -447,78 +447,78 @@ bool GifDecoder::LoadFromUrl(const std::string& url) {
 
 uint32_t GifDecoder::GetFrameCount() const {
     // Wait for background slurp to complete
-    pImpl->WaitForSlurp();
-    return pImpl->frameCount;
+    _pImpl->WaitForSlurp();
+    return _pImpl->_frameCount;
 }
 
 const GifFrame& GifDecoder::GetFrame(uint32_t index) const {
-    if (index >= pImpl->frameCount) {
+    if (index >= _pImpl->_frameCount) {
         throw std::out_of_range("Frame index out of range");
     }
     // Ensure frame is decoded before returning (lazy loading)
-    pImpl->EnsureFrameDecoded(index);
-    return pImpl->frames[index];
+    _pImpl->EnsureFrameDecoded(index);
+    return _pImpl->_frames[index];
 }
 
 uint32_t GifDecoder::GetWidth() const {
-    return pImpl->width;
+    return _pImpl->_width;
 }
 
 uint32_t GifDecoder::GetHeight() const {
-    return pImpl->height;
+    return _pImpl->_height;
 }
 
 bool GifDecoder::IsLooping() const
 {
-    return pImpl->looping;
+    return _pImpl->_looping;
 }
 
 uint32_t GifDecoder::GetBackgroundColor() const
 {
-    return pImpl->backgroundColor;
+    return _pImpl->_backgroundColor;
 }
 
 void GifBolt::GifDecoder::SetMinFrameDelayMs(uint32_t minDelayMs)
 {
-    pImpl->minFrameDelayMs = minDelayMs;
+    _pImpl->_minFrameDelayMs = minDelayMs;
 }
 
 uint32_t GifBolt::GifDecoder::GetMinFrameDelayMs() const
 {
-    return pImpl->minFrameDelayMs;
+    return _pImpl->_minFrameDelayMs;
 }
 
 const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
 {
-    if (index >= pImpl->frameCount)
+    if (index >= _pImpl->_frameCount)
     {
         return nullptr;
     }
 
     // Ensure frame is decoded (lazy loading)
-    pImpl->EnsureFrameDecoded(index);
+    _pImpl->EnsureFrameDecoded(index);
 
     // Check if decode succeeded
-    if (!pImpl->frameDecoded[index] || pImpl->frames[index].pixels.empty())
+    if (! _pImpl->_frameDecoded[index] || _pImpl->_frames[index].pixels.empty())
     {
         return nullptr;
     }
 
-    const GifFrame& frame = pImpl->frames[index];
+    const GifFrame& frame = _pImpl->_frames[index];
     const size_t pixelCount = frame.pixels.size();
     const size_t byteCount = pixelCount * 4;
 
     // Resize cache if needed
-    if (pImpl->bgraPremultipliedCache.size() != byteCount)
+    if (_pImpl->_bgraPremultipliedCache.size() != byteCount)
     {
-        pImpl->bgraPremultipliedCache.resize(byteCount);
+        _pImpl->_bgraPremultipliedCache.resize(byteCount);
     }
 
     // Convert RGBA to BGRA with premultiplied alpha in one pass
     const uint8_t* sourceRGBA = reinterpret_cast<const uint8_t*>(frame.pixels.data());
-    Renderer::PixelFormats::ConvertRGBAToBGRAPremultiplied(sourceRGBA, pImpl->bgraPremultipliedCache.data(), pixelCount);
+    Renderer::PixelFormats::ConvertRGBAToBGRAPremultiplied(sourceRGBA, _pImpl->_bgraPremultipliedCache.data(), pixelCount);
 
-    return pImpl->bgraPremultipliedCache.data();
+    return _pImpl->_bgraPremultipliedCache.data();
 }
 
 const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t index, uint32_t targetWidth,
@@ -527,15 +527,15 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
                                                                      uint32_t& outHeight,
                                                                      ScalingFilter filter)
 {
-    if (index >= pImpl->frameCount)
+    if (index >= _pImpl->_frameCount)
     {
         return nullptr;
     }
 
     // Ensure frame is decoded (lazy loading)
-    pImpl->EnsureFrameDecoded(index);
+    _pImpl->EnsureFrameDecoded(index);
 
-    const GifFrame& frame = pImpl->frames[index];
+    const GifFrame& frame = _pImpl->_frames[index];
     const uint32_t sourceWidth = frame.width;
     const uint32_t sourceHeight = frame.height;
 
@@ -567,9 +567,9 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
     }
 
     // Try GPU scaling first if available
-    if (pImpl->deviceContext)
+    if (_pImpl->_deviceContext)
     {
-        bool gpuSuccess = pImpl->deviceContext->ScaleImageGPU(
+        bool gpuSuccess = _pImpl->_deviceContext->ScaleImageGPU(
             sourceBGRA, sourceWidth, sourceHeight,
             scaledCache.data(), targetWidth, targetHeight,
             static_cast<int>(filter)
@@ -764,38 +764,38 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
 // Async prefetching implementations
 void GifDecoder::Impl::StartPrefetching(uint32_t startFrame)
 {
-    if (!prefetchingEnabled || prefetchThreadRunning)
+    if (!_prefetchingEnabled || _prefetchThreadRunning)
     {
         return;
     }
 
-    currentPlaybackFrame = startFrame;
-    prefetchThreadRunning = true;
-    prefetchThread = std::thread(&Impl::PrefetchLoop, this);
+    _currentPlaybackFrame = startFrame;
+    _prefetchThreadRunning = true;
+    _prefetchThread = std::thread(&Impl::PrefetchLoop, this);
 }
 
 void GifDecoder::Impl::StopPrefetching()
 {
-    prefetchThreadRunning = false;
-    if (prefetchThread.joinable())
+    _prefetchThreadRunning = false;
+    if (_prefetchThread.joinable())
     {
-        prefetchThread.join();
+        _prefetchThread.join();
     }
 }
 
 void GifDecoder::Impl::PrefetchLoop()
 {
-    while (prefetchThreadRunning)
+    while (_prefetchThreadRunning)
     {
-        uint32_t currentFrame = currentPlaybackFrame.load();
+        uint32_t currentFrame = _currentPlaybackFrame.load();
 
         // Prefetch next N frames
-        for (uint32_t ahead = 1; ahead <= PREFETCH_AHEAD && prefetchThreadRunning; ++ahead)
+        for (uint32_t ahead = 1; ahead <= PREFETCH_AHEAD && _prefetchThreadRunning; ++ahead)
         {
-            uint32_t targetFrame = (currentFrame + ahead) % frameCount;
+            uint32_t targetFrame = (currentFrame + ahead) % _frameCount;
 
             // Check if already decoded
-            if (!frameDecoded[targetFrame])
+            if (! _frameDecoded[targetFrame])
             {
                 // Decode frame in background
                 EnsureFrameDecoded(targetFrame);
@@ -810,25 +810,25 @@ void GifDecoder::Impl::PrefetchLoop()
 // Public wrapper methods for prefetch control
 void GifDecoder::StartPrefetching(uint32_t startFrame)
 {
-    if (this->pImpl)
+    if (this->_pImpl)
     {
-        this->pImpl->StartPrefetching(startFrame);
+        this->_pImpl->StartPrefetching(startFrame);
     }
 }
 
 void GifDecoder::StopPrefetching()
 {
-    if (this->pImpl)
+    if (this->_pImpl)
     {
-        this->pImpl->StopPrefetching();
+        this->_pImpl->StopPrefetching();
     }
 }
 
 void GifDecoder::SetCurrentFrame(uint32_t currentFrame)
 {
-    if (this->pImpl)
+    if (this->_pImpl)
     {
-        this->pImpl->currentPlaybackFrame = currentFrame;
+        this->_pImpl->_currentPlaybackFrame = currentFrame;
     }
 }
 
