@@ -50,3 +50,7 @@ vcpkg_installed/
 venv/
 env/
 .venv
+src/GifBolt.Core/obj/
+src/GifBolt.Core/bin/
+src/GifBolt.Wpf/obj/
+src/GifBolt.Wpf/bin/

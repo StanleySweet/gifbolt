@@ -1,0 +1,3 @@
+is_global = true
+build_property.RootNamespace = GifBolt
+build_property.ProjectDir = /Users/stan/Dev/GifBolt/src/GifBolt.Core/
