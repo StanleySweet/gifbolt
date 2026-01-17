@@ -66,3 +66,7 @@ samples/**/bin/
 
 # Generated documentation sandbox (do not commit generated HTML)
 docs_new/
+
+# Large test GIF files (>1MB)
+artillery_tower6.gif
+VUE_CAISSE_EXPRESS*.gif
