@@ -3,11 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <UseWPF>true</UseWPF>
-    <AssemblyName>GifBolt.Wpf</AssemblyName>
-    <RootNamespace>GifBolt.Wpf</RootNamespace>
     <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
-    <Platforms>AnyCPU;x64</Platforms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
