@@ -5,6 +5,8 @@
 
 #include <cstdint>
 #include <cstring>
+#include <thread>
+#include <vector>
 
 #include "PixelFormat.h"
 
@@ -14,6 +16,10 @@ namespace Renderer
 {
 namespace PixelFormats
 {
+
+// Threshold for enabling multi-threading (pixels)
+// Below this, single-threaded is faster due to thread overhead
+constexpr size_t THREADING_THRESHOLD = 100000;  // ~316x316 image
 
 /// \brief Converts RGBA pixels to BGRA format.
 /// \param source Source buffer containing RGBA pixel data.
@@ -105,15 +111,15 @@ inline void PremultiplyAlphaBGRA(uint8_t* pixels, size_t pixelCount)
     }
 }
 
-/// \brief Converts RGBA to BGRA with premultiplied alpha in a single pass.
+/// \brief Worker function for threaded RGBA to BGRA premultiplied conversion.
 /// \param source Source buffer containing RGBA pixel data.
-/// \param dest Destination buffer for BGRA premultiplied pixel data (must be pre-allocated).
-/// \param pixelCount Number of pixels to convert.
-///
-/// This is more efficient than calling ConvertRGBAToBGRA followed by PremultiplyAlphaBGRA.
-inline void ConvertRGBAToBGRAPremultiplied(const uint8_t* source, uint8_t* dest, size_t pixelCount)
+/// \param dest Destination buffer for BGRA premultiplied pixel data.
+/// \param startPixel Starting pixel index (inclusive).
+/// \param endPixel Ending pixel index (exclusive).
+inline void ConvertRGBAToBGRAPremultipliedChunk(const uint8_t* source, uint8_t* dest,
+                                                size_t startPixel, size_t endPixel)
 {
-    for (size_t i = 0; i < pixelCount; ++i)
+    for (size_t i = startPixel; i < endPixel; ++i)
     {
         const size_t offset = i * 4;
         const uint8_t r = source[offset + 0];
@@ -146,6 +152,53 @@ inline void ConvertRGBAToBGRAPremultiplied(const uint8_t* source, uint8_t* dest,
             dest[offset + 2] = r;      // R
             dest[offset + 3] = alpha;  // A
         }
+    }
+}
+
+/// \brief Converts RGBA to BGRA with premultiplied alpha in a single pass (multi-threaded).
+/// \param source Source buffer containing RGBA pixel data.
+/// \param dest Destination buffer for BGRA premultiplied pixel data (must be pre-allocated).
+/// \param pixelCount Number of pixels to convert.
+///
+/// Automatically uses multi-threading for large images (>100k pixels).
+/// This is more efficient than calling ConvertRGBAToBGRA followed by PremultiplyAlphaBGRA.
+inline void ConvertRGBAToBGRAPremultiplied(const uint8_t* source, uint8_t* dest, size_t pixelCount)
+{
+    // Use single-threaded for small images (thread overhead not worth it)
+    if (pixelCount < THREADING_THRESHOLD)
+    {
+        ConvertRGBAToBGRAPremultipliedChunk(source, dest, 0, pixelCount);
+        return;
+    }
+
+    // Determine optimal thread count
+    const unsigned int hardwareThreads = std::thread::hardware_concurrency();
+    const unsigned int numThreads = (hardwareThreads > 0) ? hardwareThreads : 4;
+
+    // Divide work into chunks
+    const size_t pixelsPerThread = pixelCount / numThreads;
+    const size_t remainderPixels = pixelCount % numThreads;
+
+    std::vector<std::thread> threads;
+    threads.reserve(numThreads);
+
+    size_t startPixel = 0;
+    for (unsigned int t = 0; t < numThreads; ++t)
+    {
+        // Distribute remainder pixels to first threads
+        size_t chunkSize = pixelsPerThread + (t < remainderPixels ? 1 : 0);
+        size_t endPixel = startPixel + chunkSize;
+
+        threads.emplace_back(ConvertRGBAToBGRAPremultipliedChunk, source, dest, startPixel,
+                             endPixel);
+
+        startPixel = endPixel;
+    }
+
+    // Wait for all threads to complete
+    for (auto& thread : threads)
+    {
+        thread.join();
     }
 }
 
