@@ -6,7 +6,6 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <AssemblyName>GifBolt.Core</AssemblyName>
     <RootNamespace>GifBolt</RootNamespace>
     <Authors>GifBolt Contributors</Authors>
     <Description>Core APIs for GifBolt: playback, model, and interop contracts.</Description>
