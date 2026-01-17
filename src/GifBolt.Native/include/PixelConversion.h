@@ -23,6 +23,9 @@ namespace PixelFormats
 // Below this, single-threaded is faster due to thread overhead
 constexpr size_t THREADING_THRESHOLD = 100000;  // ~316x316 image
 
+// Thread pool size (reuse threads to avoid creation/destruction overhead)
+constexpr unsigned int MAX_WORKER_THREADS = 8;
+
 /// \brief Converts RGBA pixels to BGRA format.
 /// \param source Source buffer containing RGBA pixel data.
 /// \param dest Destination buffer for BGRA pixel data (must be pre-allocated).
@@ -195,8 +198,9 @@ inline void ConvertRGBAToBGRAPremultiplied(const uint8_t* source, uint8_t* dest,
     const size_t pixelsPerThread = pixelCount / numThreads;
     const size_t remainderPixels = pixelCount % numThreads;
 
+    // Pre-allocate thread vector to exact size needed
     std::vector<std::thread> threads;
-    threads.reserve(numThreads);
+    threads.reserve(numThreads);  // Avoid reallocations during emplace_back
 
     size_t startPixel = 0;
     for (unsigned int t = 0; t < numThreads; ++t)

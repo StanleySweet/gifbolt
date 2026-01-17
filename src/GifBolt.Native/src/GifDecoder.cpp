@@ -219,7 +219,9 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
 
     // Decode pixel data
     ColorMapObject* colorMap = desc->ColorMap ? desc->ColorMap : gif->SColorMap;
-    frame.pixels.resize(desc->Width * desc->Height);
+    const size_t pixelCount = desc->Width * desc->Height;
+    frame.pixels.reserve(pixelCount);  // Pre-allocate to avoid reallocation
+    frame.pixels.resize(pixelCount);
 
     ApplyColorMap(image->RasterBits, colorMap, frame.pixels, desc->Width, desc->Height,
                   frame.transparentIndex);
@@ -233,9 +235,10 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
     composedFrame.height = height;
     composedFrame.offsetX = 0;
     composedFrame.offsetY = 0;
-    composedFrame.pixels = canvas;  // Store the full canvas as frame result
+    // Move canvas to avoid copying millions of pixels
+    composedFrame.pixels = canvas;  // Still copy here for composition continuity
 
-    frames[frameIndex] = composedFrame;  // Store at specific index instead of push_back
+    frames[frameIndex] = std::move(composedFrame);  // Move instead of copy
 }
 
 void GifDecoder::Impl::ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
