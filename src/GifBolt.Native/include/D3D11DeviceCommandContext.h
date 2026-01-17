@@ -67,6 +67,14 @@ class D3D11DeviceCommandContext : public IDeviceCommandContext
     /// \brief Flushes all pending rendering commands.
     void Flush() override;
 
+    /// \brief Converts RGBA to BGRA with premultiplied alpha using GPU compute shader.
+    /// \param inputRGBA Pointer to input RGBA32 pixel data.
+    /// \param outputBGRA Pointer to output buffer for BGRA32 premultiplied pixels.
+    /// \param pixelCount Number of pixels to convert.
+    /// \return true if GPU conversion succeeded; false if not supported or failed.
+    bool ConvertRGBAToBGRAPremultipliedGPU(const void* inputRGBA, void* outputBGRA,
+                                           uint32_t pixelCount) override;
+
    private:
     struct Impl;
     Impl* _impl;  ///< Opaque implementation pointer

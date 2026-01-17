@@ -73,6 +73,21 @@ class IDeviceCommandContext
     /// \brief Gets the current rendering backend type.
     /// \return The Backend enum value representing the active backend.
     virtual Backend GetBackend() const = 0;
+
+    /// \brief Converts RGBA to BGRA with premultiplied alpha using GPU compute shader.
+    /// \param inputRGBA Pointer to input RGBA32 pixel data.
+    /// \param outputBGRA Pointer to output buffer for BGRA32 premultiplied pixels.
+    /// \param pixelCount Number of pixels to convert.
+    /// \return true if GPU conversion succeeded; false if not supported or failed.
+    /// \note Falls back to CPU conversion if compute shaders are not available.
+    virtual bool ConvertRGBAToBGRAPremultipliedGPU(const void* inputRGBA, void* outputBGRA,
+                                                   uint32_t pixelCount)
+    {
+        (void)inputRGBA;
+        (void)outputBGRA;
+        (void)pixelCount;
+        return false;  // Default: not supported, use CPU fallback
+    }
 };
 
 }  // namespace Renderer

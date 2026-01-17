@@ -5,9 +5,11 @@
 
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <thread>
 #include <vector>
 
+#include "IDeviceCommandContext.h"
 #include "PixelFormat.h"
 
 namespace GifBolt
@@ -159,11 +161,25 @@ inline void ConvertRGBAToBGRAPremultipliedChunk(const uint8_t* source, uint8_t* 
 /// \param source Source buffer containing RGBA pixel data.
 /// \param dest Destination buffer for BGRA premultiplied pixel data (must be pre-allocated).
 /// \param pixelCount Number of pixels to convert.
+/// \param deviceContext Optional GPU device context for hardware acceleration.
 ///
 /// Automatically uses multi-threading for large images (>100k pixels).
+/// If deviceContext is provided and supports compute shaders, uses GPU acceleration.
 /// This is more efficient than calling ConvertRGBAToBGRA followed by PremultiplyAlphaBGRA.
-inline void ConvertRGBAToBGRAPremultiplied(const uint8_t* source, uint8_t* dest, size_t pixelCount)
+inline void ConvertRGBAToBGRAPremultiplied(const uint8_t* source, uint8_t* dest, size_t pixelCount,
+                                           IDeviceCommandContext* deviceContext = nullptr)
 {
+    // Try GPU acceleration first if available
+    if (deviceContext)
+    {
+        if (deviceContext->ConvertRGBAToBGRAPremultipliedGPU(source, dest,
+                                                             static_cast<uint32_t>(pixelCount)))
+        {
+            return;  // GPU conversion succeeded
+        }
+        // Fall through to CPU if GPU failed
+    }
+
     // Use single-threaded for small images (thread overhead not worth it)
     if (pixelCount < THREADING_THRESHOLD)
     {
