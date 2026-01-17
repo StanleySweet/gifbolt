@@ -1,0 +1,179 @@
+// SPDX-License-Identifier: MIT
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+
+namespace GifBolt.Wpf
+{
+    public class GifBoltControl : Control
+    /// <summary>
+    /// Contrôle WPF pour l’affichage de GIFs via GifBolt.
+    /// Expose des propriétés de dépendance: Source, AutoStart, Loop.
+    /// </summary>
+    public sealed class GifBoltControl : Control
+    {
+        private IntPtr _native;
+        private bool _isLoaded;
+
+        static GifBoltControl()
+        {
+            DefaultStyleKeyProperty.OverrideMetadata(
+                typeof(GifBoltControl),
+                new FrameworkPropertyMetadata(typeof(GifBoltControl)));
+        }
+
+        public GifBoltControl()
+        {
+            Loaded += OnLoaded;
+            Unloaded += OnUnloaded;
+            CompositionTarget.Rendering += OnRendering;
+        }
+
+        #region Dependency Properties
+        public static readonly DependencyProperty SourceProperty =
+            DependencyProperty.Register(
+                nameof(Source), typeof(string), typeof(GifBoltControl),
+                new PropertyMetadata(null, OnSourceChanged));
+
+        public string Source
+        {
+            get => (string)this.GetValue(SourceProperty);
+            set => this.SetValue(SourceProperty, value);
+        }
+
+        public static readonly DependencyProperty AutoStartProperty =
+            DependencyProperty.Register(
+                nameof(AutoStart), typeof(bool), typeof(GifBoltControl),
+                new PropertyMetadata(true));
+
+        public bool AutoStart
+        {
+            get => (bool)this.GetValue(AutoStartProperty);
+            set => this.SetValue(AutoStartProperty, value);
+        }
+
+        public static readonly DependencyProperty LoopProperty =
+            DependencyProperty.Register(
+                nameof(Loop), typeof(bool), typeof(GifBoltControl),
+                new PropertyMetadata(true, OnLoopChanged));
+
+        public bool Loop
+        {
+            get => (bool)this.GetValue(LoopProperty);
+            set => this.SetValue(LoopProperty, value);
+        }
+        #endregion
+
+        private static void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var control = (GifBoltControl)d;
+            control.LoadGifIfReady();
+        }
+
+        private static void OnLoopChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var control = (GifBoltControl)d;
+            if (control._native != IntPtr.Zero)
+            {
+                GifBolt_SetLooping(control._native, (bool)e.NewValue);
+            }
+        }
+
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            this._isLoaded = true;
+            this.EnsureNative();
+            this.LoadGifIfReady();
+        }
+
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            this._isLoaded = false;
+            if (this._native != IntPtr.Zero)
+            {
+                GifBolt_Destroy(this._native);
+                this._native = IntPtr.Zero;
+            }
+        }
+
+        protected override void OnRender(DrawingContext drawingContext)
+        {
+            base.OnRender(drawingContext);
+            // Actual DX interop will be implemented later.
+        }
+
+        private void OnRendering(object? sender, EventArgs e)
+        {
+            if (this._native != IntPtr.Zero)
+            {
+                GifBolt_Render(this._native);
+            }
+        }
+
+        private void EnsureNative()
+        {
+            if (this._native == IntPtr.Zero)
+            {
+                this._native = GifBolt_Create();
+                if (this._native != IntPtr.Zero)
+                {
+                    int w = Math.Max(1, (int)this.ActualWidth);
+                    int h = Math.Max(1, (int)this.ActualHeight);
+                    GifBolt_Initialize(this._native, (uint)w, (uint)h);
+                    GifBolt_SetLooping(this._native, this.Loop ? 1 : 0);
+                }
+            }
+        }
+
+        private void LoadGifIfReady()
+        {
+            if (!this._isLoaded) return;
+            if (DesignerProperties.GetIsInDesignMode(this)) return;
+            if (string.IsNullOrWhiteSpace(this.Source)) return;
+
+            this.EnsureNative();
+            if (this._native != IntPtr.Zero)
+            {
+                if (GifBolt_LoadGif(this._native, this.Source) != 0)
+                {
+                    if (this.AutoStart)
+                        GifBolt_Play(this._native);
+                }
+            }
+        }
+
+        #region Native Interop
+        private const string NativeLib = "GifBolt.Native";
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_Create", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr GifBolt_Create();
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_Destroy", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GifBolt_Destroy(IntPtr handle);
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_Initialize", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GifBolt_Initialize(IntPtr handle, uint width, uint height);
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_LoadGif", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern int GifBolt_LoadGif(IntPtr handle, string path);
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_Play", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GifBolt_Play(IntPtr handle);
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_Pause", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GifBolt_Pause(IntPtr handle);
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_Stop", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GifBolt_Stop(IntPtr handle);
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_SetLooping", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GifBolt_SetLooping(IntPtr handle, int loop);
+
+        [DllImport(NativeLib, EntryPoint = "GifBolt_Render", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GifBolt_Render(IntPtr handle);
+        #endregion
+    }
+}
