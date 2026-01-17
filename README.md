@@ -10,6 +10,7 @@ A high-performance WPF library for rendering animated GIFs with DirectX 11 accel
 - 🖼️ **WPF control** with XAML data binding support
 - 🔄 **Play/pause/stop controls** with looping support
 - 🏗️ **Clean architecture** with backend abstraction layer (inspired by 0 A.D.)
+- ✨ **Drop-in replacement for WpfAnimatedGif** - supports attached properties on standard Image controls
 
 ## Project Structure
 
@@ -33,7 +34,38 @@ GifBolt/
 
 ## Quick Start
 
-### WPF Usage (Windows only)
+### Option 1: Attached Properties (Compatible with WpfAnimatedGif)
+
+Use on standard WPF `Image` controls - works as a drop-in replacement:
+
+```xml
+<Window xmlns:gif="clr-namespace:GifBolt.Wpf;assembly=GifBolt.Wpf">
+    <Image gif:ImageBehavior.AnimatedSource="animation.gif" />
+
+    <!-- With repeat behavior -->
+    <Image gif:ImageBehavior.AnimatedSource="animation.gif"
+           gif:ImageBehavior.RepeatBehavior="3x" />
+
+    <!-- Looping forever -->
+    <Image gif:ImageBehavior.AnimatedSource="animation.gif"
+           gif:ImageBehavior.RepeatBehavior="Forever"
+           gif:ImageBehavior.AutoStart="True" />
+</Window>
+```
+
+Code-behind:
+
+```csharp
+var image = new BitmapImage();
+image.BeginInit();
+image.UriSource = new Uri(fileName);
+image.EndInit();
+ImageBehavior.SetAnimatedSource(img, image);
+```
+
+### Option 2: Custom Control (Direct API)
+
+Use the `GifBoltControl` for more direct control:
 
 ```xml
 <Window xmlns:gifbolt="clr-namespace:GifBolt.Wpf;assembly=GifBolt.Wpf">
