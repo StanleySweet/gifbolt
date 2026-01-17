@@ -4,6 +4,7 @@
 using System;
 using System.Runtime.InteropServices;
 using Avalonia;
+using GifBolt;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -431,22 +432,7 @@ namespace GifBolt.Avalonia
         /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
         public void SetRepeatBehavior(string repeatBehavior)
         {
-            if (string.IsNullOrWhiteSpace(repeatBehavior) || repeatBehavior == "0x")
-            {
-                this._repeatCount = this._player.IsLooping ? -1 : 1;
-            }
-            else if (repeatBehavior.Equals("Forever", StringComparison.OrdinalIgnoreCase))
-            {
-                this._repeatCount = -1;
-            }
-            else if (repeatBehavior.EndsWith("x", StringComparison.OrdinalIgnoreCase))
-            {
-                var countStr = repeatBehavior.Substring(0, repeatBehavior.Length - 1);
-                if (int.TryParse(countStr, out int count))
-                {
-                    this._repeatCount = count;
-                }
-            }
+            this._repeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this._player.IsLooping);
         }
 
         /// <summary>
