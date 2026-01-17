@@ -1,0 +1,13 @@
+Checks: >
+  -checks='
+  clang-analyzer-*,
+  readability-*,
+  performance-*,
+  bugprone-*,
+  modernize-*,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity'
+HeaderFilterRegex: '(src|include)/.*'
+AnalyzeTemporaryDtors: true
+FormatStyle: file
