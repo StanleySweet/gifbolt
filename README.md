@@ -2,6 +2,8 @@
 
 A high-performance WPF library for rendering animated GIFs with DirectX 11 acceleration.
 
+**Drop-in replacement for [WpfAnimatedGif](https://github.com/XamlAnimatedGif/WpfAnimatedGif)** - see [MIGRATION.md](MIGRATION.md) for migration guide.
+
 ## Features
 
 - 🚀 **DirectX 11 GPU-accelerated rendering** on Windows
