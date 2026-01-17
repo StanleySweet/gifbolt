@@ -8,27 +8,27 @@ namespace GifBolt;
 /// <summary>
 /// Provides version information for the GifBolt.Native library.
 /// </summary>
+/// <remarks>
+/// All properties are thread-safe and use lazy initialization with caching
+/// for optimal performance in multi-threaded scenarios.
+/// </remarks>
 public static class NativeVersion
 {
-    private static Version? _cachedVersion;
+    private static readonly Lazy<Version> _cachedVersion = new Lazy<Version>(() =>
+    {
+        int major = Native.gb_version_get_major();
+        int minor = Native.gb_version_get_minor();
+        int patch = Native.gb_version_get_patch();
+        return new Version(major, minor, patch);
+    });
 
     /// <summary>
     /// Gets the semantic version of the native library.
     /// </summary>
-    public static Version Version
-    {
-        get
-        {
-            if (_cachedVersion == null)
-            {
-                int major = Native.gb_version_get_major();
-                int minor = Native.gb_version_get_minor();
-                int patch = Native.gb_version_get_patch();
-                _cachedVersion = new Version(major, minor, patch);
-            }
-            return _cachedVersion;
-        }
-    }
+    /// <remarks>
+    /// This property is thread-safe and cached after the first access.
+    /// </remarks>
+    public static Version Version => _cachedVersion.Value;
 
     /// <summary>
     /// Gets the version string of the native library (e.g., "1.0.0").

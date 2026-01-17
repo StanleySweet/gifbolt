@@ -5,32 +5,32 @@
 
 extern "C"
 {
-    int gb_version_get_major(void)
+    int gb_version_get_major(void) noexcept
     {
         return GIFBOLT_VERSION_MAJOR;
     }
 
-    int gb_version_get_minor(void)
+    int gb_version_get_minor(void) noexcept
     {
         return GIFBOLT_VERSION_MINOR;
     }
 
-    int gb_version_get_patch(void)
+    int gb_version_get_patch(void) noexcept
     {
         return GIFBOLT_VERSION_PATCH;
     }
 
-    const char* gb_version_get_string(void)
+    const char* gb_version_get_string(void) noexcept
     {
         return GIFBOLT_VERSION_STRING;
     }
 
-    int gb_version_get_int(void)
+    int gb_version_get_int(void) noexcept
     {
         return GIFBOLT_VERSION_INT;
     }
 
-    int gb_version_check(int major, int minor, int patch)
+    int gb_version_check(int major, int minor, int patch) noexcept
     {
         int required = major * 10000 + minor * 100 + patch;
         return GIFBOLT_VERSION_INT >= required ? 1 : 0;
