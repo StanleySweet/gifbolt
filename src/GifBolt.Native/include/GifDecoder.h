@@ -1,21 +1,24 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
-#include <cstdint>
 
-namespace GifBolt {
+namespace GifBolt
+{
 
-struct GifFrame {
+struct GifFrame
+{
     std::vector<uint32_t> pixels;  // RGBA pixel data
     uint32_t width;
     uint32_t height;
     uint32_t delayMs;
 };
 
-class GifDecoder {
-public:
+class GifDecoder
+{
+   public:
     GifDecoder();
     ~GifDecoder();
 
@@ -34,7 +37,7 @@ public:
     uint32_t GetHeight() const;
     bool IsLooping() const;
 
-private:
+   private:
     class Impl;
     std::unique_ptr<Impl> pImpl;
 };

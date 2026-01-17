@@ -7,7 +7,7 @@ public:
     // Implementation details here
 };
 
-GifBoltRenderer::GifBoltRenderer() 
+GifBoltRenderer::GifBoltRenderer()
     : pImpl(std::make_unique<Impl>()) {
 }
 

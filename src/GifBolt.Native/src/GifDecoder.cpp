@@ -7,7 +7,7 @@ public:
     // Implementation details here
 };
 
-GifDecoder::GifDecoder() 
+GifDecoder::GifDecoder()
     : pImpl(std::make_unique<Impl>()) {
 }
 

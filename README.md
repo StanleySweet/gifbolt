@@ -21,44 +21,142 @@ GifBolt/
 └── README.md
 ```
 
+
+
 ## Requirements
 
-- **CMake**: 3.20 or higher
-- **Visual Studio**: 2019 or higher (for DirectX development)
-- **vcpkg**: For managing C++ dependencies
-- **.NET Framework** or **.NET 6+**: For WPF components
-- **Google Test**: For unit testing
+### macOS
 
-## Building
+- **Xcode Command Line Tools**: `xcode-select --install`
+- **Homebrew**: Package manager
+- **LLVM + Clang 21+**: `brew install llvm clang-format`
+- **CMake 3.20+**: `brew install cmake`
+- **Node.js**: `brew install node`
+- **Python 3.13+**: Included with Homebrew
+- **.NET SDK**: Download from [dotnet.microsoft.com](https://dotnet.microsoft.com)
+- **vcpkg**: For C++ dependencies
 
-### 1. Install dependencies
-```bash
-vcpkg integrate install
-vcpkg install directx-headers:x64-windows directxmath:x64-windows gtest:x64-windows
-```
+### Windows
 
-### 2. Create build directory and configure
-```bash
-mkdir build
-cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE=[vcpkg_root]/scripts/buildsystems/vcpkg.cmake
-```
+- **Visual Studio 2019+**: With C++ workload and Windows SDK
+- **CMake 3.20+**: Download from [cmake.org](https://cmake.org)
+- **Python 3.13+**: Download from [python.org](https://www.python.org)
+- **Node.js**: Download from [nodejs.org](https://nodejs.org)
+- **.NET SDK**: Download from [dotnet.microsoft.com](https://dotnet.microsoft.com)
+- **vcpkg**: Clone from [microsoft/vcpkg](https://github.com/microsoft/vcpkg)
 
-### 3. Build
-```bash
-cmake --build . --config Release
-```
+## Setup & Building
 
-### 4. Run tests
-```bash
-ctest -C Release --verbose
-```
+### macOS Setup
+
+1. **Clone repository**
+
+   ```bash
+   git clone <repo-url>
+   cd GifBolt
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   # Install build tools
+   brew install llvm clang-format cmake node ruby
+
+   # Install Python dependencies in virtual environment
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -U pip pre-commit cmake-format
+
+   # Set up pre-commit hooks
+   pre-commit install
+   ```
+
+3. **Install C++ dependencies (using vcpkg)**
+
+   ```bash
+   git clone https://github.com/microsoft/vcpkg.git
+   cd vcpkg && ./bootstrap-vcpkg.sh
+   cd ../
+   ./vcpkg/vcpkg install directx-headers directxmath gtest --triplet arm64-osx
+   ```
+
+4. **Build**
+
+   ```bash
+   mkdir build && cd build
+   cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake
+   cmake --build . --config Release
+   ```
+
+5. **Run tests**
+
+   ```bash
+   ctest -C Release --verbose
+   ```
+
+### Windows Setup
+
+1. **Clone repository**
+
+   ```powershell
+   git clone <repo-url>
+   cd GifBolt
+   ```
+
+2. **Install dependencies**
+
+   ```powershell
+   # Create Python virtual environment
+   python -m venv venv
+   .\venv\Scripts\Activate.ps1
+   pip install -U pip pre-commit cmake-format
+
+   # Set up pre-commit hooks
+   pre-commit install
+   ```
+
+3. **Install C++ dependencies (using vcpkg)**
+
+   ```powershell
+   git clone https://github.com/microsoft/vcpkg.git
+   cd vcpkg && .\bootstrap-vcpkg.bat
+   cd ../
+   .\vcpkg\vcpkg install directx-headers:x64-windows directxmath:x64-windows gtest:x64-windows
+   ```
+
+4. **Build**
+
+   ```powershell
+   mkdir build
+   cd build
+   cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -A x64
+   cmake --build . --config Release
+   ```
+
+5. **Run tests**
+
+   ```powershell
+   ctest -C Release --verbose
+   ```
+
+
 
 ## Code Quality
 
+- **Clang-Format**: Automatic code formatting (enabled via pre-commit)
 - **Clang-Tidy**: Static analysis and modernization checks
-- **Clang-Format**: Automatic code formatting
-- **GitHub Actions**: Automated build, test, and analysis pipelines
+- **CMake-Format**: CMake file formatting
+- **Codespell**: Spell checking
+- **Pre-commit Framework**: Automated checks before each commit
+
+All checks run automatically before committing via `pre-commit`. To manually check:
+
+```bash
+source venv/bin/activate  # On Windows: .\venv\Scripts\Activate.ps1
+pre-commit run --all-files
+```
+
+
 
 ## Development Status
 

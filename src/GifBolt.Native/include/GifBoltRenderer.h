@@ -1,13 +1,15 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
-#include <cstdint>
 
-namespace GifBolt {
+namespace GifBolt
+{
 
-class GifBoltRenderer {
-public:
+class GifBoltRenderer
+{
+   public:
     GifBoltRenderer();
     ~GifBoltRenderer();
 
@@ -35,7 +37,7 @@ public:
     uint32_t GetWidth() const;
     uint32_t GetHeight() const;
 
-private:
+   private:
     class Impl;
     std::unique_ptr<Impl> pImpl;
 };

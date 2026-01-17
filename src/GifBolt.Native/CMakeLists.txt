@@ -11,11 +11,11 @@ add_library(GifBolt.Native SHARED
 )
 
 # Include directories
-target_include_directories(GifBolt.Native 
-    PUBLIC 
+target_include_directories(GifBolt.Native
+    PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
-    PRIVATE 
+    PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 

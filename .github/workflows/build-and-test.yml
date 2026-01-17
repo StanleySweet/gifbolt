@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -44,7 +44,7 @@ jobs:
 
   clang-tidy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -59,7 +59,7 @@ jobs:
 
   format-check:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
 
