@@ -542,3 +542,7 @@ src/
 - `.clang-tidy` - C++ static analysis
 - `CMakeLists.txt` - Build configuration
 - `.pre-commit-config.yaml` - Pre-commit hooks for validation
+
+
+apply include what you use
+don't commit commented out code fix it if possible

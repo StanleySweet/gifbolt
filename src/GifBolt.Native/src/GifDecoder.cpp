@@ -5,6 +5,7 @@
 #include "PixelConversion.h"
 #include "IDeviceCommandContext.h"
 #include "MemoryPool.h"
+#include "ThreadPool.h"
 #if defined(__APPLE__)
 #include "MetalDeviceCommandContext.h"
 #endif
@@ -51,6 +52,10 @@ class GifDecoder::Impl
     // Memory optimization: PMR allocator pool for frame data
     Memory::FrameMemoryPool framePool;  ///< PMR pool for frame allocations
     Memory::ArenaAllocator tempArena;  ///< Arena for temporary decode buffers
+
+    // Thread pool for parallel frame decoding
+    std::unique_ptr<ThreadPool> threadPool;  ///< Thread pool for parallel decoding
+    std::mutex decodeMutex;  ///< Protect frame decoding state
 
     // Async prefetching support
     std::atomic<bool> prefetchingEnabled{true};  ///< Enable/disable prefetching
@@ -118,6 +123,11 @@ bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
     }
 
     DGifCloseFile(tempGif, &error);
+
+    // Initialize thread pool for parallel frame decoding
+    // Use hardware_concurrency - 1 to leave one thread for main work
+    size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    this->threadPool = std::make_unique<ThreadPool>(numThreads);
 
     // Launch background thread to do DGifSlurp (heavy operation)
     this->backgroundLoader = std::thread(&Impl::BackgroundSlurp, this);
@@ -191,14 +201,52 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
         return;
     }
 
-    // Decode all frames up to requested one (for proper composition)
-    std::lock_guard<std::mutex> lock(this->gifMutex);
+    // Decode frames in parallel batches
+    // We need to decode sequentially due to frame composition (each frame depends on previous)
+    // BUT we can decode multiple frames ahead in parallel once dependencies are met
+    std::lock_guard<std::mutex> lock(this->decodeMutex);
+
+    // Sequential decode up to requested frame (required for correct composition)
     for (uint32_t i = 0; i <= frameIndex; ++i)
     {
         if (!this->frameDecoded[i])
         {
             this->DecodeFrame(this->gif, i);
             this->frameDecoded[i] = true;
+        }
+    }
+
+    // Opportunistic background decode: submit next few frames to thread pool
+    // This only helps for sequential access patterns (common in GIF playback)
+    constexpr uint32_t OPPORTUNISTIC_AHEAD = 3;
+    for (uint32_t ahead = 1; ahead <= OPPORTUNISTIC_AHEAD && (frameIndex + ahead) < this->frameCount; ++ahead)
+    {
+        uint32_t nextFrame = frameIndex + ahead;
+        if (!this->frameDecoded[nextFrame] && this->threadPool)
+        {
+            // Check if all previous frames are decoded (dependency check)
+            bool canDecode = true;
+            for (uint32_t dep = 0; dep < nextFrame; ++dep)
+            {
+                if (!this->frameDecoded[dep])
+                {
+                    canDecode = false;
+                    break;
+                }
+            }
+
+            if (canDecode)
+            {
+                // Submit to thread pool - will execute when worker is available
+                this->threadPool->Enqueue([this, nextFrame]() {
+                    std::lock_guard<std::mutex> decodeLock(this->decodeMutex);
+                    if (!this->frameDecoded[nextFrame])
+                    {
+                        this->DecodeFrame(this->gif, nextFrame);
+                        this->frameDecoded[nextFrame] = true;
+                    }
+                });
+            }
         }
     }
 }
@@ -449,6 +497,12 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
 
     // Ensure frame is decoded (lazy loading)
     pImpl->EnsureFrameDecoded(index);
+
+    // Check if decode succeeded
+    if (!pImpl->frameDecoded[index] || pImpl->frames[index].pixels.empty())
+    {
+        return nullptr;
+    }
 
     const GifFrame& frame = pImpl->frames[index];
     const size_t pixelCount = frame.pixels.size();
@@ -750,6 +804,31 @@ void GifDecoder::Impl::PrefetchLoop()
 
         // Sleep briefly to avoid busy loop
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+// Public wrapper methods for prefetch control
+void GifDecoder::StartPrefetching(uint32_t startFrame)
+{
+    if (this->pImpl)
+    {
+        this->pImpl->StartPrefetching(startFrame);
+    }
+}
+
+void GifDecoder::StopPrefetching()
+{
+    if (this->pImpl)
+    {
+        this->pImpl->StopPrefetching();
+    }
+}
+
+void GifDecoder::SetCurrentFrame(uint32_t currentFrame)
+{
+    if (this->pImpl)
+    {
+        this->pImpl->currentPlaybackFrame = currentFrame;
     }
 }
 

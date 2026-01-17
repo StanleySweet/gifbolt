@@ -6,6 +6,8 @@ add_executable(GifBolt.Tests
     GifBoltRendererTests.cpp
     GifProfilingTests.cpp
     GPUProfilingTests.cpp
+    ScalingFilterBenchmarks.cpp
+    ThreadPoolBenchmarks.cpp
 )
 
 # Link dependencies

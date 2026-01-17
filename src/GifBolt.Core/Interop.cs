@@ -201,5 +201,28 @@ namespace GifBolt.Internal
         /// <returns>1 if runtime version >= specified version; 0 otherwise.</returns>
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern int gb_version_check(int major, int minor, int patch);
+
+        /// <summary>
+        /// Starts background prefetching of frames ahead of the current playback position.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder instance.</param>
+        /// <param name="startFrame">The frame to start prefetching from.</param>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void gb_decoder_start_prefetching(IntPtr decoder, int startFrame);
+
+        /// <summary>
+        /// Stops background prefetching and joins the prefetch thread.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder instance.</param>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void gb_decoder_stop_prefetching(IntPtr decoder);
+
+        /// <summary>
+        /// Updates the current playback position for prefetch lookahead.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder instance.</param>
+        /// <param name="currentFrame">The current frame being displayed.</param>
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void gb_decoder_set_current_frame(IntPtr decoder, int currentFrame);
     }
 }

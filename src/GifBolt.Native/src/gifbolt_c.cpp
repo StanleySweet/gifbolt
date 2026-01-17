@@ -211,6 +211,30 @@ GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
         return ptr->GetBackgroundColor();
     }
 
+    GB_API void gb_decoder_start_prefetching(gb_decoder_t decoder, int startFrame)
+    {
+        if (!decoder || startFrame < 0)
+            return;
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        ptr->StartPrefetching(static_cast<uint32_t>(startFrame));
+    }
+
+    GB_API void gb_decoder_stop_prefetching(gb_decoder_t decoder)
+    {
+        if (!decoder)
+            return;
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        ptr->StopPrefetching();
+    }
+
+    GB_API void gb_decoder_set_current_frame(gb_decoder_t decoder, int currentFrame)
+    {
+        if (!decoder || currentFrame < 0)
+            return;
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        ptr->SetCurrentFrame(static_cast<uint32_t>(currentFrame));
+    }
+
     // Renderer C API
     GB_API gb_renderer_t GifBolt_Create(void)
     {

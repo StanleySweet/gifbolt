@@ -153,6 +153,39 @@ extern "C"
 
     GB_API void gb_decoder_set_min_frame_delay_ms(gb_decoder_t decoder, int minDelayMs);
     GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder);
+
+    /// \brief Gets BGRA32 pixel data with premultiplied alpha for the specified frame, scaled to
+    /// target dimensions.
+    /// \param decoder The decoder handle.
+    /// \param index The zero-based frame index.
+    /// \param targetWidth The desired output width in pixels.
+    /// \param targetHeight The desired output height in pixels.
+    /// \param[out] outWidth Pointer to receive the actual output width.
+    /// \param[out] outHeight Pointer to receive the actual output height.
+    /// \param[out] byteCount Pointer to receive the size of pixel data in bytes.
+    /// \param filterType The scaling filter to use (0=Nearest, 1=Bilinear, 2=Bicubic, 3=Lanczos).
+    /// \return Pointer to BGRA32 premultiplied scaled pixel data, or NULL on error.
+    ///         The pointer is valid until the next decoder operation.
+    GB_API const void* gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
+        gb_decoder_t decoder, int index, int targetWidth, int targetHeight, int* outWidth,
+        int* outHeight, int* byteCount, int filterType);
+
+    /// \brief Starts background prefetching of frames ahead of the current playback position.
+    /// \param decoder The decoder handle.
+    /// \param startFrame The frame to start prefetching from.
+    /// \remarks This starts a background thread that decodes frames ahead of playback,
+    ///          reducing latency for sequential frame access.
+    GB_API void gb_decoder_start_prefetching(gb_decoder_t decoder, int startFrame);
+
+    /// \brief Stops background prefetching and joins the prefetch thread.
+    /// \param decoder The decoder handle.
+    GB_API void gb_decoder_stop_prefetching(gb_decoder_t decoder);
+
+    /// \brief Updates the current playback position for prefetch lookahead.
+    /// \param decoder The decoder handle.
+    /// \param currentFrame The current frame being displayed.
+    /// \remarks The prefetch thread uses this to determine which frames to decode next.
+    GB_API void gb_decoder_set_current_frame(gb_decoder_t decoder, int currentFrame);
     /// @}
 
 #ifdef __cplusplus

@@ -115,6 +115,20 @@ class GifDecoder
         uint32_t index, uint32_t targetWidth, uint32_t targetHeight, uint32_t& outWidth,
         uint32_t& outHeight, ScalingFilter filter = ScalingFilter::Bilinear);
 
+    /// \brief Starts background prefetching of frames ahead of the current playback position.
+    /// \param startFrame The frame to start prefetching from.
+    /// \remarks This starts a background thread that decodes frames ahead of playback,
+    ///          reducing latency for sequential frame access.
+    void StartPrefetching(uint32_t startFrame);
+
+    /// \brief Stops background prefetching and joins the prefetch thread.
+    void StopPrefetching();
+
+    /// \brief Updates the current playback position for prefetch lookahead.
+    /// \param currentFrame The current frame being displayed.
+    /// \remarks The prefetch thread uses this to determine which frames to decode next.
+    void SetCurrentFrame(uint32_t currentFrame);
+
    private:
     class Impl;
     std::unique_ptr<Impl> pImpl;  ///< Opaque implementation (Pimpl pattern)

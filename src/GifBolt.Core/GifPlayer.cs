@@ -17,11 +17,30 @@ public sealed class GifPlayer : IDisposable
     public bool IsPlaying { get; private set; }
     /// <summary>Gets a value indicating whether the GIF loops indefinitely.</summary>
     public bool IsLooping { get; private set; }
+    /// <summary>Gets or sets a value indicating whether background frame prefetching is enabled.</summary>
+    /// <remarks>
+    /// When enabled, frames ahead of the current playback position are decoded in background,
+    /// reducing apparent latency during sequential playback. Default is true.
+    /// </remarks>
+    public bool EnablePrefetching { get; set; } = true;
 
     /// <summary>Gets the total number of frames in the GIF.</summary>
     public int FrameCount { get; private set; }
-    /// <summary>Gets the index of the current frame.</summary>
-    public int CurrentFrame { get; set; }
+    /// <summary>Gets or sets the index of the current frame.</summary>
+    public int CurrentFrame
+    {
+        get => this._currentFrame;
+        set
+        {
+            this._currentFrame = value;
+            // Update prefetch thread about current playback position
+            if (this._decoder != null && this.EnablePrefetching)
+            {
+                Native.gb_decoder_set_current_frame(this._decoder.DangerousGetHandle(), value);
+            }
+        }
+    }
+    private int _currentFrame;
     /// <summary>Gets the width of the image in pixels.</summary>
     public int Width { get; private set; }
     /// <summary>Gets the height of the image in pixels.</summary>
@@ -51,6 +70,13 @@ public sealed class GifPlayer : IDisposable
         this.FrameCount = Native.gb_decoder_get_frame_count(this._decoder.DangerousGetHandle());
         this.IsLooping = Native.gb_decoder_get_loop_count(this._decoder.DangerousGetHandle()) < 0;
         this.CurrentFrame = 0;
+
+        // Start background prefetching if enabled
+        if (this.EnablePrefetching)
+        {
+            Native.gb_decoder_start_prefetching(this._decoder.DangerousGetHandle(), 0);
+        }
+
         return true;
     }
 
@@ -171,6 +197,8 @@ public sealed class GifPlayer : IDisposable
     {
         if (this._decoder != null)
         {
+            // Stop prefetch thread before disposing
+            Native.gb_decoder_stop_prefetching(this._decoder.DangerousGetHandle());
             this._decoder.Dispose();
             this._decoder = null;
         }
