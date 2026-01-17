@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>GifBolt.Avalonia</AssemblyName>
+    <RootNamespace>GifBolt.Avalonia</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

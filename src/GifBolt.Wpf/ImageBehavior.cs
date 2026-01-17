@@ -120,7 +120,7 @@ namespace GifBolt.Wpf
 
         private static void OnAnimatedSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (!(d is Image image))
+            if (d is not Image image)
             {
                 return;
             }
@@ -159,13 +159,13 @@ namespace GifBolt.Wpf
 
         private static void OnRepeatBehaviorChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (!(d is Image image))
+            if (d is not Image image)
             {
                 return;
             }
 
             var controller = GetAnimationController(image);
-            if (controller != null && e.NewValue is string repeatBehavior)
+            if (controller is not null && e.NewValue is string repeatBehavior)
             {
                 controller.SetRepeatBehavior(repeatBehavior);
             }
@@ -173,11 +173,14 @@ namespace GifBolt.Wpf
 
         private static void OnImageUnloaded(object sender, RoutedEventArgs e)
         {
-            if (sender is Image image)
+            if (sender is not Image image)
             {
-                image.Unloaded -= OnImageUnloaded;
-                var controller = GetAnimationController(image);
-                if (controller != null)
+                return;
+            }
+
+            image.Unloaded -= OnImageUnloaded;
+            var controller = GetAnimationController(image);
+            if (controller is not null)
                 {
                     controller.Dispose();
                     SetAnimationController(image, null);

@@ -22,7 +22,7 @@ namespace GifBolt.Avalonia
         {
             // ...existing code...
             /// <summary>
-            /// Définit ou obtient le délai minimal d'affichage d'une frame GIF (en ms).
+            /// Gets or sets the minimum frame delay in milliseconds for GIF playback.
             /// </summary>
             public int MinFrameDelayMs
             {

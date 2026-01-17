@@ -5,7 +5,8 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>GifBolt.Wpf</AssemblyName>
     <RootNamespace>GifBolt.Wpf</RootNamespace>
-    <Nullable>disable</Nullable>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
     <Platforms>AnyCPU;x64</Platforms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>

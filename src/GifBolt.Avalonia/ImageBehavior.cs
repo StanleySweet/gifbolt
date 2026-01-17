@@ -20,7 +20,7 @@ namespace GifBolt.Avalonia
         public static class ImageBehavior
         {
             /// <summary>
-            /// Définit le délai minimal d'affichage d'une frame GIF (en ms).
+            /// Defines the minimum frame delay in milliseconds for GIF playback.
             /// </summary>
             public static readonly AttachedProperty<int> MinFrameDelayMsProperty =
                 AvaloniaProperty.RegisterAttached<Image, int>(
@@ -29,14 +29,26 @@ namespace GifBolt.Avalonia
                     defaultValue: 0);
 
             /// <summary>
-            /// Obtient le délai minimal d'affichage d'une frame GIF (en ms).
+            /// Gets the minimum frame delay in milliseconds for GIF playback.
             /// </summary>
-            public static int GetMinFrameDelayMs(Image image) => image.GetValue(MinFrameDelayMsProperty);
+            /// <param name="image">The Image control to query.</param>
+            /// <returns>The minimum frame delay in milliseconds.</returns>
+            public static int GetMinFrameDelayMs(Image image)
+            {
+                if (image is null) throw new ArgumentNullException(nameof(image));
+                return image.GetValue(MinFrameDelayMsProperty);
+            }
 
             /// <summary>
-            /// Définit le délai minimal d'affichage d'une frame GIF (en ms).
+            /// Sets the minimum frame delay in milliseconds for GIF playback.
             /// </summary>
-            public static void SetMinFrameDelayMs(Image image, int value) => image.SetValue(MinFrameDelayMsProperty, value);
+            /// <param name="image">The Image control to configure.</param>
+            /// <param name="value">The minimum frame delay in milliseconds.</param>
+            public static void SetMinFrameDelayMs(Image image, int value)
+            {
+                if (image is null) throw new ArgumentNullException(nameof(image));
+                image.SetValue(MinFrameDelayMsProperty, value);
+            }
         #region AnimatedSource (compatible WpfAnimatedGif)
 
         /// <summary>
@@ -55,14 +67,22 @@ namespace GifBolt.Avalonia
         /// </summary>
         /// <param name="image">The Image control to get the animated source from.</param>
         /// <returns>The animated source value, or null if not set.</returns>
-        public static object? GetAnimatedSource(Image image) => image.GetValue(AnimatedSourceProperty);
+        public static object? GetAnimatedSource(Image image)
+        {
+            if (image is null) throw new ArgumentNullException(nameof(image));
+            return image.GetValue(AnimatedSourceProperty);
+        }
 
         /// <summary>
         /// Sets the animated source for the specified Image control.
         /// </summary>
         /// <param name="image">The Image control to set the animated source on.</param>
         /// <param name="value">The animated source value (string path or Uri).</param>
-        public static void SetAnimatedSource(Image image, object? value) => image.SetValue(AnimatedSourceProperty, value);
+        public static void SetAnimatedSource(Image image, object? value)
+        {
+            if (image is null) throw new ArgumentNullException(nameof(image));
+            image.SetValue(AnimatedSourceProperty, value);
+        }
 
         #endregion
 
@@ -84,14 +104,22 @@ namespace GifBolt.Avalonia
         /// </summary>
         /// <param name="image">The Image control to get the repeat behavior from.</param>
         /// <returns>The repeat behavior string.</returns>
-        public static string GetRepeatBehavior(Image image) => image.GetValue(RepeatBehaviorProperty);
+        public static string GetRepeatBehavior(Image image)
+        {
+            if (image is null) throw new ArgumentNullException(nameof(image));
+            return image.GetValue(RepeatBehaviorProperty);
+        }
 
         /// <summary>
         /// Sets the repeat behavior for the specified Image control.
         /// </summary>
         /// <param name="image">The Image control to set the repeat behavior on.</param>
         /// <param name="value">The repeat behavior string.</param>
-        public static void SetRepeatBehavior(Image image, string value) => image.SetValue(RepeatBehaviorProperty, value);
+        public static void SetRepeatBehavior(Image image, string value)
+        {
+            if (image is null) throw new ArgumentNullException(nameof(image));
+            image.SetValue(RepeatBehaviorProperty, value);
+        }
 
         #endregion
 
@@ -112,14 +140,22 @@ namespace GifBolt.Avalonia
         /// </summary>
         /// <param name="image">The Image control to query.</param>
         /// <returns>true if animation starts automatically; otherwise false.</returns>
-        public static bool GetAutoStart(Image image) => image.GetValue(AutoStartProperty);
+        public static bool GetAutoStart(Image image)
+        {
+            if (image is null) throw new ArgumentNullException(nameof(image));
+            return image.GetValue(AutoStartProperty);
+        }
 
         /// <summary>
         /// Sets whether animation starts automatically for the specified Image control.
         /// </summary>
         /// <param name="image">The Image control to configure.</param>
         /// <param name="value">true to start animation automatically; otherwise false.</param>
-        public static void SetAutoStart(Image image, bool value) => image.SetValue(AutoStartProperty, value);
+        public static void SetAutoStart(Image image, bool value)
+        {
+            if (image is null) throw new ArgumentNullException(nameof(image));
+            image.SetValue(AutoStartProperty, value);
+        }
 
         #endregion
 
@@ -251,7 +287,8 @@ namespace GifBolt.Avalonia
                 if (str.StartsWith("/Assets/") || str.StartsWith("Assets/"))
                 {
                     // Try to resolve as application asset
-                    var assetUri = new Uri($"avares://GifBolt.AvaloniaApp{(str.StartsWith("/") ? "" : "/")}{str}");
+                    var assemblyName = typeof(ImageBehavior).Assembly.GetName().Name;
+                    var assetUri = new Uri($"avares://{assemblyName}{(str.StartsWith("/") ? "" : "/")}{str}");
                     try
                     {
                         var assets = global::Avalonia.Platform.AssetLoader.Open(assetUri);
@@ -345,10 +382,10 @@ namespace GifBolt.Avalonia
         {
             this._image = image;
             this._player = new GifBolt.GifPlayer();
-            // Défaut : impose un délai minimal de 100ms par frame (Chrome/macOS/ezgif)
+            // Default: enforce a minimum delay of 100ms per frame (Chrome/macOS/ezgif standard)
             this._player.SetMinFrameDelayMs(100);
 
-            // Chargement du GIF en tâche de fond pour éviter le freeze UI
+            // Load the GIF asynchronously to avoid blocking the UI thread
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
@@ -367,7 +404,7 @@ namespace GifBolt.Avalonia
                         PixelFormat.Bgra8888,
                         AlphaFormat.Premul);
 
-                    // Affectation du bitmap et initialisation du timer sur le thread UI
+                    // Assign the bitmap and initialize the timer on the UI thread
                     global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                     {
                         this._writeableBitmap = wb;
@@ -531,7 +568,7 @@ namespace GifBolt.Avalonia
                 {
                 }
 
-                // Avancer à la frame suivante
+                // Advance to the next frame
                 int nextFrame = this._player.CurrentFrame + 1;
                 if (nextFrame >= this._player.FrameCount)
                 {
@@ -550,10 +587,10 @@ namespace GifBolt.Avalonia
                     }
                 }
 
-                // Mettre à jour la frame courante
+                // Update the current frame
                 this._player.CurrentFrame = nextFrame;
 
-                // Mettre à jour dynamiquement l'intervalle du timer pour la prochaine frame
+                // Dynamically update the timer interval for the next frame
                 int nextDelay = this._player.GetFrameDelayMs(nextFrame);
                 if (this._renderTimer != null)
                 {
