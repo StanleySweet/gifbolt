@@ -7,7 +7,18 @@ Checks: >
   modernize-*,
   -readability-magic-numbers,
   -readability-identifier-length,
-  -readability-function-cognitive-complexity'
+  -readability-function-cognitive-complexity,
+  -readability-uppercase-literal-suffix,
+  -readability-use-concise-preprocessor-directives,
+  -modernize-use-trailing-return-type,
+  -modernize-use-using,
+  -modernize-concat-nested-namespaces,
+  -modernize-use-nodiscard,
+  -modernize-use-default-member-init,
+  -modernize-avoid-c-arrays,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -performance-enum-size'
 HeaderFilterRegex: '(src|include)/.*'
-AnalyzeTemporaryDtors: true
 FormatStyle: file
