@@ -554,33 +554,28 @@ namespace GifBolt.Avalonia
                 {
                 }
 
-                // Advance to the next frame
-                int nextFrame = this._player.CurrentFrame + 1;
-                if (nextFrame >= this._player.FrameCount)
+                // Advance to the next frame using shared helper
+                var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+                    this._player.CurrentFrame,
+                    this._player.FrameCount,
+                    this._repeatCount);
+
+                if (advanceResult.IsComplete)
                 {
-                    if (this._repeatCount == -1 || this._repeatCount > 0)
-                    {
-                        nextFrame = 0;
-                        if (this._repeatCount > 0)
-                        {
-                            this._repeatCount--;
-                        }
-                    }
-                    else
-                    {
-                        this.Stop();
-                        return;
-                    }
+                    this.Stop();
+                    return;
                 }
 
-                // Update the current frame
-                this._player.CurrentFrame = nextFrame;
+                // Update the current frame and repeat count
+                this._player.CurrentFrame = advanceResult.NextFrame;
+                this._repeatCount = advanceResult.UpdatedRepeatCount;
 
                 // Dynamically update the timer interval for the next frame
-                int nextDelay = this._player.GetFrameDelayMs(nextFrame);
+                int nextDelay = this._player.GetFrameDelayMs(advanceResult.NextFrame);
                 if (this._renderTimer != null)
                 {
-                    this._renderTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(nextDelay, 16));
+                    int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextDelay, 16);
+                    this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
                 }
             }
             catch

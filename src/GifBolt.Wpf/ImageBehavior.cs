@@ -312,8 +312,21 @@ namespace GifBolt.Wpf
                     0);
             }
 
-            // NOTE: Frame timing is managed by the native layer via GetFrameDelayMs().
-            // Current implementation uses CompositionTarget.Rendering for frame updates.
+            // Advance to the next frame using shared helper
+            var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+                this._player.CurrentFrame,
+                this._player.FrameCount,
+                this._repeatCount);
+
+            if (advanceResult.IsComplete)
+            {
+                this.Stop();
+                return;
+            }
+
+            // Update the current frame and repeat count
+            this._player.CurrentFrame = advanceResult.NextFrame;
+            this._repeatCount = advanceResult.UpdatedRepeatCount;
         }
 
         /// <summary>
