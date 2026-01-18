@@ -26,6 +26,7 @@ class D3D11Texture : public ITexture
                  const void* data, size_t byteCount)
         : _width(width), _height(height)
     {
+        (void)byteCount;  // Used for validation in calling code
         D3D11_TEXTURE2D_DESC desc = {};
         desc.Width = width;
         desc.Height = height;
@@ -53,6 +54,7 @@ class D3D11Texture : public ITexture
 
     bool Update(const void* rgba32Pixels, size_t byteCount) override
     {
+        (void)byteCount;  // Size validated by caller
         if (!_context || !_tex)
         {
             return false;
@@ -73,7 +75,7 @@ class D3D11Texture : public ITexture
 
     PixelFormats::Format GetFormat() const override
     {
-        return PixelFormats::RGBA32;
+        return PixelFormats::Format::R8G8B8A8_UNORM;
     }
 
     void SetContext(ComPtr<ID3D11DeviceContext> ctx)
@@ -128,9 +130,9 @@ D3D11DeviceCommandContext::~D3D11DeviceCommandContext()
     delete _impl;
 }
 
-IDeviceCommandContext::Backend D3D11DeviceCommandContext::GetBackend() const
+Backend D3D11DeviceCommandContext::GetBackend() const
 {
-    return IDeviceCommandContext::Backend::D3D11;
+    return Backend::D3D11;
 }
 
 std::shared_ptr<ITexture> D3D11DeviceCommandContext::CreateTexture(uint32_t width, uint32_t height,
