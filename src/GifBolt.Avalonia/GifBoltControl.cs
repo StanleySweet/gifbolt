@@ -356,8 +356,8 @@ namespace GifBolt.Avalonia
                 try
                 {
                     var player = new GifPlayer();
-                    // Défaut : impose un délai minimal de 100ms par frame (Chrome/macOS/ezgif)
-                    player.SetMinFrameDelayMs(100);
+                    // Default: enforce minimum delay per Chrome/macOS/ezgif standard
+                    player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
                     if (!player.Load(source))
                     {

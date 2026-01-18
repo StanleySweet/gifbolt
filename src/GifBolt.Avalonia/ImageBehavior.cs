@@ -383,8 +383,8 @@ namespace GifBolt.Avalonia
         {
             this._image = image;
             this._player = new GifBolt.GifPlayer();
-            // Default: enforce a minimum delay of 100ms per frame (Chrome/macOS/ezgif standard)
-            this._player.SetMinFrameDelayMs(100);
+            // Default: enforce minimum delay per Chrome/macOS/ezgif standard
+            this._player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
             // Load the GIF asynchronously to avoid blocking the UI thread
             System.Threading.Tasks.Task.Run(() =>
@@ -574,7 +574,7 @@ namespace GifBolt.Avalonia
                 int nextDelay = this._player.GetFrameDelayMs(advanceResult.NextFrame);
                 if (this._renderTimer != null)
                 {
-                    int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextDelay, 16);
+                    int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextDelay, FrameTimingHelper.MinRenderIntervalMs);
                     this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
                 }
             }
