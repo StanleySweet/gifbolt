@@ -29,7 +29,7 @@ if(WIN32)
     target_sources(GifBolt.Native PRIVATE
         src/D3D11DeviceCommandContext.cpp
         include/D3D11DeviceCommandContext.h)
-    target_link_libraries(GifBolt.Native PRIVATE d3d11 dxgi)
+    target_link_libraries(GifBolt.Native PRIVATE d3d11 dxgi d3dcompiler)
     target_compile_definitions(GifBolt.Native PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
