@@ -22,8 +22,8 @@ namespace Renderer
 class D3D11Texture : public ITexture
 {
    public:
-    D3D11Texture(ComPtr<ID3D11Device> device, uint32_t width, uint32_t height, const void* data,
-                 size_t byteCount)
+    D3D11Texture(const ComPtr<ID3D11Device>& device, uint32_t width, uint32_t height,
+                 const void* data, size_t byteCount)
         : _width(width), _height(height)
     {
         D3D11_TEXTURE2D_DESC desc = {};
@@ -51,11 +51,29 @@ class D3D11Texture : public ITexture
         }
     }
 
-    void Update(const void* rgba32Pixels, size_t byteCount) override
+    bool Update(const void* rgba32Pixels, size_t byteCount) override
     {
         if (!_context || !_tex)
-            return;
+        {
+            return false;
+        }
         _context->UpdateSubresource(_tex.Get(), 0, nullptr, rgba32Pixels, _width * 4, 0);
+        return true;
+    }
+
+    uint32_t GetWidth() const override
+    {
+        return _width;
+    }
+
+    uint32_t GetHeight() const override
+    {
+        return _height;
+    }
+
+    PixelFormats::Format GetFormat() const override
+    {
+        return PixelFormats::RGBA32;
     }
 
     void SetContext(ComPtr<ID3D11DeviceContext> ctx)
@@ -112,7 +130,7 @@ D3D11DeviceCommandContext::~D3D11DeviceCommandContext()
 
 IDeviceCommandContext::Backend D3D11DeviceCommandContext::GetBackend() const
 {
-    return Backend::D3D11;
+    return IDeviceCommandContext::Backend::D3D11;
 }
 
 std::shared_ptr<ITexture> D3D11DeviceCommandContext::CreateTexture(uint32_t width, uint32_t height,
@@ -121,7 +139,10 @@ std::shared_ptr<ITexture> D3D11DeviceCommandContext::CreateTexture(uint32_t widt
 {
     auto tex =
         std::make_shared<D3D11Texture>(_impl->device, width, height, rgba32Pixels, byteCount);
-    static_cast<D3D11Texture*>(tex.get())->SetContext(_impl->context);
+    if (tex)
+    {
+        static_cast<D3D11Texture*>(tex.get())->SetContext(_impl->context);
+    }
     return tex;
 }
 
