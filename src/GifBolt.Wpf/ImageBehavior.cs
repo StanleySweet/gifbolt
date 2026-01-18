@@ -301,38 +301,15 @@ namespace GifBolt.Wpf
 
             if (this._player.TryGetFramePixelsBgra32Premultiplied(this._player.CurrentFrame, out byte[] pixels))
             {
-                this._writeableBitmap.Lock();
-                try
-                {
-                    unsafe
-                    {
-                        var buffer = (byte*)this._writeableBitmap.BackBuffer;
-                        int stride = this._writeableBitmap.BackBufferStride;
-                        int width = this._player.Width;
-                        int height = this._player.Height;
+                int width = this._player.Width;
+                int height = this._player.Height;
+                int stride = width * 4;
 
-                        for (int y = 0; y < height; y++)
-                        {
-                            for (int x = 0; x < width; x++)
-                            {
-                                int srcIdx = (y * width + x) * 4;
-                                int dstIdx = y * stride + x * 4;
-
-                                // Pixels déjà en BGRA premultiplied
-                                buffer[dstIdx + 0] = pixels[srcIdx + 0]; // B
-                                buffer[dstIdx + 1] = pixels[srcIdx + 1]; // G
-                                buffer[dstIdx + 2] = pixels[srcIdx + 2]; // R
-                                buffer[dstIdx + 3] = pixels[srcIdx + 3]; // A
-                            }
-                        }
-                    }
-
-                    this._writeableBitmap.AddDirtyRect(new Int32Rect(0, 0, this._player.Width, this._player.Height));
-                }
-                finally
-                {
-                    this._writeableBitmap.Unlock();
-                }
+                this._writeableBitmap.WritePixels(
+                    new Int32Rect(0, 0, width, height),
+                    pixels,
+                    stride,
+                    0);
             }
 
             // NOTE: Frame timing is managed by the native layer via GetFrameDelayMs().
