@@ -7,7 +7,7 @@ RECURSIVE              = YES
 EXCLUDE_PATTERNS       = */build/* */.git/*
 
 # Output
-OUTPUT_DIRECTORY       = ../../docs_new/cpp-api
+OUTPUT_DIRECTORY       = ../../docs_build/cpp-api
 HTML_OUTPUT            = .
 LATEX_OUTPUT           = latex
 
@@ -55,7 +55,8 @@ MARKDOWN_SUPPORT       = YES
 HAVE_DOT               = YES
 DOT_IMAGE_FORMAT       = svg
 INTERACTIVE_SVG        = YES
-DOT_PATH               = /usr/local/bin
+# Let Doxygen auto-detect Graphviz 'dot' path; CI installs graphviz
+DOT_PATH               =
 
 # Search
 SEARCHENGINE           = YES
