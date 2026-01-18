@@ -2,10 +2,12 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 #include "GifBoltRenderer.h"
-#include "GifDecoder.h"
-#include "DummyDeviceCommandContext.h"
-#include "ITexture.h"
+
 #include <chrono>
+
+#include "DummyDeviceCommandContext.h"
+#include "GifDecoder.h"
+#include "ITexture.h"
 
 namespace GifBolt
 {
@@ -13,9 +15,13 @@ namespace GifBolt
 class GifBoltRenderer::Impl
 {
    public:
-    Impl() : m_DeviceContext(std::make_shared<Renderer::DummyDeviceCommandContext>()) {}
+    Impl() : m_DeviceContext(std::make_shared<Renderer::DummyDeviceCommandContext>())
+    {
+    }
     explicit Impl(std::shared_ptr<Renderer::IDeviceCommandContext> context)
-        : m_DeviceContext(context) {}
+        : m_DeviceContext(context)
+    {
+    }
 
     std::shared_ptr<Renderer::IDeviceCommandContext> m_DeviceContext;
     std::unique_ptr<GifDecoder> m_Decoder;
@@ -104,8 +110,8 @@ bool GifBoltRenderer::Render()
     if (pImpl->m_Playing)
     {
         auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - pImpl->m_LastFrameTime);
+        auto elapsed =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - pImpl->m_LastFrameTime);
 
         const auto& currentFrame = pImpl->m_Decoder->GetFrame(pImpl->m_CurrentFrame);
 
@@ -135,20 +141,19 @@ bool GifBoltRenderer::Render()
     if (!pImpl->m_CurrentTexture)
     {
         pImpl->m_CurrentTexture = pImpl->m_DeviceContext->CreateTexture(
-            frame.width, frame.height,
-            frame.pixels.data(), frame.pixels.size() * sizeof(uint32_t));
+            frame.width, frame.height, frame.pixels.data(), frame.pixels.size() * sizeof(uint32_t));
     }
     else
     {
-        pImpl->m_CurrentTexture->Update(
-            frame.pixels.data(), frame.pixels.size() * sizeof(uint32_t));
+        pImpl->m_CurrentTexture->Update(frame.pixels.data(),
+                                        frame.pixels.size() * sizeof(uint32_t));
     }
 
     // Render frame
     pImpl->m_DeviceContext->BeginFrame();
     pImpl->m_DeviceContext->Clear(0.0f, 0.0f, 0.0f, 1.0f);
-    pImpl->m_DeviceContext->DrawTexture(
-        pImpl->m_CurrentTexture.get(), 0, 0, pImpl->m_Width, pImpl->m_Height);
+    pImpl->m_DeviceContext->DrawTexture(pImpl->m_CurrentTexture.get(), 0, 0, pImpl->m_Width,
+                                        pImpl->m_Height);
     pImpl->m_DeviceContext->EndFrame();
 
     return true;

@@ -2,9 +2,10 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 #include <catch2/catch_test_macros.hpp>
-#include "GifDecoder.h"
 #include <chrono>
 #include <iostream>
+
+#include "GifDecoder.h"
 
 using namespace GifBolt;
 using namespace std::chrono;
@@ -31,7 +32,8 @@ TEST_CASE("Async prefetching reduces random access latency", "[Prefetch]")
     }
 
     auto endSequential = high_resolution_clock::now();
-    double sequentialTime = duration_cast<microseconds>(endSequential - startSequential).count() / 1000.0;
+    double sequentialTime =
+        duration_cast<microseconds>(endSequential - startSequential).count() / 1000.0;
     std::cout << "Time: " << sequentialTime << " ms\n\n";
 
     // Test with prefetch hint (future optimization)

@@ -209,8 +209,8 @@ bool D3D11DeviceCommandContext::Impl::InitializeComputeShader()
     ComPtr<ID3DBlob> errorBlob;
 
     HRESULT hr = D3DCompile(shaderSource, strlen(shaderSource), nullptr, nullptr, nullptr,
-                           "ConvertRGBAToBGRAPremultiplied", "cs_5_0", 0, 0,
-                           shaderBlob.GetAddressOf(), errorBlob.GetAddressOf());
+                            "ConvertRGBAToBGRAPremultiplied", "cs_5_0", 0, 0,
+                            shaderBlob.GetAddressOf(), errorBlob.GetAddressOf());
 
     if (FAILED(hr))
     {
@@ -218,8 +218,8 @@ bool D3D11DeviceCommandContext::Impl::InitializeComputeShader()
     }
 
     hr = this->device->CreateComputeShader(shaderBlob->GetBufferPointer(),
-                                          shaderBlob->GetBufferSize(), nullptr,
-                                          this->conversionShader.GetAddressOf());
+                                           shaderBlob->GetBufferSize(), nullptr,
+                                           this->conversionShader.GetAddressOf());
 
     if (FAILED(hr))
     {
@@ -239,8 +239,8 @@ bool D3D11DeviceCommandContext::Impl::InitializeComputeShader()
 }
 
 bool D3D11DeviceCommandContext::ConvertRGBAToBGRAPremultipliedGPU(const void* inputRGBA,
-                                                                   void* outputBGRA,
-                                                                   uint32_t pixelCount)
+                                                                  void* outputBGRA,
+                                                                  uint32_t pixelCount)
 {
     if (!_impl || !_impl->computeShaderReady || !_impl->device || !_impl->context)
     {

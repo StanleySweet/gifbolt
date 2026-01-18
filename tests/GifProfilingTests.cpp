@@ -2,16 +2,17 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 #include <catch2/catch_test_macros.hpp>
-#include "GifDecoder.h"
 #include <chrono>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
+
+#include "GifDecoder.h"
 
 using namespace GifBolt;
 using namespace std::chrono;
 
 /// \brief Helper to measure execution time in milliseconds
-template<typename Func>
+template <typename Func>
 double MeasureMs(Func&& func)
 {
     auto start = high_resolution_clock::now();
@@ -31,52 +32,58 @@ TEST_CASE("Profile sample.gif loading and conversion", "[Profiling]")
     GifDecoder decoder;
 
     // 2. LoadFromFile (includes file I/O + GIF parsing + frame decoding)
-    double loadTime = MeasureMs([&]() {
-        REQUIRE(decoder.LoadFromFile(gifPath));
-    });
-    std::cout << "[LOAD FILE]          " << loadTime << " ms (file I/O + parse + decode first frame ONLY)\n";
+    double loadTime = MeasureMs([&]() { REQUIRE(decoder.LoadFromFile(gifPath)); });
+    std::cout << "[LOAD FILE]          " << loadTime
+              << " ms (file I/O + parse + decode first frame ONLY)\n";
 
     const uint32_t width = decoder.GetWidth();
     const uint32_t height = decoder.GetHeight();
     const uint32_t frameCount = decoder.GetFrameCount();
     const uint32_t pixelCount = width * height;
 
-    std::cout << "[DIMENSIONS]         " << width << "x" << height << " = " << pixelCount << " pixels\n";
+    std::cout << "[DIMENSIONS]         " << width << "x" << height << " = " << pixelCount
+              << " pixels\n";
     std::cout << "[FRAME COUNT]        " << frameCount << " frames\n";
 
     // 3. Get BGRA pixels for first frame (includes RGBA->BGRA conversion + premultiply)
     const uint8_t* bgraPixels = nullptr;
-    double getFirstFrameTime = MeasureMs([&]() {
-        bgraPixels = decoder.GetFramePixelsBGRA32Premultiplied(0);
-    });
+    double getFirstFrameTime =
+        MeasureMs([&]() { bgraPixels = decoder.GetFramePixelsBGRA32Premultiplied(0); });
     REQUIRE(bgraPixels != nullptr);
-    std::cout << "[GET BGRA FRAME 0]   " << getFirstFrameTime << " ms (RGBA->BGRA convert + premultiply)\n";
+    std::cout << "[GET BGRA FRAME 0]   " << getFirstFrameTime
+              << " ms (RGBA->BGRA convert + premultiply)\n";
 
     // 4. Get BGRA pixels again (should be fully cached)
-    double getCachedTime = MeasureMs([&]() {
-        bgraPixels = decoder.GetFramePixelsBGRA32Premultiplied(0);
-    });
+    double getCachedTime =
+        MeasureMs([&]() { bgraPixels = decoder.GetFramePixelsBGRA32Premultiplied(0); });
     REQUIRE(bgraPixels != nullptr);
-    std::cout << "[GET BGRA CACHED]    " << getCachedTime << " ms (fully cached, memory copy only)\n";
+    std::cout << "[GET BGRA CACHED]    " << getCachedTime
+              << " ms (fully cached, memory copy only)\n";
 
     // 5. Access all frames to check if they're decoded
-    double accessAllTime = MeasureMs([&]() {
-        for (uint32_t i = 0; i < frameCount; ++i)
+    double accessAllTime = MeasureMs(
+        [&]()
         {
-            const GifFrame& frame = decoder.GetFrame(i);
-            REQUIRE(frame.width > 0);
-        }
-    });
-    std::cout << "[ACCESS ALL FRAMES]  " << accessAllTime << " ms (" << frameCount << " frames, lazy decode triggered)\n";
+            for (uint32_t i = 0; i < frameCount; ++i)
+            {
+                const GifFrame& frame = decoder.GetFrame(i);
+                REQUIRE(frame.width > 0);
+            }
+        });
+    std::cout << "[ACCESS ALL FRAMES]  " << accessAllTime << " ms (" << frameCount
+              << " frames, lazy decode triggered)\n";
 
     // 6. Convert all frames to BGRA
-    double convertAllTime = MeasureMs([&]() {
-        for (uint32_t i = 1; i < frameCount; ++i)
+    double convertAllTime = MeasureMs(
+        [&]()
         {
-            decoder.GetFramePixelsBGRA32Premultiplied(i);
-        }
-    });
-    std::cout << "[CONVERT ALL FRAMES] " << convertAllTime << " ms (" << (frameCount - 1) << " frames)\n";
+            for (uint32_t i = 1; i < frameCount; ++i)
+            {
+                decoder.GetFramePixelsBGRA32Premultiplied(i);
+            }
+        });
+    std::cout << "[CONVERT ALL FRAMES] " << convertAllTime << " ms (" << (frameCount - 1)
+              << " frames)\n";
 
     // Total time analysis
     double totalColdLoad = loadTime + getFirstFrameTime;
@@ -85,20 +92,24 @@ TEST_CASE("Profile sample.gif loading and conversion", "[Profiling]")
     std::cout << "\n========== TIMING BREAKDOWN ==========\n";
     std::cout << "File I/O + Parse + Decode: " << std::setw(8) << loadTime << " ms ("
               << std::setw(5) << std::setprecision(1) << (loadTime / totalColdLoad * 100) << "%)\n";
-    std::cout << "First BGRA Convert:        " << std::setw(8) << std::setprecision(2) << getFirstFrameTime << " ms ("
-              << std::setw(5) << std::setprecision(1) << (getFirstFrameTime / totalColdLoad * 100) << "%)\n";
-    std::cout << "Cached BGRA Access:        " << std::setw(8) << std::setprecision(2) << getCachedTime << " ms (cache hit)\n";
+    std::cout << "First BGRA Convert:        " << std::setw(8) << std::setprecision(2)
+              << getFirstFrameTime << " ms (" << std::setw(5) << std::setprecision(1)
+              << (getFirstFrameTime / totalColdLoad * 100) << "%)\n";
+    std::cout << "Cached BGRA Access:        " << std::setw(8) << std::setprecision(2)
+              << getCachedTime << " ms (cache hit)\n";
     std::cout << "Average Convert/Frame:     " << std::setw(8) << avgConversionPerFrame << " ms\n";
 
     std::cout << "\n========== TOTAL & TARGET ==========\n";
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "Cold load (file + 1st frame): " << totalColdLoad << " ms\n";
-    std::cout << "Full animation ready:         " << (loadTime + getFirstFrameTime + convertAllTime) << " ms\n";
+    std::cout << "Full animation ready:         " << (loadTime + getFirstFrameTime + convertAllTime)
+              << " ms\n";
     std::cout << "\nTarget:                       < 500 ms (ideally < 250 ms)\n";
 
     if (totalColdLoad > 500.0)
     {
-        std::cout << "Status:                       ❌ NEEDS OPTIMIZATION (" << (totalColdLoad - 500.0) << " ms over)\n";
+        std::cout << "Status:                       ❌ NEEDS OPTIMIZATION ("
+                  << (totalColdLoad - 500.0) << " ms over)\n";
         std::cout << "\nBottleneck Analysis:\n";
         if (loadTime > 250.0)
         {
@@ -114,7 +125,8 @@ TEST_CASE("Profile sample.gif loading and conversion", "[Profiling]")
     }
     else if (totalColdLoad > 250.0)
     {
-        std::cout << "Status:                       ⚠️  ACCEPTABLE (" << (totalColdLoad - 250.0) << " ms over ideal)\n";
+        std::cout << "Status:                       ⚠️  ACCEPTABLE (" << (totalColdLoad - 250.0)
+                  << " ms over ideal)\n";
     }
     else
     {
@@ -142,9 +154,7 @@ TEST_CASE("Profile frame-by-frame BGRA conversion performance", "[Profiling]")
 
     for (uint32_t i = 0; i < framesToProfile; ++i)
     {
-        double frameTime = MeasureMs([&]() {
-            decoder.GetFramePixelsBGRA32Premultiplied(i);
-        });
+        double frameTime = MeasureMs([&]() { decoder.GetFramePixelsBGRA32Premultiplied(i); });
 
         totalConversionTime += frameTime;
         minTime = std::min(minTime, frameTime);
@@ -184,21 +194,15 @@ TEST_CASE("Measure LoadFromFile breakdown components", "[Profiling]")
     GifDecoder decoder1, decoder2, decoder3;
 
     // Measure first load (cold, includes potential OS caching)
-    double firstLoad = MeasureMs([&]() {
-        REQUIRE(decoder1.LoadFromFile(gifPath));
-    });
+    double firstLoad = MeasureMs([&]() { REQUIRE(decoder1.LoadFromFile(gifPath)); });
     std::cout << "[FIRST LOAD]         " << firstLoad << " ms (cold, no OS cache)\n";
 
     // Measure second load (OS file cache warm)
-    double secondLoad = MeasureMs([&]() {
-        REQUIRE(decoder2.LoadFromFile(gifPath));
-    });
+    double secondLoad = MeasureMs([&]() { REQUIRE(decoder2.LoadFromFile(gifPath)); });
     std::cout << "[SECOND LOAD]        " << secondLoad << " ms (warm OS file cache)\n";
 
     // Measure third load
-    double thirdLoad = MeasureMs([&]() {
-        REQUIRE(decoder3.LoadFromFile(gifPath));
-    });
+    double thirdLoad = MeasureMs([&]() { REQUIRE(decoder3.LoadFromFile(gifPath)); });
     std::cout << "[THIRD LOAD]         " << thirdLoad << " ms (warm OS file cache)\n";
 
     double avgWarmLoad = (secondLoad + thirdLoad) / 2.0;
@@ -207,6 +211,7 @@ TEST_CASE("Measure LoadFromFile breakdown components", "[Profiling]")
     std::cout << "\n[ANALYSIS]\n";
     std::cout << "Average warm load:   " << avgWarmLoad << " ms (GIF parsing + decoding)\n";
     std::cout << "Estimated file I/O:  " << estimatedIOTime << " ms (disk read time)\n";
-    std::cout << "File I/O overhead:   " << std::setprecision(1) << (estimatedIOTime / firstLoad * 100) << "%\n";
+    std::cout << "File I/O overhead:   " << std::setprecision(1)
+              << (estimatedIOTime / firstLoad * 100) << "%\n";
     std::cout << "===================================================\n\n";
 }

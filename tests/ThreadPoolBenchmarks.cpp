@@ -2,16 +2,17 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 #include <catch2/catch_test_macros.hpp>
-#include "GifDecoder.h"
 #include <chrono>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
+
+#include "GifDecoder.h"
 
 using namespace GifBolt;
 using namespace std::chrono;
 
 /// \brief Helper to measure execution time in milliseconds
-template<typename Func>
+template <typename Func>
 double MeasureMs(Func&& func)
 {
     auto start = high_resolution_clock::now();
@@ -41,20 +42,23 @@ TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPo
         // Warm-up: decode first frame
         decoder.GetFrame(0);
 
-        double totalTime = MeasureMs([&]() {
-            for (uint32_t i = 1; i < std::min(frameCount, 100u); ++i)
+        double totalTime = MeasureMs(
+            [&]()
             {
-                const GifFrame& frame = decoder.GetFrame(i);
-                REQUIRE(frame.pixels.size() > 0);
-            }
-        });
+                for (uint32_t i = 1; i < std::min(frameCount, 100u); ++i)
+                {
+                    const GifFrame& frame = decoder.GetFrame(i);
+                    REQUIRE(frame.pixels.size() > 0);
+                }
+            });
 
         double avgPerFrame = totalTime / std::min(frameCount - 1, 99u);
         double fps = 1000.0 / avgPerFrame;
 
         std::cout << "Total time:       " << std::setw(8) << totalTime << " ms\n";
         std::cout << "Avg per frame:    " << std::setw(8) << avgPerFrame << " ms\n";
-        std::cout << "Effective FPS:    " << std::setw(8) << std::setprecision(1) << fps << " FPS\n";
+        std::cout << "Effective FPS:    " << std::setw(8) << std::setprecision(1) << fps
+                  << " FPS\n";
     }
 
     // Test 2: Full animation decode with BGRA conversion
@@ -76,9 +80,10 @@ TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPo
         double avgPerFrame = totalTime / frameCount;
         double fps = 1000.0 / avgPerFrame;
 
-        std::cout << "Total time:       " << std::setw(8) << std::setprecision(2) << totalTime << " ms (" << frameCount << " frames)\n";
-        std::cout << "Avg per frame:    " << std::setw(8) << avgPerFrame << " ms\n";
-        std::cout << "Effective FPS:    " << std::setw(8) << std::setprecision(1) << fps << " FPS\n";
+        std::cout << "Total time:       " << std::setw(8) << std::setprecision(2) << totalTime << "
+    ms (" << frameCount << " frames)\n"; std::cout << "Avg per frame:    " << std::setw(8) <<
+    avgPerFrame << " ms\n"; std::cout << "Effective FPS:    " << std::setw(8) <<
+    std::setprecision(1) << fps << " FPS\n";
     }
     */
 
@@ -92,13 +97,15 @@ TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPo
         // Cold start - decode first frame to trigger slurp
         decoder3.GetFrame(0);
 
-        double burstTime = MeasureMs([&]() {
-            for (uint32_t i = 0; i < 50 && i < frameCount; ++i)
+        double burstTime = MeasureMs(
+            [&]()
             {
-                const GifFrame& frame = decoder3.GetFrame(i);
-                REQUIRE(frame.pixels.size() > 0);
-            }
-        });
+                for (uint32_t i = 0; i < 50 && i < frameCount; ++i)
+                {
+                    const GifFrame& frame = decoder3.GetFrame(i);
+                    REQUIRE(frame.pixels.size() > 0);
+                }
+            });
 
         std::cout << "Burst time:       " << std::setw(8) << burstTime << " ms (50 frames)\n";
         std::cout << "Avg per frame:    " << std::setw(8) << burstTime / 50.0 << " ms\n";
@@ -117,13 +124,15 @@ TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPo
             randomIndices.push_back(rand() % std::min(frameCount, 200u));
         }
 
-        double randomTime = MeasureMs([&]() {
-            for (uint32_t idx : randomIndices)
+        double randomTime = MeasureMs(
+            [&]()
             {
-                const GifFrame& frame = decoder4.GetFrame(idx);
-                REQUIRE(frame.pixels.size() > 0);
-            }
-        });
+                for (uint32_t idx : randomIndices)
+                {
+                    const GifFrame& frame = decoder4.GetFrame(idx);
+                    REQUIRE(frame.pixels.size() > 0);
+                }
+            });
 
         std::cout << "Random access:    " << std::setw(8) << randomTime << " ms (100 accesses)\n";
         std::cout << "Avg per access:   " << std::setw(8) << randomTime / 100.0 << " ms\n";
@@ -153,17 +162,20 @@ TEST_CASE("Benchmark thread pool vs baseline", "[Benchmark][ThreadPool][Comparis
 
         const uint32_t frameCount = decoder.GetFrameCount();
 
-        double time = MeasureMs([&]() {
-            for (uint32_t i = 0; i < std::min(frameCount, 150u); ++i)
+        double time = MeasureMs(
+            [&]()
             {
-                const GifFrame& frame = decoder.GetFrame(i);
-                REQUIRE(frame.pixels.size() > 0);
-            }
-        });
+                for (uint32_t i = 0; i < std::min(frameCount, 150u); ++i)
+                {
+                    const GifFrame& frame = decoder.GetFrame(i);
+                    REQUIRE(frame.pixels.size() > 0);
+                }
+            });
 
         std::cout << "With thread pool:  " << std::setw(8) << time << " ms (150 frames)\n";
         std::cout << "Avg per frame:     " << std::setw(8) << time / 150.0 << " ms\n";
-        std::cout << "Throughput:        " << std::setw(8) << std::setprecision(1) << (150.0 * 1000.0 / time) << " FPS\n";
+        std::cout << "Throughput:        " << std::setw(8) << std::setprecision(1)
+                  << (150.0 * 1000.0 / time) << " FPS\n";
     }
 
     std::cout << "\nNote: Thread pool provides background decoding ahead of current frame\n";

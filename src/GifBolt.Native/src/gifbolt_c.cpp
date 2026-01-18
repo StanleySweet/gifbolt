@@ -9,26 +9,27 @@
 
 using namespace GifBolt;
 
-extern "C" {
-GB_API void gb_decoder_set_min_frame_delay_ms(gb_decoder_t decoder, int minDelayMs)
+extern "C"
 {
-    if (decoder == nullptr)
+    GB_API void gb_decoder_set_min_frame_delay_ms(gb_decoder_t decoder, int minDelayMs)
     {
-        return;
+        if (decoder == nullptr)
+        {
+            return;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        ptr->SetMinFrameDelayMs(static_cast<uint32_t>(minDelayMs));
     }
-    auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
-    ptr->SetMinFrameDelayMs(static_cast<uint32_t>(minDelayMs));
-}
 
-GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
-{
-    if (decoder == nullptr)
+    GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
     {
-        return 0;
+        if (decoder == nullptr)
+        {
+            return 0;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        return static_cast<int>(ptr->GetMinFrameDelayMs());
     }
-    auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
-    return static_cast<int>(ptr->GetMinFrameDelayMs());
-}
     GB_API gb_decoder_t gb_decoder_create(void)
     {
         try
@@ -174,7 +175,8 @@ GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
         }
         try
         {
-            const uint8_t* bgraPixels = ptr->GetFramePixelsBGRA32Premultiplied(static_cast<uint32_t>(index));
+            const uint8_t* bgraPixels =
+                ptr->GetFramePixelsBGRA32Premultiplied(static_cast<uint32_t>(index));
             if (bgraPixels == nullptr)
             {
                 return nullptr;
@@ -195,8 +197,8 @@ GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
     }
 
     GB_API const void* gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
-        gb_decoder_t decoder, int index, int targetWidth, int targetHeight,
-        int* outWidth, int* outHeight, int* byteCount, int filterType)
+        gb_decoder_t decoder, int index, int targetWidth, int targetHeight, int* outWidth,
+        int* outHeight, int* byteCount, int filterType)
     {
         if (byteCount != nullptr)
         {
@@ -224,11 +226,8 @@ GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder)
             uint32_t actualWidth = 0;
             uint32_t actualHeight = 0;
             const uint8_t* bgraPixels = ptr->GetFramePixelsBGRA32PremultipliedScaled(
-                static_cast<uint32_t>(index),
-                static_cast<uint32_t>(targetWidth),
-                static_cast<uint32_t>(targetHeight),
-                actualWidth,
-                actualHeight,
+                static_cast<uint32_t>(index), static_cast<uint32_t>(targetWidth),
+                static_cast<uint32_t>(targetHeight), actualWidth, actualHeight,
                 static_cast<ScalingFilter>(filterType));
 
             if (bgraPixels == nullptr)

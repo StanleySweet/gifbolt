@@ -2,19 +2,20 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <iomanip>
+#include <iostream>
+#include <thread>
+#include <vector>
+
 #include "GifDecoder.h"
 #include "ScalingFilter.h"
-#include <chrono>
-#include <iostream>
-#include <iomanip>
-#include <vector>
-#include <thread>
 
 using namespace GifBolt;
 using namespace std::chrono;
 
 /// \brief Helper to measure execution time in milliseconds
-template<typename Func>
+template <typename Func>
 double MeasureMs(Func&& func)
 {
     auto start = high_resolution_clock::now();
@@ -35,7 +36,8 @@ TEST_CASE("Benchmark scaling filters - Quality vs Performance", "[Benchmark][Sca
     const uint32_t frameCount = decoder.GetFrameCount();
 
     std::cout << "\n========== SCALING FILTER BENCHMARKS ==========\n";
-    std::cout << "Source: " << sourceWidth << "x" << sourceHeight << " (" << frameCount << " frames)\n\n";
+    std::cout << "Source: " << sourceWidth << "x" << sourceHeight << " (" << frameCount
+              << " frames)\n\n";
 
     // Test configurations: different target resolutions
     struct TestConfig
@@ -46,11 +48,10 @@ TEST_CASE("Benchmark scaling filters - Quality vs Performance", "[Benchmark][Sca
         double scale;
     };
 
-    std::vector<TestConfig> configs = {
-        {"Downscale 2x", sourceWidth / 2, sourceHeight / 2, 0.5},
-        {"Upscale 1.5x", static_cast<uint32_t>(sourceWidth * 1.5), static_cast<uint32_t>(sourceHeight * 1.5), 1.5},
-        {"Upscale 2x", sourceWidth * 2, sourceHeight * 2, 2.0}
-    };
+    std::vector<TestConfig> configs = {{"Downscale 2x", sourceWidth / 2, sourceHeight / 2, 0.5},
+                                       {"Upscale 1.5x", static_cast<uint32_t>(sourceWidth * 1.5),
+                                        static_cast<uint32_t>(sourceHeight * 1.5), 1.5},
+                                       {"Upscale 2x", sourceWidth * 2, sourceHeight * 2, 2.0}};
 
     // Test each filter type
     struct FilterInfo
@@ -64,12 +65,12 @@ TEST_CASE("Benchmark scaling filters - Quality vs Performance", "[Benchmark][Sca
         {ScalingFilter::Nearest, "Nearest", "Point sampling - fastest, lowest quality"},
         {ScalingFilter::Bilinear, "Bilinear", "Linear interpolation - good balance"},
         {ScalingFilter::Bicubic, "Bicubic", "Cubic interpolation - higher quality"},
-        {ScalingFilter::Lanczos, "Lanczos-3", "Sinc resampling - highest quality"}
-    };
+        {ScalingFilter::Lanczos, "Lanczos-3", "Sinc resampling - highest quality"}};
 
     for (const auto& config : configs)
     {
-        std::cout << "\n--- " << config.name << " (" << config.targetWidth << "x" << config.targetHeight << ", " << config.scale << "x) ---\n";
+        std::cout << "\n--- " << config.name << " (" << config.targetWidth << "x"
+                  << config.targetHeight << ", " << config.scale << "x) ---\n";
         std::cout << std::fixed << std::setprecision(2);
 
         // Baseline: use first filter as reference
@@ -92,10 +93,13 @@ TEST_CASE("Benchmark scaling filters - Quality vs Performance", "[Benchmark][Sca
 
             for (int iter = 0; iter < iterations; ++iter)
             {
-                double time = MeasureMs([&]() {
-                    scaledPixels = decoder.GetFramePixelsBGRA32PremultipliedScaled(
-                        0, config.targetWidth, config.targetHeight, outWidth, outHeight, filterInfo.filter);
-                });
+                double time = MeasureMs(
+                    [&]()
+                    {
+                        scaledPixels = decoder.GetFramePixelsBGRA32PremultipliedScaled(
+                            0, config.targetWidth, config.targetHeight, outWidth, outHeight,
+                            filterInfo.filter);
+                    });
                 totalTime += time;
             }
 
@@ -108,9 +112,9 @@ TEST_CASE("Benchmark scaling filters - Quality vs Performance", "[Benchmark][Sca
 
             double slowdown = (baselineTime > 0.0) ? (avgTime / baselineTime) : 1.0;
 
-            std::cout << std::left << std::setw(12) << filterInfo.name << ": "
-                      << std::right << std::setw(8) << avgTime << " ms/frame"
-                      << std::setw(8) << (slowdown - 1.0) * 100.0 << "% slower"
+            std::cout << std::left << std::setw(12) << filterInfo.name << ": " << std::right
+                      << std::setw(8) << avgTime << " ms/frame" << std::setw(8)
+                      << (slowdown - 1.0) * 100.0 << "% slower"
                       << "  |  " << filterInfo.description << "\n";
         }
     }
@@ -124,23 +128,25 @@ TEST_CASE("Benchmark scaling filters - Quality vs Performance", "[Benchmark][Sca
 
     for (const auto& filterInfo : filters)
     {
-        double totalTime = MeasureMs([&]() {
-            for (uint32_t frame = 0; frame < frameCount; ++frame)
+        double totalTime = MeasureMs(
+            [&]()
             {
-                uint32_t outWidth = 0, outHeight = 0;
-                const uint8_t* scaledPixels = decoder.GetFramePixelsBGRA32PremultipliedScaled(
-                    frame, hdWidth, hdHeight, outWidth, outHeight, filterInfo.filter);
-                REQUIRE(scaledPixels != nullptr);
-            }
-        });
+                for (uint32_t frame = 0; frame < frameCount; ++frame)
+                {
+                    uint32_t outWidth = 0, outHeight = 0;
+                    const uint8_t* scaledPixels = decoder.GetFramePixelsBGRA32PremultipliedScaled(
+                        frame, hdWidth, hdHeight, outWidth, outHeight, filterInfo.filter);
+                    REQUIRE(scaledPixels != nullptr);
+                }
+            });
 
         double avgPerFrame = totalTime / frameCount;
         double fps = 1000.0 / avgPerFrame;
 
-        std::cout << std::left << std::setw(12) << filterInfo.name << ": "
-                  << std::right << std::setw(8) << std::setprecision(2) << totalTime << " ms total, "
-                  << std::setw(6) << avgPerFrame << " ms/frame, "
-                  << std::setw(5) << std::setprecision(1) << fps << " FPS\n";
+        std::cout << std::left << std::setw(12) << filterInfo.name << ": " << std::right
+                  << std::setw(8) << std::setprecision(2) << totalTime << " ms total, "
+                  << std::setw(6) << avgPerFrame << " ms/frame, " << std::setw(5)
+                  << std::setprecision(1) << fps << " FPS\n";
     }
 
     std::cout << "\n========== RECOMMENDATIONS ==========\n";
@@ -165,17 +171,19 @@ TEST_CASE("Benchmark prefetch impact on sequential access", "[Benchmark][Prefetc
 
         const uint32_t frameCount = decoder.GetFrameCount();
 
-        double totalTime = MeasureMs([&]() {
-            for (uint32_t i = 0; i < std::min(frameCount, 50u); ++i)
+        double totalTime = MeasureMs(
+            [&]()
             {
-                const uint8_t* pixels = decoder.GetFramePixelsBGRA32Premultiplied(i);
-                REQUIRE(pixels != nullptr);
-            }
-        });
+                for (uint32_t i = 0; i < std::min(frameCount, 50u); ++i)
+                {
+                    const uint8_t* pixels = decoder.GetFramePixelsBGRA32Premultiplied(i);
+                    REQUIRE(pixels != nullptr);
+                }
+            });
 
         double avgPerFrame = totalTime / std::min(frameCount, 50u);
-        std::cout << "Without prefetch: " << std::setw(8) << std::setprecision(2) << totalTime << " ms total, "
-                  << std::setw(6) << avgPerFrame << " ms/frame\n";
+        std::cout << "Without prefetch: " << std::setw(8) << std::setprecision(2) << totalTime
+                  << " ms total, " << std::setw(6) << avgPerFrame << " ms/frame\n";
     }
 
     // Test with prefetch
@@ -191,18 +199,20 @@ TEST_CASE("Benchmark prefetch impact on sequential access", "[Benchmark][Prefetc
         // Give prefetch thread time to decode ahead
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        double totalTime = MeasureMs([&]() {
-            for (uint32_t i = 0; i < std::min(frameCount, 50u); ++i)
+        double totalTime = MeasureMs(
+            [&]()
             {
-                decoder.SetCurrentFrame(i);  // Update prefetch position
-                const uint8_t* pixels = decoder.GetFramePixelsBGRA32Premultiplied(i);
-                REQUIRE(pixels != nullptr);
-            }
-        });
+                for (uint32_t i = 0; i < std::min(frameCount, 50u); ++i)
+                {
+                    decoder.SetCurrentFrame(i);  // Update prefetch position
+                    const uint8_t* pixels = decoder.GetFramePixelsBGRA32Premultiplied(i);
+                    REQUIRE(pixels != nullptr);
+                }
+            });
 
         double avgPerFrame = totalTime / std::min(frameCount, 50u);
-        std::cout << "With prefetch:    " << std::setw(8) << std::setprecision(2) << totalTime << " ms total, "
-                  << std::setw(6) << avgPerFrame << " ms/frame\n";
+        std::cout << "With prefetch:    " << std::setw(8) << std::setprecision(2) << totalTime
+                  << " ms total, " << std::setw(6) << avgPerFrame << " ms/frame\n";
 
         // Clean shutdown
         decoder.StopPrefetching();

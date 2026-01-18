@@ -2,35 +2,38 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 #include "GifDecoder.h"
-#include "PixelConversion.h"
+
 #include "IDeviceCommandContext.h"
 #include "MemoryPool.h"
+#include "PixelConversion.h"
 #include "ThreadPool.h"
 #if defined(__APPLE__)
 #include "MetalDeviceCommandContext.h"
 #endif
 #include <gif_lib.h>
-#include <fstream>
-#include <stdexcept>
-#include <cstring>
-#include <thread>
-#include <mutex>
-#include <atomic>
 
-namespace GifBolt {
+#include <atomic>
+#include <cstring>
+#include <fstream>
+#include <mutex>
+#include <stdexcept>
+#include <thread>
+
+namespace GifBolt
+{
 
 class GifDecoder::Impl
 {
    public:
-    std::vector<GifFrame> _frames;  ///< Decoded frames cache
+    std::vector<GifFrame> _frames;    ///< Decoded frames cache
     std::vector<bool> _frameDecoded;  ///< Track which frames have been decoded
-    std::vector<uint32_t> _canvas;  ///< Accumulated canvas for frame composition
+    std::vector<uint32_t> _canvas;    ///< Accumulated canvas for frame composition
     DisposalMethod _previousDisposal = DisposalMethod::None;  ///< Previous frame disposal
     uint32_t _prevFrameWidth = 0;
     uint32_t _prevFrameHeight = 0;
     uint32_t _prevFrameOffsetX = 0;
     uint32_t _prevFrameOffsetY = 0;
-    uint32_t _minFrameDelayMs = 10; ///< Délai minimal configurable
+    uint32_t _minFrameDelayMs = 10;         ///< Délai minimal configurable
     std::vector<uint32_t> _previousCanvas;  ///< Saved canvas for RestorePrevious
     uint32_t _width = 0;
     uint32_t _height = 0;
@@ -41,33 +44,33 @@ class GifDecoder::Impl
 
     // Background loading support
     GifFileType* _gif = nullptr;  ///< GIF file handle after slurp
-    uint32_t _frameCount = 0;  ///< Total number of frames
-    std::string _filePath;  ///< Stored for background loading
+    uint32_t _frameCount = 0;     ///< Total number of frames
+    std::string _filePath;        ///< Stored for background loading
 
-    std::thread _backgroundLoader;  ///< Background thread for DGifSlurp
-    std::mutex _gifMutex;  ///< Protect gif pointer access
+    std::thread _backgroundLoader;            ///< Background thread for DGifSlurp
+    std::mutex _gifMutex;                     ///< Protect gif pointer access
     std::atomic<bool> _slurpComplete{false};  ///< Whether DGifSlurp finished
-    std::atomic<bool> _slurpFailed{false};  ///< Whether DGifSlurp failed
+    std::atomic<bool> _slurpFailed{false};    ///< Whether DGifSlurp failed
 
     // Memory optimization: PMR allocator pool for frame data
     Memory::FrameMemoryPool _framePool;  ///< PMR pool for frame allocations
-    Memory::ArenaAllocator _tempArena;  ///< Arena for temporary decode buffers
+    Memory::ArenaAllocator _tempArena;   ///< Arena for temporary decode buffers
 
     // Thread pool for parallel frame decoding
     std::unique_ptr<ThreadPool> _threadPool;  ///< Thread pool for parallel decoding
-    std::mutex _decodeMutex;  ///< Protect frame decoding state
+    std::mutex _decodeMutex;                  ///< Protect frame decoding state
 
     // Async prefetching support
-    std::atomic<bool> _prefetchingEnabled{true};  ///< Enable/disable prefetching
-    std::atomic<uint32_t> _currentPlaybackFrame{0};  ///< Current frame being displayed
-    std::thread _prefetchThread;  ///< Background thread for frame prefetching
+    std::atomic<bool> _prefetchingEnabled{true};      ///< Enable/disable prefetching
+    std::atomic<uint32_t> _currentPlaybackFrame{0};   ///< Current frame being displayed
+    std::thread _prefetchThread;                      ///< Background thread for frame prefetching
     std::atomic<bool> _prefetchThreadRunning{false};  ///< Prefetch thread active
-    std::mutex _prefetchMutex;  ///< Protect prefetch state
-    static constexpr uint32_t PREFETCH_AHEAD = 5;  ///< Number of frames to decode ahead
+    std::mutex _prefetchMutex;                        ///< Protect prefetch state
+    static constexpr uint32_t PREFETCH_AHEAD = 5;     ///< Number of frames to decode ahead
 
     bool LoadGif(const std::string& filePath);
-    void BackgroundSlurp();  ///< Background thread function
-    void WaitForSlurp();  ///< Wait for background slurp to complete
+    void BackgroundSlurp();                        ///< Background thread function
+    void WaitForSlurp();                           ///< Wait for background slurp to complete
     void EnsureFrameDecoded(uint32_t frameIndex);  ///< Decode frame on-demand
     void DecodeFrame(GifFileType* gif, uint32_t frameIndex);
     void ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
@@ -77,8 +80,8 @@ class GifDecoder::Impl
 
     // Async prefetching methods
     void StartPrefetching(uint32_t startFrame);  ///< Start background prefetch
-    void StopPrefetching();  ///< Stop background prefetch thread
-    void PrefetchLoop();  ///< Prefetch thread worker function
+    void StopPrefetching();                      ///< Stop background prefetch thread
+    void PrefetchLoop();                         ///< Prefetch thread worker function
 
     ~Impl()
     {
@@ -98,12 +101,14 @@ class GifDecoder::Impl
     }
 };
 
-bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
+bool GifDecoder::Impl::LoadGif(const std::string& filePath)
+{
     this->_filePath = filePath;
     int error = 0;
     GifFileType* tempGif = DGifOpenFileName(filePath.c_str(), &error);
 
-    if (!tempGif) {
+    if (!tempGif)
+    {
         return false;
     }
 
@@ -115,7 +120,8 @@ bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
     if (tempGif->SColorMap && tempGif->SBackGroundColor < tempGif->SColorMap->ColorCount)
     {
         const GifColorType& bgColor = tempGif->SColorMap->Colors[tempGif->SBackGroundColor];
-        this->_backgroundColor = 0xFF000000 | (bgColor.Blue << 16) | (bgColor.Green << 8) | bgColor.Red;
+        this->_backgroundColor =
+            0xFF000000 | (bgColor.Blue << 16) | (bgColor.Green << 8) | bgColor.Red;
     }
     else
     {
@@ -136,17 +142,20 @@ bool GifDecoder::Impl::LoadGif(const std::string& filePath) {
     return true;
 }
 
-void GifDecoder::Impl::BackgroundSlurp() {
+void GifDecoder::Impl::BackgroundSlurp()
+{
     int error = 0;
     GifFileType* gif = DGifOpenFileName(this->_filePath.c_str(), &error);
 
-    if (!gif) {
+    if (!gif)
+    {
         this->_slurpFailed = true;
         return;
     }
 
     // Do the heavy DGifSlurp in background thread
-    if (DGifSlurp(gif) == GIF_ERROR) {
+    if (DGifSlurp(gif) == GIF_ERROR)
+    {
         DGifCloseFile(gif, &error);
         this->_slurpFailed = true;
         return;
@@ -159,12 +168,16 @@ void GifDecoder::Impl::BackgroundSlurp() {
         this->_frameCount = gif->ImageCount;
 
         // Check for looping extension
-        for (int i = 0; i < gif->ImageCount; ++i) {
+        for (int i = 0; i < gif->ImageCount; ++i)
+        {
             SavedImage* image = &gif->SavedImages[i];
-            for (int j = 0; j < image->ExtensionBlockCount; ++j) {
+            for (int j = 0; j < image->ExtensionBlockCount; ++j)
+            {
                 ExtensionBlock* ext = &image->ExtensionBlocks[j];
-                if (ext->Function == APPLICATION_EXT_FUNC_CODE) {
-                    if (std::memcmp(ext->Bytes, "NETSCAPE2.0", 11) == 0) {
+                if (ext->Function == APPLICATION_EXT_FUNC_CODE)
+                {
+                    if (std::memcmp(ext->Bytes, "NETSCAPE2.0", 11) == 0)
+                    {
                         this->_looping = true;
                         break;
                     }
@@ -181,8 +194,10 @@ void GifDecoder::Impl::BackgroundSlurp() {
     this->_slurpComplete = true;
 }
 
-void GifDecoder::Impl::WaitForSlurp() {
-    if (this->_backgroundLoader.joinable()) {
+void GifDecoder::Impl::WaitForSlurp()
+{
+    if (this->_backgroundLoader.joinable())
+    {
         this->_backgroundLoader.join();
     }
 }
@@ -192,7 +207,8 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
     // Wait for background slurp to complete
     this->WaitForSlurp();
 
-    if (this->_slurpFailed || !this->_gif) {
+    if (this->_slurpFailed || !this->_gif)
+    {
         return;
     }
 
@@ -219,7 +235,8 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
     // Opportunistic background decode: submit next few frames to thread pool
     // This only helps for sequential access patterns (common in GIF playback)
     constexpr uint32_t OPPORTUNISTIC_AHEAD = 3;
-    for (uint32_t ahead = 1; ahead <= OPPORTUNISTIC_AHEAD && (frameIndex + ahead) < this->_frameCount; ++ahead)
+    for (uint32_t ahead = 1;
+         ahead <= OPPORTUNISTIC_AHEAD && (frameIndex + ahead) < this->_frameCount; ++ahead)
     {
         uint32_t nextFrame = frameIndex + ahead;
         if (!this->_frameDecoded[nextFrame] && this->_threadPool)
@@ -238,20 +255,23 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
             if (canDecode)
             {
                 // Submit to thread pool - will execute when worker is available
-                this->_threadPool->Enqueue([this, nextFrame]() {
-                    std::lock_guard<std::mutex> decodeLock(this->_decodeMutex);
-                    if (!this->_frameDecoded[nextFrame])
+                this->_threadPool->Enqueue(
+                    [this, nextFrame]()
                     {
-                        this->DecodeFrame(this->_gif, nextFrame);
-                        this->_frameDecoded[nextFrame] = true;
-                    }
-                });
+                        std::lock_guard<std::mutex> decodeLock(this->_decodeMutex);
+                        if (!this->_frameDecoded[nextFrame])
+                        {
+                            this->DecodeFrame(this->_gif, nextFrame);
+                            this->_frameDecoded[nextFrame] = true;
+                        }
+                    });
             }
         }
     }
 }
 
-void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
+void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex)
+{
     SavedImage* image = &gif->SavedImages[frameIndex];
     GifImageDesc* desc = &image->ImageDesc;
 
@@ -260,9 +280,9 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
     frame.height = desc->Height;
     frame.offsetX = desc->Left;
     frame.offsetY = desc->Top;
-    frame.delayMs = 100;               // Default delay
+    frame.delayMs = 100;  // Default delay
     frame.disposal = DisposalMethod::None;
-    frame.transparentIndex = -1;       // No transparency by default
+    frame.transparentIndex = -1;  // No transparency by default
 
     // Get delay, disposal method, and transparency info from graphics control extension
     for (int i = 0; i < image->ExtensionBlockCount; ++i)
@@ -275,7 +295,8 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
             frame.disposal = static_cast<DisposalMethod>((packed >> 2) & 0x07);
 
             int delay = (ext->Bytes[2] << 8) | ext->Bytes[1];
-            frame.delayMs = std::max(delay * 10, static_cast<int>(_minFrameDelayMs)); // Minimum configurable
+            frame.delayMs =
+                std::max(delay * 10, static_cast<int>(_minFrameDelayMs));  // Minimum configurable
 
             // Check transparency flag (bit 0 of packed field)
             if (packed & 0x01)
@@ -311,8 +332,8 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex) {
 }
 
 void GifDecoder::Impl::ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
-                                      std::vector<uint32_t>& pixels, int width, int height,
-                                      int transparentIndex)
+                                     std::vector<uint32_t>& pixels, int width, int height,
+                                     int transparentIndex)
 {
     for (int i = 0; i < width * height; ++i)
     {
@@ -358,7 +379,7 @@ void GifDecoder::Impl::ComposeFrame(const GifFrame& frame, std::vector<uint32_t>
                     continue;
                 }
                 uint32_t canvasIndex = canvasY * _width + canvasX;
-                canvas[canvasIndex] = 0x00000000; // fully transparent
+                canvas[canvasIndex] = 0x00000000;  // fully transparent
             }
         }
     }
@@ -415,8 +436,7 @@ void GifDecoder::Impl::ComposeFrame(const GifFrame& frame, std::vector<uint32_t>
     _prevFrameOffsetY = frame.offsetY;
 }
 
-GifDecoder::GifDecoder()
-    : _pImpl(std::make_unique<Impl>())
+GifDecoder::GifDecoder() : _pImpl(std::make_unique<Impl>())
 {
     // Initialize GPU context for hardware-accelerated scaling
 #if defined(__APPLE__)
@@ -434,25 +454,30 @@ GifDecoder::GifDecoder()
 
 GifDecoder::~GifDecoder() = default;
 
-bool GifDecoder::LoadFromFile(const std::string& filePath) {
+bool GifDecoder::LoadFromFile(const std::string& filePath)
+{
     return _pImpl->LoadGif(filePath);
 }
 
-bool GifDecoder::LoadFromUrl(const std::string& url) {
+bool GifDecoder::LoadFromUrl(const std::string& url)
+{
     (void)url;
     // NOTE: URL loading with HTTP download will be implemented in a future release.
     // For now, use LoadFromFile() with local file paths.
     return false;
 }
 
-uint32_t GifDecoder::GetFrameCount() const {
+uint32_t GifDecoder::GetFrameCount() const
+{
     // Wait for background slurp to complete
     _pImpl->WaitForSlurp();
     return _pImpl->_frameCount;
 }
 
-const GifFrame& GifDecoder::GetFrame(uint32_t index) const {
-    if (index >= _pImpl->_frameCount) {
+const GifFrame& GifDecoder::GetFrame(uint32_t index) const
+{
+    if (index >= _pImpl->_frameCount)
+    {
         throw std::out_of_range("Frame index out of range");
     }
     // Ensure frame is decoded before returning (lazy loading)
@@ -460,11 +485,13 @@ const GifFrame& GifDecoder::GetFrame(uint32_t index) const {
     return _pImpl->_frames[index];
 }
 
-uint32_t GifDecoder::GetWidth() const {
+uint32_t GifDecoder::GetWidth() const
+{
     return _pImpl->_width;
 }
 
-uint32_t GifDecoder::GetHeight() const {
+uint32_t GifDecoder::GetHeight() const
+{
     return _pImpl->_height;
 }
 
@@ -499,7 +526,7 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
     _pImpl->EnsureFrameDecoded(index);
 
     // Check if decode succeeded
-    if (! _pImpl->_frameDecoded[index] || _pImpl->_frames[index].pixels.empty())
+    if (!_pImpl->_frameDecoded[index] || _pImpl->_frames[index].pixels.empty())
     {
         return nullptr;
     }
@@ -516,16 +543,15 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
 
     // Convert RGBA to BGRA with premultiplied alpha in one pass
     const uint8_t* sourceRGBA = reinterpret_cast<const uint8_t*>(frame.pixels.data());
-    Renderer::PixelFormats::ConvertRGBAToBGRAPremultiplied(sourceRGBA, _pImpl->_bgraPremultipliedCache.data(), pixelCount);
+    Renderer::PixelFormats::ConvertRGBAToBGRAPremultiplied(
+        sourceRGBA, _pImpl->_bgraPremultipliedCache.data(), pixelCount);
 
     return _pImpl->_bgraPremultipliedCache.data();
 }
 
-const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t index, uint32_t targetWidth,
-                                                                     uint32_t targetHeight,
-                                                                     uint32_t& outWidth,
-                                                                     uint32_t& outHeight,
-                                                                     ScalingFilter filter)
+const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(
+    uint32_t index, uint32_t targetWidth, uint32_t targetHeight, uint32_t& outWidth,
+    uint32_t& outHeight, ScalingFilter filter)
 {
     if (index >= _pImpl->_frameCount)
     {
@@ -570,10 +596,8 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
     if (_pImpl->_deviceContext)
     {
         bool gpuSuccess = _pImpl->_deviceContext->ScaleImageGPU(
-            sourceBGRA, sourceWidth, sourceHeight,
-            scaledCache.data(), targetWidth, targetHeight,
-            static_cast<int>(filter)
-        );
+            sourceBGRA, sourceWidth, sourceHeight, scaledCache.data(), targetWidth, targetHeight,
+            static_cast<int>(filter));
 
         if (gpuSuccess)
         {
@@ -641,7 +665,8 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
                         const float vBottom = v01 * (1.0f - fracX) + v11 * fracX;
                         const float vFinal = vTop * (1.0f - fracY) + vBottom * fracY;
 
-                        scaledCache[(y * targetWidth + x) * 4 + c] = static_cast<uint8_t>(vFinal + 0.5f);
+                        scaledCache[(y * targetWidth + x) * 4 + c] =
+                            static_cast<uint8_t>(vFinal + 0.5f);
                     }
                 }
             }
@@ -650,12 +675,16 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
         case ScalingFilter::Bicubic:
         {
             // Bicubic (Catmull-Rom) interpolation - higher quality
-            auto cubicWeight = [](float x) -> float {
-                const float a = -0.5f; // Catmull-Rom parameter
+            auto cubicWeight = [](float x) -> float
+            {
+                const float a = -0.5f;  // Catmull-Rom parameter
                 const float absX = std::abs(x);
-                if (absX <= 1.0f) {
+                if (absX <= 1.0f)
+                {
                     return ((a + 2.0f) * absX - (a + 3.0f)) * absX * absX + 1.0f;
-                } else if (absX < 2.0f) {
+                }
+                else if (absX < 2.0f)
+                {
                     return ((a * absX - 5.0f * a) * absX + 8.0f * a) * absX - 4.0f * a;
                 }
                 return 0.0f;
@@ -676,16 +705,21 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
                     float weightSum = 0.0f;
 
                     // Sample 4x4 neighborhood
-                    for (int j = -1; j <= 2; ++j) {
-                        for (int i = -1; i <= 2; ++i) {
-                            const int sx = std::min(std::max(x0 + i, 0), static_cast<int>(sourceWidth) - 1);
-                            const int sy = std::min(std::max(y0 + j, 0), static_cast<int>(sourceHeight) - 1);
+                    for (int j = -1; j <= 2; ++j)
+                    {
+                        for (int i = -1; i <= 2; ++i)
+                        {
+                            const int sx =
+                                std::min(std::max(x0 + i, 0), static_cast<int>(sourceWidth) - 1);
+                            const int sy =
+                                std::min(std::max(y0 + j, 0), static_cast<int>(sourceHeight) - 1);
                             const float wx = cubicWeight(i - dx);
                             const float wy = cubicWeight(j - dy);
                             const float weight = wx * wy;
 
                             const uint32_t srcIdx = (sy * sourceWidth + sx) * 4;
-                            for (int c = 0; c < 4; ++c) {
+                            for (int c = 0; c < 4; ++c)
+                            {
                                 result[c] += sourceBGRA[srcIdx + c] * weight;
                             }
                             weightSum += weight;
@@ -693,9 +727,12 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
                     }
 
                     const uint32_t dstIdx = (y * targetWidth + x) * 4;
-                    if (weightSum > 0.0f) {
-                        for (int c = 0; c < 4; ++c) {
-                            scaledCache[dstIdx + c] = static_cast<uint8_t>(std::min(std::max(result[c] / weightSum, 0.0f), 255.0f));
+                    if (weightSum > 0.0f)
+                    {
+                        for (int c = 0; c < 4; ++c)
+                        {
+                            scaledCache[dstIdx + c] = static_cast<uint8_t>(
+                                std::min(std::max(result[c] / weightSum, 0.0f), 255.0f));
                         }
                     }
                 }
@@ -707,9 +744,12 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
         {
             // Lanczos-3 resampling - highest quality
             const float a = 3.0f;
-            auto lanczosWeight = [](float x, float a) -> float {
-                if (std::abs(x) < 0.001f) return 1.0f;
-                if (std::abs(x) >= a) return 0.0f;
+            auto lanczosWeight = [](float x, float a) -> float
+            {
+                if (std::abs(x) < 0.001f)
+                    return 1.0f;
+                if (std::abs(x) >= a)
+                    return 0.0f;
                 const float pi = 3.14159265359f;
                 const float piX = pi * x;
                 return a * std::sin(piX) * std::sin(piX / a) / (piX * piX);
@@ -730,16 +770,21 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
                     float weightSum = 0.0f;
 
                     const int radius = static_cast<int>(std::ceil(a));
-                    for (int j = -radius; j <= radius; ++j) {
-                        for (int i = -radius; i <= radius; ++i) {
-                            const int sx = std::min(std::max(x0 + i, 0), static_cast<int>(sourceWidth) - 1);
-                            const int sy = std::min(std::max(y0 + j, 0), static_cast<int>(sourceHeight) - 1);
+                    for (int j = -radius; j <= radius; ++j)
+                    {
+                        for (int i = -radius; i <= radius; ++i)
+                        {
+                            const int sx =
+                                std::min(std::max(x0 + i, 0), static_cast<int>(sourceWidth) - 1);
+                            const int sy =
+                                std::min(std::max(y0 + j, 0), static_cast<int>(sourceHeight) - 1);
                             const float wx = lanczosWeight(i - dx, a);
                             const float wy = lanczosWeight(j - dy, a);
                             const float weight = wx * wy;
 
                             const uint32_t srcIdx = (sy * sourceWidth + sx) * 4;
-                            for (int c = 0; c < 4; ++c) {
+                            for (int c = 0; c < 4; ++c)
+                            {
                                 result[c] += sourceBGRA[srcIdx + c] * weight;
                             }
                             weightSum += weight;
@@ -747,9 +792,12 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(uint32_t inde
                     }
 
                     const uint32_t dstIdx = (y * targetWidth + x) * 4;
-                    if (weightSum > 0.0f) {
-                        for (int c = 0; c < 4; ++c) {
-                            scaledCache[dstIdx + c] = static_cast<uint8_t>(std::min(std::max(result[c] / weightSum, 0.0f), 255.0f));
+                    if (weightSum > 0.0f)
+                    {
+                        for (int c = 0; c < 4; ++c)
+                        {
+                            scaledCache[dstIdx + c] = static_cast<uint8_t>(
+                                std::min(std::max(result[c] / weightSum, 0.0f), 255.0f));
                         }
                     }
                 }
@@ -795,7 +843,7 @@ void GifDecoder::Impl::PrefetchLoop()
             uint32_t targetFrame = (currentFrame + ahead) % _frameCount;
 
             // Check if already decoded
-            if (! _frameDecoded[targetFrame])
+            if (!_frameDecoded[targetFrame])
             {
                 // Decode frame in background
                 EnsureFrameDecoded(targetFrame);
