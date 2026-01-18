@@ -79,7 +79,8 @@
 
                     <Border BorderBrush="Gray" BorderThickness="1" Width="450" Height="350"
                             HorizontalAlignment="Left" Background="#22000000">
-                           <Image gif:ImageBehavior.AnimatedSource="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
+                           <Image x:Name="imageBehaviorImage"
+                               gif:ImageBehavior.AnimatedSource="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
                                gif:ImageBehavior.AutoStart="True"
                                gif:ImageBehavior.RepeatBehavior="Forever"
                                Stretch="Uniform"/>

@@ -17,6 +17,7 @@ namespace GifBolt.AvaloniaApp.Views;
 public partial class MainWindow : Window
 {
     private GifBoltControl? _gifControl;
+    private Image? _imageBehavior;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
         this._gifControl = this.FindControl<GifBoltControl>("gifControl");
+        this._imageBehavior = this.FindControl<Image>("imageBehaviorImage");
         // Set default minimum frame delay (100ms per Chrome/macOS/ezgif standard)
         if (this._gifControl != null)
         {
@@ -127,7 +129,12 @@ public partial class MainWindow : Window
         if (files.Count > 0)
         {
             var path = files[0].Path.LocalPath;
+            // Update both controls with the same loaded GIF
             this._gifControl?.LoadGif(path);
+            if (this._imageBehavior != null)
+            {
+                ImageBehavior.SetAnimatedSource(this._imageBehavior, path);
+            }
             this.UpdateStatus($"Loaded: {System.IO.Path.GetFileName(path)}");
         }
     }
