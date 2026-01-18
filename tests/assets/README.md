@@ -1,28 +1,48 @@
 # Test Assets
 
-Ce dossier contient des fichiers GIF de test pour valider le décodeur.
+This folder contains GIF test files for validating the decoder.
 
-## Génération d'un GIF de test
+## Included Files
 
-Vous pouvez créer un simple GIF avec ImageMagick:
+- **sample.gif** (335 KB) - Primary test GIF used by all automated tests
+
+## Large Test Files (Not Committed)
+
+For performance testing, place large GIF files in the project root:
+
+- `artillery_tower6.gif` (not committed, ~54 MB)
+- `VUE_CAISSE_EXPRESS 897x504_01.gif` (not committed, ~8.9 MB)
+
+These files are automatically ignored by Git (see `.gitignore`).
+
+## Creating a Test GIF
+
+You can create a simple GIF with ImageMagick:
 
 ```bash
 # macOS
 brew install imagemagick
 
-# Créer un GIF animé simple (2 frames)
+# Create a simple animated GIF (2 frames)
 convert -size 100x100 xc:red frame1.png
 convert -size 100x100 xc:blue frame2.png
 convert -delay 50 -loop 0 frame1.png frame2.png test.gif
 rm frame1.png frame2.png
 ```
 
-Ou téléchargez n'importe quel GIF animé de test depuis Internet.
+Or download any animated GIF from the Internet.
 
-## Utilisation dans les tests
+## Usage in C++ Tests
+
+```cpp
+GifDecoder decoder;
+REQUIRE(decoder.LoadFromFile("assets/sample.gif"));
+```
+
+## Usage in C# Tests
 
 ```csharp
 var player = new GifPlayer();
-bool loaded = player.Load("tests/assets/test.gif");
+bool loaded = player.Load("tests/assets/sample.gif");
 Console.WriteLine($"Frames: {player.FrameCount}, Size: {player.Width}x{player.Height}");
 ```

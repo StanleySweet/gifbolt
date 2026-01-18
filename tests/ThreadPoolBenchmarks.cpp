@@ -139,7 +139,7 @@ TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPo
 
 TEST_CASE("Benchmark thread pool vs baseline", "[Benchmark][ThreadPool][Comparison]")
 {
-    const char* gifPath = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+    const char* gifPath = "assets/sample.gif";
 
     std::cout << "\n========== THREAD POOL vs BASELINE COMPARISON ==========\n";
     std::cout << std::fixed << std::setprecision(2);

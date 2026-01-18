@@ -153,7 +153,7 @@ TEST_CASE("Benchmark scaling filters - Quality vs Performance", "[Benchmark][Sca
 
 TEST_CASE("Benchmark prefetch impact on sequential access", "[Benchmark][Prefetch]")
 {
-    const char* gifPath = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+    const char* gifPath = "assets/sample.gif";
 
     std::cout << "\n========== PREFETCH IMPACT BENCHMARK ==========\n";
 

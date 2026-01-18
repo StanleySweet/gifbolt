@@ -6,11 +6,11 @@
 
 using namespace GifBolt;
 
-TEST_CASE("GifDecoder applies minFrameDelayMs to all frames in artillery_tower6.gif", "[GifDecoder][Timing]")
+TEST_CASE("GifDecoder applies minFrameDelayMs to all frames in sample.gif", "[GifDecoder][Timing]")
 {
     GifDecoder decoder;
     decoder.SetMinFrameDelayMs(100);
-    REQUIRE(decoder.LoadFromFile("../artillery_tower6.gif"));
+    REQUIRE(decoder.LoadFromFile("assets/sample.gif"));
     const uint32_t minDelay = decoder.GetMinFrameDelayMs();
     REQUIRE(minDelay == 100);
     const uint32_t frameCount = decoder.GetFrameCount();

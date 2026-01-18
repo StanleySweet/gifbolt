@@ -11,7 +11,7 @@ using namespace std::chrono;
 
 TEST_CASE("Async prefetching reduces random access latency", "[Prefetch]")
 {
-    const char* gifPath = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+    const char* gifPath = "assets/sample.gif";
 
     GifDecoder decoder;
     REQUIRE(decoder.LoadFromFile(gifPath));

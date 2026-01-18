@@ -20,9 +20,9 @@ double MeasureMs(Func&& func)
     return duration_cast<microseconds>(end - start).count() / 1000.0;
 }
 
-TEST_CASE("Profile VUE_CAISSE_EXPRESS 897x504_01.gif loading and conversion", "[Profiling]")
+TEST_CASE("Profile sample.gif loading and conversion", "[Profiling]")
 {
-    const char* gifPath = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+    const char* gifPath = "assets/sample.gif";
 
     std::cout << "\n========== GIF LOADING PROFILE ==========\n";
     std::cout << std::fixed << std::setprecision(2);
@@ -125,7 +125,7 @@ TEST_CASE("Profile VUE_CAISSE_EXPRESS 897x504_01.gif loading and conversion", "[
 
 TEST_CASE("Profile frame-by-frame BGRA conversion performance", "[Profiling]")
 {
-    const char* gifPath = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+    const char* gifPath = "assets/sample.gif";
 
     GifDecoder decoder;
     REQUIRE(decoder.LoadFromFile(gifPath));
@@ -173,7 +173,7 @@ TEST_CASE("Profile frame-by-frame BGRA conversion performance", "[Profiling]")
 
 TEST_CASE("Measure LoadFromFile breakdown components", "[Profiling]")
 {
-    const char* gifPath = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+    const char* gifPath = "assets/sample.gif";
 
     std::cout << "\n========== LOADFROMFILE DETAILED BREAKDOWN ==========\n";
     std::cout << std::fixed << std::setprecision(2);
