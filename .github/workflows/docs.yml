@@ -127,14 +127,6 @@ jobs:
           name: site
           path: site
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: site
-          path: site/
-          retention-days: 30
-
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
