@@ -1,11 +1,11 @@
 site_name: GifBolt Renderer
 site_description: High-performance GPU-accelerated GIF renderer for WPF and Avalonia
 site_author: GifBolt Contributors
-site_url: https://yourusername.github.io/gifbolt/
-repo_url: https://github.com/yourusername/gifbolt
+site_url: https://stanleysweet.github.io/gifbolt/
+repo_url: https://github.com/StanleySweet/gifbolt
 repo_name: GitHub
-edit_uri: edit/main/docs_new/
-docs_dir: docs_new
+edit_uri: edit/main/docs/
+docs_dir: docs
 
 theme:
   name: material
@@ -70,33 +70,12 @@ extra:
 
 nav:
   - Home: index.md
-
-  - Getting Started:
-    - Overview: getting-started/index.md
-    - 30-Second Summary: getting-started/start-here.md
-    - Documentation Map: getting-started/map.md
-
-  - Architecture:
-    - Overview: architecture/index.md
-    - Renderer Architecture: architecture/renderer-architecture.md
-    - Data Flow: architecture/data-flow.md
-
-  - Backends:
-    - Overview: backends/index.md
-
-  - Integration:
-    - Home: integration/index.md
-    - WPF Integration: integration/wpf.md
-    - Avalonia Integration: integration/avalonia.md
-
   - Reference:
-    - Quick Reference: reference/quick-reference.md
-    - Diagram Index: reference/diagram-index.md
-
+    - Version: VERSION_API.md
   - API Reference:
-    - C++ API: cpp-api/index.html
-    - C# API: csharp-api/index.html
+    - C++ API: api/cpp/index.html
+    - C# API: api/csharp/index.html
 
 watch:
-  - docs_new
+  - docs
   - src
