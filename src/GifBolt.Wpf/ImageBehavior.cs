@@ -299,7 +299,7 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            if (this._player.TryGetFramePixelsRgba32(this._player.CurrentFrame, out byte[] pixels))
+            if (this._player.TryGetFramePixelsBgra32Premultiplied(this._player.CurrentFrame, out byte[] pixels))
             {
                 this._writeableBitmap.Lock();
                 try
@@ -318,10 +318,10 @@ namespace GifBolt.Wpf
                                 int srcIdx = (y * width + x) * 4;
                                 int dstIdx = y * stride + x * 4;
 
-                                // RGBA -> BGRA
-                                buffer[dstIdx + 0] = pixels[srcIdx + 2]; // B
+                                // Pixels déjà en BGRA premultiplied
+                                buffer[dstIdx + 0] = pixels[srcIdx + 0]; // B
                                 buffer[dstIdx + 1] = pixels[srcIdx + 1]; // G
-                                buffer[dstIdx + 2] = pixels[srcIdx + 0]; // R
+                                buffer[dstIdx + 2] = pixels[srcIdx + 2]; // R
                                 buffer[dstIdx + 3] = pixels[srcIdx + 3]; // A
                             }
                         }
