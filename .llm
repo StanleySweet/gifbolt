@@ -1,521 +1,69 @@
 ---
-model: claude-haiku-4.5
+model:claude-haiku-4.5
 ---
+# GifBolt Standards
 
-# GifBolt Project Configuration
+MANDATORY code standards for GifBolt. All violations=ERRORS; zero warnings policy enforced via .editorconfig, analyzers.
 
-This file documents the mandatory code standards and conventions for the GifBolt project. All LLM agents and contributors MUST adhere to these rules.
+## C# (MANDATORY)
 
-## Language-Specific Standards
+**Naming(ERROR):** Types/Interfaces=PascalCase(I prefix for interfaces); Public=PascalCase; Private=_camelCase; Locals/Params=camelCase
+Ex: `GifBoltControl:Control{private IntPtr _nativeHandle; public string Source{get;set;} public bool LoadGif(string path){var result=false; return result;}}` `IGifDecoder{void Decode();}`
 
-### C# Code Style Standards (MANDATORY)
+**this(ERROR):** MUST use explicit `this.` for fields/properties/methods/events. ✓:`if(this._isLoaded)return; this.Source="x"; this.Method();` ✗:`if(_isLoaded)` or `Source=` or `Method()`
 
-All C# code in this project MUST follow these conventions. These are enforced via `.editorconfig` and automated code analysis.
+**sealed(ERROR):** Classes=sealed unless designed for inheritance. ✓:`public abstract class Base{abstract void Play();} public sealed class Impl:Control{}` ✗:`public class Impl:Control{}`
 
-**ZERO WARNINGS POLICY**: All violations are treated as ERRORS and must be resolved before code can be committed.
+**Docs(MANDATORY):** ALL public classes/interfaces/methods/properties/fields require XML docs w/ `<summary>`,`<remarks>`,`<param>`,`<returns>`,`<exception>`. Format: `///<summary>Brief desc</summary>///<remarks>Context</remarks>///<param name="x">Desc</param>///<returns>Result</returns>///<exception cref="T">When</exception>`. Private: brief comments explaining purpose.
 
-#### Naming Conventions (ERROR level)
+**Braces:** Allman style(new line); braces for all blocks(even single-line). Ex: `class X{\n public bool M(){\n if(x){\n return false;\n }\n return true;\n }\n}`
 
-- **Types** (classes, structs, enums): `PascalCase`
-- **Interfaces**: `PascalCase` with `I` prefix (e.g., `IGifDecoder`)
-- **Public Members** (properties, methods, fields, events): `PascalCase`
-- **Private Fields**: `_camelCase` with leading underscore (e.g., `_isLoaded`)
-- **Local Variables**: `camelCase` (e.g., `frameCount`)
-- **Parameters**: `camelCase` (e.g., `sourcePath`)
+**Order:** Using→Namespace→Class+docs→Constants/statics→Fields(priv,pub)→Props(priv,pub)→Ctors→Public methods→Private methods→Nested types
 
-**Examples:**
-```csharp
-public class GifBoltControl : Control  // PascalCase for class
-{
-    private IntPtr _nativeHandle;      // _camelCase for private field
+**Misc:** Line<120chars; 4spaces; ArgumentNullException for nulls; Async suffix; IEnumerable<T> over List<T> in APIs; $"interpolation" over Format()
 
-    public string Source { get; set; } // PascalCase for property
-
-    public bool LoadGif(string path)   // PascalCase for method, camelCase for parameter
-    {
-        var result = false;            // camelCase for local variable
-        return result;
-    }
-}
-
-public interface IGifDecoder          // PascalCase with I prefix
-{
-    void Decode();
-}
-```
-
-#### Explicit `this` Keyword (ERROR level)
-
-The `this` keyword MUST be explicitly used when accessing:
-- Fields
-- Properties
-- Methods
-- Events
-
-**Mandatory:**
-```csharp
-public class GifBoltControl : Control
-{
-    private bool _isLoaded;
-    public string Source { get; set; }
-
-    private void LoadGif()
-    {
-        if (this._isLoaded) return;           // MUST use this._isLoaded
-        this.Source = "image.gif";            // MUST use this.Source
-        this.EnsureNative();                  // MUST use this.EnsureNative()
-    }
-}
-```
-
-**NOT Acceptable:**
-```csharp
-private void LoadGif()
-{
-    if (_isLoaded) return;              // WRONG - missing 'this'
-    Source = "image.gif";               // WRONG - missing 'this'
-    EnsureNative();                     // WRONG - missing 'this'
-}
-```
-
-#### `sealed` Keyword Usage (ERROR level)
-
-Classes MUST be marked as `sealed` unless they are explicitly designed to be inherited.
-
-**Mandatory:**
-```csharp
-// Base class explicitly designed for inheritance
-public abstract class GifPlayerBase
-{
-    public abstract void Play();
-}
-
-// Implementation classes must be sealed
-public sealed class GifBoltControl : Control
-{
-    // ... implementation
-}
-
-// Utility classes with no inheritance intent
-public sealed class GifRenderer
-{
-    public void Render() { }
-}
-```
-
-**NOT Acceptable:**
-```csharp
-// WRONG - Not sealed when there's no inheritance design
-public class GifBoltControl : Control
-{
-    // ...
-}
-```
-
-#### Doxygen Documentation (MANDATORY)
-
-ALL public members MUST have XML documentation comments following Doxygen standards.
-
-**Required for:**
-- All public classes
-- All public interfaces
-- All public methods (including properties, events)
-- All public fields
-- Method parameters
-- Return values
-
-**Format:**
-```csharp
-/// <summary>
-/// Brief description of what this class does.
-/// Can span multiple lines if needed.
-/// </summary>
-/// <remarks>
-/// Additional context, usage notes, or important behavior.
-/// </remarks>
-public sealed class GifBoltControl : Control
-{
-    /// <summary>
-    /// Gets or sets the path or URI to the GIF image source.
-    /// </summary>
-    /// <remarks>
-    /// Setting this property will automatically trigger loading
-    /// if the control is already loaded and AutoStart is true.
-    /// </remarks>
-    public string Source
-    {
-        get => (string)GetValue(SourceProperty);
-        set => SetValue(SourceProperty, value);
-    }
-
-    /// <summary>
-    /// Loads a GIF from the specified file path.
-    /// </summary>
-    /// <param name="path">The file path or URI to the GIF image.</param>
-    /// <returns>
-    /// <c>true</c> if the GIF was loaded successfully;
-    /// otherwise, <c>false</c>.
-    /// </returns>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="path"/> is null or empty.
-    /// </exception>
-    /// <exception cref="FileNotFoundException">
-    /// Thrown when the file at <paramref name="path"/> does not exist.
-    /// </exception>
-    public bool LoadGif(string path)
-    {
-        // implementation
-    }
-}
-```
-
-**Private Member Documentation:**
-Private members should have brief comments explaining their purpose:
-```csharp
-private sealed class GifDecoderCache
-{
-    // Cached decoded frames with weak references to allow GC
-    private readonly WeakDictionary<string, byte[]> _frameCache;
-
-    // Flag indicating if the decoder is actively processing
-    private volatile bool _isProcessing;
-}
-```
-
-#### Brace Styling
-
-- Opening braces go on a new line (Allman style)
-- Use braces for all blocks (single-line statements must use braces)
-
-**Mandatory:**
-```csharp
-public sealed class GifBoltControl : Control
-{
-    public bool Load(string path)
-    {
-        if (string.IsNullOrEmpty(path))
-        {
-            return false;
-        }
-
-        if (this._native != IntPtr.Zero)
-        {
-            try
-            {
-                return this.LoadGifInternal(path);
-            }
-            catch (Exception ex)
-            {
-                this.HandleError(ex);
-                return false;
-            }
-        }
-
-        return false;
-    }
-}
-```
-
-#### Code Organization
-
-1. **Using statements** at the top
-2. **Namespace** declaration
-3. **Class/Interface declaration** with XML docs
-4. **Constants and static members**
-5. **Fields** (private first, then public)
-6. **Properties** (private first, then public)
-7. **Constructors**
-8. **Public methods**
-9. **Private methods**
-10. **Nested types**
-
-#### Other Standards
-
-- **Line Length**: Prefer < 120 characters
-- **Indentation**: 4 spaces (no tabs)
-- **Null Checks**: Use `ArgumentNullException` for public APIs
-- **Async Methods**: Suffix with `Async` (e.g., `LoadGifAsync`)
-- **Collections**: Use `IEnumerable<T>` over `List<T>` in public APIs
-- **String Handling**: Use string interpolation `$"..."` over `string.Format()`
+**Config:** .editorconfig=source of truth(severity: error=build fail; warning=warn; suggestion=hint; silent=none). Static analysis via Roslyn; formatting via EditorConfig+pre-commit; docs analyzed.
 
 ---
 
-## Configuration Files
+## C++ (MANDATORY)
 
-### .editorconfig
-Enforces all naming conventions, brace styles, and formatting preferences. This is the source of truth for code style.
+**ZERO WARNINGS POLICY**: All compiler/static analysis warnings=ERRORS; must resolve before commit.
 
-**Severity Levels:**
-- `error`: Will cause build failures if violated
-- `warning`: Will be reported as warnings
-- `suggestion`: Will be reported as suggestions
-- `silent`: Will not be reported
+**Format:** .clang-format w/ Google style(Allman braces); 4spaces; line<100chars; space before parens in control statements
+Ex: `class GifDecoder{\npublic:\n bool Decode(const std::string& path){\n if(path.empty()){\n return false;\n }\n return true;\n }\nprivate:\n std::vector<Frame> _frames;\n size_t _currentFrame;\n};`
 
-### Build & Analysis
-- **Static Analysis**: Enabled via Roslyn analyzers
-- **Code Formatting**: Enforced via EditorConfig and pre-commit hooks
-- **Documentation**: Analyzed for completeness
+**Naming:** Classes/Structs=PascalCase; Functions=camelCase; Members=_camelCase(underscore prefix); Constants=UPPER_SNAKE_CASE; Locals=camelCase; Macros=UPPER_SNAKE_CASE
+Ex: `class GifRenderer{private: ID3D11Device* _device; static const size_t MAX_FRAMES=1024; public: void renderFrame(size_t frameIndex){}};`
 
----
+**Docs:** All public classes/functions require C++ style docs: `///\brief Desc.\n///\param x Param desc.\n///\return Return desc.\n///\throws Exception When.` `///\class Name\n///\brief Brief.\n///\details Details.`
 
-### C++ Code Style Standards (MANDATORY)
+**Static Analysis:** Must pass .clang-tidy w/ NO WARNINGS. Memory safety; RAII; no unnecessary copies; use refs; C++17 features; clear names; no magic numbers.
 
-All C++ code in this project MUST follow these conventions. These are enforced via `.clang-format`, `.clang-tidy`, and build-time analysis.
+**Compiler:** MUST compile w/ `-Wall -Wextra -Wpedantic -Werror` and ZERO warnings. No unused vars; no signed/unsigned mismatch; no shadowed vars; braces for all; explicit casts.
 
-**ZERO WARNINGS POLICY**: All compiler and static analysis warnings are treated as ERRORS and must be resolved before code can be committed.
-
-#### Code Formatting
-
-Formatting is enforced via `.clang-format` with Google style (Allman braces):
-
-**Key Rules:**
-- **Indentation**: 4 spaces (no tabs)
-- **Line Length**: Maximum 100 characters
-- **Brace Style**: Allman (opening brace on new line)
-- **Spacing**: Space before parentheses in control statements
-
-**Example:**
-```cpp
-// Correct formatting
-class GifDecoder
-{
-public:
-    bool Decode(const std::string& path)
-    {
-        if (path.empty())
-        {
-            return false;
-        }
-
-        // Process file
-        return true;
-    }
-
-private:
-    std::vector<Frame> _frames;
-    size_t _currentFrame;
-};
-```
-
-#### Naming Conventions
-
-- **Classes/Structs**: `PascalCase`
-- **Functions**: `camelCase`
-- **Member Variables**: `_camelCase` with leading underscore
-- **Constants**: `UPPER_SNAKE_CASE`
-- **Local Variables**: `camelCase`
-- **Macros**: `UPPER_SNAKE_CASE`
-
-**Example:**
-```cpp
-class GifRenderer
-{
-private:
-    ID3D11Device* _device;
-    static const size_t MAX_FRAMES = 1024;
-
-public:
-    void renderFrame(size_t frameIndex)
-    {
-        // Implementation
-    }
-};
-```
-
-#### Documentation
-
-All public classes and functions MUST have documentation comments using C++ style:
-
-```cpp
-/// \brief Decodes a GIF file from the specified path.
-/// \param filePath The file system path to the GIF image.
-/// \return true if decoding succeeded, false otherwise.
-/// \throws std::runtime_error if the file cannot be opened.
-bool DecodeGif(const std::string& filePath);
-
-/// \class GifRenderer
-/// \brief Handles GPU-accelerated GIF frame rendering.
-/// \details Uses DirectX 11/12 for high-performance decoding and playback.
-class GifRenderer
-{
-    // ...
-};
-```
-
-#### Static Analysis
-
-All code must pass `.clang-tidy` checks with NO WARNINGS. Key static analysis checks include:
-
-- **Memory Safety**: No null pointer dereferences, correct smart pointer usage
-- **Resource Management**: RAII principles, proper cleanup
-- **Performance**: Avoid unnecessary copies, use references where appropriate
-- **Modern C++**: Use C++17 features appropriately
-- **Readability**: Clear variable names, no magic numbers
-
-#### Compiler Warnings
-
-Code MUST compile with these flags and produce ZERO warnings:
-
-```bash
--Wall -Wextra -Wpedantic -Werror
-```
-
-**Common warnings to avoid:**
-- Unused variables: Always use variables or remove them
-- Signed/unsigned mismatch: Be explicit with types
-- Shadowed variables: Use unique variable names
-- Missing braces: Use braces for all blocks
-- Implicit conversions: Use explicit casts where needed
-
-#### Memory Management
-
-- Use smart pointers (`std::unique_ptr`, `std::shared_ptr`) for dynamic allocation
-- Use RAII for resource management
-- Avoid raw pointers in APIs
-- Document ownership semantics
-
-**Correct:**
-```cpp
-std::unique_ptr<GifDecoder> CreateDecoder()
-{
-    return std::make_unique<GifDecoder>();
-}
-```
-
-**Avoid:**
-```cpp
-GifDecoder* CreateDecoder()  // No clear ownership semantics
-{
-    return new GifDecoder();  // Memory leak potential
-}
-```
+**Memory:** Use smart ptrs(`std::unique_ptr`,`std::shared_ptr`) for dynamic alloc; RAII for resources; avoid raw ptrs in APIs; doc ownership semantics.
+✓:`std::unique_ptr<GifDecoder> CreateDecoder(){return std::make_unique<GifDecoder>();}` ✗:`GifDecoder* CreateDecoder(){return new GifDecoder();}`
 
 ---
 
-## Project Management Standards (MANDATORY)
+## Project Management (MANDATORY)
 
-### .csproj File Optimization
+**.csproj Optimization:** SDK-style format:`<Project Sdk="Microsoft.NET.Sdk">`; remove unnecessary props/items; rely on SDK defaults; only explicit PackageReference/ProjectReference when needed; no redundant file listings(SDK globs); no auto-gen metadata comments.
+Optimal: `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net6.0</TargetFramework><Nullable>enable</Nullable></PropertyGroup><ItemGroup><PackageReference Include="Avalonia" Version="11.0.0"/></ItemGroup><ItemGroup><ProjectReference Include="..\GifBolt.Core\GifBolt.Core.csproj"/></ItemGroup></Project>`
+Avoid: OutputType/RootNamespace/AssemblyName props(SDK infers); explicit Compile items(SDK includes all .cs automatically)
 
-All C# project files (.csproj) MUST be kept minimal and clean:
-
-**Requirements:**
-- Use SDK-style project format: `<Project Sdk="Microsoft.NET.Sdk">`
-- Remove unnecessary properties and item groups
-- Rely on SDK defaults for common settings
-- Only include explicit `<PackageReference>` or `<ProjectReference>` when needed
-- Do not include redundant file listings (use SDK glob patterns)
-- Remove auto-generated metadata comments
-
-**Example - Optimal .csproj:**
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\GifBolt.Core\GifBolt.Core.csproj" />
-  </ItemGroup>
-</Project>
-```
-
-**Avoid:**
-```xml
-<!-- DO NOT include redundant configurations -->
-<PropertyGroup>
-  <OutputType>Library</OutputType>  <!-- SDK infers this -->
-  <RootNamespace>GifBolt</RootNamespace>  <!-- SDK infers from folder -->
-  <AssemblyName>GifBolt</AssemblyName>  <!-- SDK infers from project name -->
-</PropertyGroup>
-
-<!-- DO NOT explicitly list source files -->
-<ItemGroup>
-  <Compile Include="File1.cs" />
-  <Compile Include="File2.cs" />
-  <!-- SDK includes all .cs files automatically -->
-</ItemGroup>
-```
-
-### Repository Structure Policy
-
-**CRITICAL RULE**: DO NOT create temporary or versioned folder names.
-
-The repository is under version control (Git). There is **NO NEED** to create parallel folder structures with suffixes like:
-- `_new` (e.g., `docs_new`, `src_new`)
-- `_old` (e.g., `docs_old`, `backup`)
-- `_backup`
-- `_temp`
-- Date suffixes (e.g., `src_2026-01`)
-
-**Correct Approach:**
-1. **Modify files in-place** - Git tracks changes
-2. **Use Git branches** for experimental work
-3. **Use Git history** to see previous versions
-4. **Move/rename properly** using Git commands
-
-**Examples:**
-
-**WRONG:**
-```
-GifBolt/
-├── docs/          # Old documentation
-├── docs_new/      # New documentation (WRONG - use branches!)
-├── src/
-└── src_backup/    # Backup copy (WRONG - use Git history!)
-```
-
-**CORRECT:**
-```
-GifBolt/
-├── docs/          # Current documentation (modify in-place)
-└── src/           # Current source (use Git for history)
-```
-
-If restructuring is needed:
-- Create a feature branch: `git checkout -b refactor/docs-restructure`
-- Make changes in the original folders
-- Commit changes with clear messages
-- Merge when ready
+**Repo Structure:** DO NOT create temp/versioned folder names. NO: `_new`,`_old`,`_backup`,`_temp`,date suffixes. Repo=Git; modify in-place; use branches for experiments; use Git history for old versions; move/rename w/ Git commands.
+✗:`docs/`,`docs_new/`,`src_backup/` ✓:`docs/`,`src/`(modify in-place; use Git branches)
+If restructure needed: `git checkout -b refactor/name`; make changes in orig folders; commit w/ clear msgs; merge when ready.
 
 ---
 
 ## For LLM Agents
 
-### C# Code Standards
+**C# Review:** (1)Always apply rules-non-negotiable; (2)Check .editorconfig first; (3)Add Doxygen comments to all public APIs immediately; (4)Use explicit `this` for all member access; (5)Mark classes `sealed` unless inheritance needed; (6)Follow Allman brace style; (7)PascalCase for public,camelCase for params/locals; (8)_camelCase for private fields; (9)Keep .csproj minimal; (10)Never create "_new" or temp folder structures. Flag violations as errors. NO warnings acceptable.
 
-When generating, refactoring, or reviewing C# code:
-
-1. **Always apply these rules** - They are non-negotiable
-2. **Check .editorconfig first** - It documents all enforced styles
-3. **Add Doxygen comments** to all public APIs immediately
-4. **Use explicit `this`** for field and property access
-5. **Mark classes as `sealed`** unless inheritance is explicitly designed
-6. **Follow the brace style** (Allman with newline)
-7. **Use PascalCase** for public, camelCase for parameters/locals
-8. **Use _camelCase** for private fields
-9. **Keep .csproj files minimal and optimized**
-10. **Never create "_new" or temporary folder structures**
-
-When reviewing code, flag violations as errors. **No warnings are acceptable.**
-
-### C++ Code Standards
-
-When generating, refactoring, or reviewing C++ code:
-
-1. **Always apply these rules** - They are non-negotiable
-2. **Check .clang-format and .clang-tidy first** - These enforce all standards
-3. **Add documentation comments** to all public APIs
-4. **Use smart pointers** - Never raw pointers in new APIs
-5. **Follow naming conventions** - PascalCase classes, camelCase functions
-6. **Use _camelCase** for member variables
-7. **Write code that passes `-Wall -Wextra -Wpedantic -Werror`**
-
-When reviewing code, flag ALL warnings as errors. **Zero tolerance for warnings.**
+**C++ Review:** (1)Always apply rules-non-negotiable; (2)Check .clang-format/.clang-tidy first; (3)Add docs to all public APIs; (4)Use smart pointers-never raw ptrs in new APIs; (5)Follow naming conventions-PascalCase classes,camelCase functions; (6)_camelCase for members; (7)Write code passing `-Wall -Wextra -Wpedantic -Werror`. Flag ALL warnings as errors. Zero tolerance.
 
 ---
 
@@ -523,7 +71,7 @@ When reviewing code, flag ALL warnings as errors. **Zero tolerance for warnings.
 
 ```
 src/
-├── GifBolt.Core/          # Cross-platform core (netstandard2.0)
+├── GifBolt.Core/          # Cross-platform core(netstandard2.0)
 │   └── GifPlayer.cs       # Core player facade
 ├── GifBolt.Wpf/           # WPF platform wrapper
 │   └── GifBoltControl.cs  # WPF control
@@ -535,20 +83,8 @@ src/
 
 ---
 
-## Related Configuration Files
+## Related Files
 
-- `.editorconfig` - EditorConfig with all style rules
-- `.clang-format` - C++ formatting rules
-- `.clang-tidy` - C++ static analysis
-- `CMakeLists.txt` - Build configuration
-- `.pre-commit-config.yaml` - Pre-commit hooks for validation
+`.editorconfig`=C# style rules; `.clang-format`=C++ formatting; `.clang-tidy`=C++ static analysis; `CMakeLists.txt`=build config; `.pre-commit-config.yaml`=pre-commit validation
 
-
-apply include what you use
-don't commit commented out code fix it if possible
-copyright headers are important
-wpf and avalonia should have the same feature set
-
-should keep in mind this will bundled as a nuget ideally.
-
-C++ Code should be clang-tidy
+Apply include-what-you-use; don't commit commented code-fix if possible; copyright headers important; WPF/Avalonia=same feature set; bundle as NuGet; C++ code=clang-tidy compliant
