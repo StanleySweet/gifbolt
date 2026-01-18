@@ -2,38 +2,26 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using GifBolt.Internal;
 
 namespace GifBolt.Wpf
 {
     /// <summary>
     /// WPF control for displaying animated GIFs using GifBolt.
+    /// Preloads the first frame for immediate display while loading continues.
     /// Exposes dependency properties: Source, AutoStart, Loop.
     /// </summary>
     public sealed class GifBoltControl : Control
     {
         private IntPtr _native;
         private bool _isLoaded;
-        /// <summary>
-        /// Gets or sets the scaling filter used when resizing GIF frames (Nearest, Bilinear, Bicubic, Lanczos).
-        /// </summary>
-        public ScalingFilter ScalingFilter
-        {
-            get => (ScalingFilter)this.GetValue(ScalingFilterProperty);
-            set => this.SetValue(ScalingFilterProperty, value);
-        }
-
-        /// <summary>
-        /// Identifies the <see cref="ScalingFilter"/> dependency property.
-        /// </summary>
-        public static readonly DependencyProperty ScalingFilterProperty =
-            DependencyProperty.Register(
-                nameof(ScalingFilter), typeof(ScalingFilter), typeof(GifBoltControl),
-                new PropertyMetadata(ScalingFilter.Lanczos));
-
+        private GifPlayer? _player;
+        private BitmapSource? _firstFrameBitmap;
         static GifBoltControl()
         {
             DefaultStyleKeyProperty.OverrideMetadata(
@@ -130,17 +118,27 @@ namespace GifBolt.Wpf
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             this._isLoaded = false;
+            if (this._player != null)
+            {
+                this._player.Dispose();
+                this._player = null;
+            }
             if (this._native != IntPtr.Zero)
             {
                 GifBolt_Destroy(this._native);
                 this._native = IntPtr.Zero;
             }
+            this._firstFrameBitmap = null;
         }
 
         protected override void OnRender(DrawingContext drawingContext)
         {
             base.OnRender(drawingContext);
-            // Actual DX interop will be implemented later.
+            // Display the preloaded first frame while native rendering loads
+            if (this._firstFrameBitmap != null)
+            {
+                drawingContext.DrawImage(this._firstFrameBitmap, new Rect(0, 0, this.ActualWidth, this.ActualHeight));
+            }
         }
 
         private void OnRendering(object sender, EventArgs e)
@@ -168,17 +166,87 @@ namespace GifBolt.Wpf
 
         private void LoadGifIfReady()
         {
-            if (!this._isLoaded) return;
-            if (DesignerProperties.GetIsInDesignMode(this)) return;
-            if (string.IsNullOrWhiteSpace(this.Source)) return;
+            if (!this._isLoaded)
+            {
+                return;
+            }
+            if (DesignerProperties.GetIsInDesignMode(this))
+            {
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(this.Source))
+            {
+                return;
+            }
 
+            // Preload first frame asynchronously
+            var source = this.Source;
+            Task.Run(() =>
+            {
+                try
+                {
+                    var player = new GifPlayer();
+                    if (!player.Load(source))
+                    {
+                        player.Dispose();
+                        return;
+                    }
+
+                    // Extract first frame
+                    if (player.TryGetFramePixelsRgba32(0, out byte[] rgbaPixels) && rgbaPixels.Length > 0)
+                    {
+                        // Convert RGBA to BGRA for WPF
+                        byte[] bgraPixels = new byte[rgbaPixels.Length];
+                        for (int i = 0; i < rgbaPixels.Length; i += 4)
+                        {
+                            bgraPixels[i] = rgbaPixels[i + 2];     // B
+                            bgraPixels[i + 1] = rgbaPixels[i + 1]; // G
+                            bgraPixels[i + 2] = rgbaPixels[i];     // R
+                            bgraPixels[i + 3] = rgbaPixels[i + 3]; // A
+                        }
+
+                        // Create bitmap
+                        var bitmap = new WriteableBitmap(
+                            player.Width,
+                            player.Height,
+                            96,
+                            96,
+                            PixelFormats.Bgra32,
+                            null);
+
+                        bitmap.WritePixels(
+                            new Int32Rect(0, 0, player.Width, player.Height),
+                            bgraPixels,
+                            player.Width * 4,
+                            0);
+
+                        bitmap.Freeze();
+
+                        Dispatcher.Invoke(() =>
+                        {
+                            this._firstFrameBitmap = bitmap;
+                            this.InvalidateVisual();
+                        });
+                    }
+
+                    player.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to preload first frame: {ex.Message}");
+                }
+            });
+
+            // Load native GIF for playback
             this.EnsureNative();
             if (this._native != IntPtr.Zero)
             {
                 if (GifBolt_LoadGif(this._native, this.Source) != 0)
                 {
                     if (this.AutoStart)
+                    {
                         GifBolt_Play(this._native);
+                    }
                 }
             }
         }
@@ -223,39 +291,42 @@ namespace GifBolt.Wpf
         /// <param name="path">The file path to the GIF image.</param>
         public void LoadGif(string path)
         {
-            if (string.IsNullOrWhiteSpace(path)) return;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
             this.Source = path;
         }
         #endregion
 
         #region Native Interop
-        private const string NativeLib = "GifBolt.Native";
+        private const string _nativeLib = "GifBolt.Native";
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_Create", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_Create", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr GifBolt_Create();
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_Destroy", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_Destroy", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GifBolt_Destroy(IntPtr handle);
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_Initialize", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_Initialize", CallingConvention = CallingConvention.Cdecl)]
         private static extern int GifBolt_Initialize(IntPtr handle, uint width, uint height);
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_LoadGif", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_LoadGif", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern int GifBolt_LoadGif(IntPtr handle, string path);
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_Play", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_Play", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GifBolt_Play(IntPtr handle);
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_Pause", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_Pause", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GifBolt_Pause(IntPtr handle);
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_Stop", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_Stop", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GifBolt_Stop(IntPtr handle);
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_SetLooping", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_SetLooping", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GifBolt_SetLooping(IntPtr handle, int loop);
 
-        [DllImport(NativeLib, EntryPoint = "GifBolt_Render", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_Render", CallingConvention = CallingConvention.Cdecl)]
         private static extern int GifBolt_Render(IntPtr handle);
         #endregion
     }
