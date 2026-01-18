@@ -18,7 +18,7 @@ class DummyTexture : public ITexture
     DummyTexture(uint32_t width, uint32_t height, const void* data, size_t dataSize)
         : m_Width(width), m_Height(height)
     {
-        if (data && dataSize > 0)
+        if ((data != nullptr) && dataSize > 0)
         {
             m_Data.resize(dataSize);
             std::memcpy(m_Data.data(), data, dataSize);
@@ -40,8 +40,10 @@ class DummyTexture : public ITexture
 
     bool Update(const void* data, size_t dataSize) override
     {
-        if (!data || dataSize == 0)
+        if ((data == nullptr) || dataSize == 0)
+        {
             return false;
+        }
         m_Data.resize(dataSize);
         std::memcpy(m_Data.data(), data, dataSize);
         return true;
