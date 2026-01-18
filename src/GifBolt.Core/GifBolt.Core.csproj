@@ -7,7 +7,27 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <RootNamespace>GifBolt</RootNamespace>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>GifBolt</PackageId>
+    <Version>1.0.0</Version>
     <Authors>GifBolt Contributors</Authors>
-    <Description>Core APIs for GifBolt: playback, model, and interop contracts.</Description>
+    <Description>Cross-platform GIF playback library with GPU acceleration support for WPF and Avalonia.</Description>
+    <PackageProjectUrl>https://github.com/yourusername/GifBolt</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/GifBolt</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
+
+  <!-- Include native libraries for each platform -->
+  <ItemGroup>
+    <None Include="runtimes/win-x64/native/GifBolt.Native.dll" Pack="true" PackagePath="runtimes/win-x64/native/" />
+    <None Include="runtimes/win-x86/native/GifBolt.Native.dll" Pack="true" PackagePath="runtimes/win-x86/native/" />
+    <None Include="runtimes/osx-x64/native/libGifBolt.Native.dylib" Pack="true" PackagePath="runtimes/osx-x64/native/" />
+    <None Include="runtimes/osx-arm64/native/libGifBolt.Native.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
+    <None Include="runtimes/linux-x64/native/libGifBolt.Native.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
+  </ItemGroup>
 </Project>

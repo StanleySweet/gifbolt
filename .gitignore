@@ -28,6 +28,15 @@ lib/
 # Native dynamic libraries placed in managed project folders (should not be checked in)
 **/libGifBolt.Native.*
 
+# NuGet packaging
+nupkg/
+*.nupkg
+*.snupkg
+src/GifBolt.Core/runtimes/
+
+# CI artifacts
+artifacts/
+
 # Testing
 Testing/
 *.test
