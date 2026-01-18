@@ -102,6 +102,7 @@ jobs:
           CI: true
 
       - name: Upload build artifacts
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site/
@@ -124,6 +125,8 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   notify:
     name: Notify Deployment Status
