@@ -56,6 +56,11 @@ jobs:
       - name: Install DocFX
         run: dotnet tool install -g docfx
 
+      - name: Prepare documentation output directories
+        run: |
+          mkdir -p docs_build/cpp-api
+          mkdir -p docs_build/csharp-api
+
       - name: Build C++ API documentation with Doxygen
         working-directory: src/GifBolt.Native
         run: |
