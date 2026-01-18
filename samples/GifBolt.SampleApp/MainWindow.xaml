@@ -20,15 +20,27 @@
                                    Source="sample.gif"
                                    AutoStart="True"
                                    Loop="True"
+                                   ScalingFilter="Lanczos"
                                    HorizontalAlignment="Stretch"
                                    VerticalAlignment="Stretch"/>
         </Border>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10" HorizontalAlignment="Center">
-            <Button Content="Play" Width="80" Margin="5" Click="OnPlay"/>
-            <Button Content="Pause" Width="80" Margin="5" Click="OnPause"/>
-            <Button Content="Stop" Width="80" Margin="5" Click="OnStop"/>
-            <Button Content="Load GIF..." Width="100" Margin="5" Click="OnLoadGif"/>
+        <StackPanel Grid.Row="2" Orientation="Vertical" Margin="10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                <TextBlock Text="Scaling Filter:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                <ComboBox x:Name="filterComboBox" SelectedIndex="3" Width="120" SelectionChanged="OnFilterChanged">
+                    <ComboBoxItem Content="Nearest"/>
+                    <ComboBoxItem Content="Bilinear"/>
+                    <ComboBoxItem Content="Bicubic"/>
+                    <ComboBoxItem Content="Lanczos"/>
+                </ComboBox>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Content="Play" Width="80" Margin="5" Click="OnPlay"/>
+                <Button Content="Pause" Width="80" Margin="5" Click="OnPause"/>
+                <Button Content="Stop" Width="80" Margin="5" Click="OnStop"/>
+                <Button Content="Load GIF..." Width="100" Margin="5" Click="OnLoadGif"/>
+            </StackPanel>
         </StackPanel>
     </Grid>
 </Window>

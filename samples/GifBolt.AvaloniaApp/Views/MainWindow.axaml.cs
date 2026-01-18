@@ -5,6 +5,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using GifBolt;
 using GifBolt.Avalonia;
 
 namespace GifBolt.AvaloniaApp.Views;
@@ -30,10 +31,10 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
         this._gifControl = this.FindControl<GifBoltControl>("gifControl");
-        // Appliquer le délai minimal de 100ms (macOS style)
+        // Set default minimum frame delay (100ms per Chrome/macOS/ezgif standard)
         if (this._gifControl != null)
         {
-            this._gifControl.MinFrameDelayMs = 100;
+            this._gifControl.MinFrameDelayMs = FrameTimingHelper.DefaultMinFrameDelayMs;
         }
     }
 

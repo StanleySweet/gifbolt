@@ -32,7 +32,7 @@ namespace GifBolt.Wpf
         public static readonly DependencyProperty ScalingFilterProperty =
             DependencyProperty.Register(
                 nameof(ScalingFilter), typeof(ScalingFilter), typeof(GifBoltControl),
-                new PropertyMetadata(ScalingFilter.Bilinear));
+                new PropertyMetadata(ScalingFilter.Lanczos));
 
         static GifBoltControl()
         {

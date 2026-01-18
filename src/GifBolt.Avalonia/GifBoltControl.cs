@@ -20,20 +20,20 @@ namespace GifBolt.Avalonia
     /// </summary>
     public sealed class GifBoltControl : Control
     {
-            /// <summary>
-            /// Gets or sets the minimum frame delay in milliseconds for GIF playback.
-            /// </summary>
-            public int MinFrameDelayMs
+        /// <summary>
+        /// Gets or sets the minimum frame delay in milliseconds for GIF playback.
+        /// </summary>
+        public int MinFrameDelayMs
+        {
+            get => this._player?.GetMinFrameDelayMs() ?? 0;
+            set
             {
-                get => this._player?.GetMinFrameDelayMs() ?? 0;
-                set
+                if (this._player != null)
                 {
-                    if (this._player != null)
-                    {
-                        this._player.SetMinFrameDelayMs(value);
-                    }
+                    this._player.SetMinFrameDelayMs(value);
                 }
             }
+        }
         private GifPlayer? _player;
         private WriteableBitmap? _bitmap;
         private bool _isLoaded;
@@ -117,7 +117,7 @@ namespace GifBolt.Avalonia
         public static readonly StyledProperty<GifBolt.Internal.ScalingFilter> ScalingFilterProperty =
             AvaloniaProperty.Register<GifBoltControl, GifBolt.Internal.ScalingFilter>(
                 nameof(ScalingFilter),
-                defaultValue: GifBolt.Internal.ScalingFilter.Bilinear);
+                defaultValue: GifBolt.Internal.ScalingFilter.Lanczos);
 
         /// <summary>
         /// Gets or sets the scaling filter used when resizing GIF frames (Nearest, Bilinear, Bicubic, Lanczos).

@@ -18,38 +18,38 @@ namespace GifBolt.Avalonia
     /// Provides drop-in replacement compatibility with WpfAnimatedGif library.
     /// Cross-platform support for Windows, macOS, and Linux.
     /// </summary>
-        public static class ImageBehavior
+    public static class ImageBehavior
+    {
+        /// <summary>
+        /// Defines the minimum frame delay in milliseconds for GIF playback.
+        /// </summary>
+        public static readonly AttachedProperty<int> MinFrameDelayMsProperty =
+            AvaloniaProperty.RegisterAttached<Image, int>(
+                "MinFrameDelayMs",
+                typeof(ImageBehavior),
+                defaultValue: 0);
+
+        /// <summary>
+        /// Gets the minimum frame delay in milliseconds for GIF playback.
+        /// </summary>
+        /// <param name="image">The Image control to query.</param>
+        /// <returns>The minimum frame delay in milliseconds.</returns>
+        public static int GetMinFrameDelayMs(Image image)
         {
-            /// <summary>
-            /// Defines the minimum frame delay in milliseconds for GIF playback.
-            /// </summary>
-            public static readonly AttachedProperty<int> MinFrameDelayMsProperty =
-                AvaloniaProperty.RegisterAttached<Image, int>(
-                    "MinFrameDelayMs",
-                    typeof(ImageBehavior),
-                    defaultValue: 0);
+            if (image is null) throw new ArgumentNullException(nameof(image));
+            return image.GetValue(MinFrameDelayMsProperty);
+        }
 
-            /// <summary>
-            /// Gets the minimum frame delay in milliseconds for GIF playback.
-            /// </summary>
-            /// <param name="image">The Image control to query.</param>
-            /// <returns>The minimum frame delay in milliseconds.</returns>
-            public static int GetMinFrameDelayMs(Image image)
-            {
-                if (image is null) throw new ArgumentNullException(nameof(image));
-                return image.GetValue(MinFrameDelayMsProperty);
-            }
-
-            /// <summary>
-            /// Sets the minimum frame delay in milliseconds for GIF playback.
-            /// </summary>
-            /// <param name="image">The Image control to configure.</param>
-            /// <param name="value">The minimum frame delay in milliseconds.</param>
-            public static void SetMinFrameDelayMs(Image image, int value)
-            {
-                if (image is null) throw new ArgumentNullException(nameof(image));
-                image.SetValue(MinFrameDelayMsProperty, value);
-            }
+        /// <summary>
+        /// Sets the minimum frame delay in milliseconds for GIF playback.
+        /// </summary>
+        /// <param name="image">The Image control to configure.</param>
+        /// <param name="value">The minimum frame delay in milliseconds.</param>
+        public static void SetMinFrameDelayMs(Image image, int value)
+        {
+            if (image is null) throw new ArgumentNullException(nameof(image));
+            image.SetValue(MinFrameDelayMsProperty, value);
+        }
         #region AnimatedSource (compatible WpfAnimatedGif)
 
         /// <summary>
@@ -351,248 +351,248 @@ namespace GifBolt.Avalonia
     }
 }
 
+/// <summary>
+/// Internal controller managing GIF animation on an Avalonia Image control.
+/// Handles frame decoding, timing, and pixel updates to the display.
+/// </summary>
+internal sealed class GifAnimationController : IDisposable
+{
+    private readonly Image _image;
+    private readonly GifBolt.GifPlayer _player;
+    private WriteableBitmap? _writeableBitmap;
+    private DispatcherTimer? _renderTimer;
+    private bool _isPlaying;
+    private int _repeatCount;
     /// <summary>
-    /// Internal controller managing GIF animation on an Avalonia Image control.
-    /// Handles frame decoding, timing, and pixel updates to the display.
+    /// Stocke le timestamp de la dernière frame rendue (pour debug timing réel).
     /// </summary>
-    internal sealed class GifAnimationController : IDisposable
+    private DateTime _lastFrameTimestamp = default;
+
+    public int Width => this._player.Width;
+    public int Height => this._player.Height;
+    public int FrameCount => this._player.FrameCount;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
+    /// </summary>
+    /// <param name="image">The Image control to animate.</param>
+    /// <param name="path">The file path to the GIF image.</param>
+    /// <param name="onLoaded">Callback invoked when loading completes successfully.</param>
+    /// <param name="onError">Callback invoked when loading fails.</param>
+    public GifAnimationController(Image image, string path, Action? onLoaded = null, Action<Exception>? onError = null)
     {
-        private readonly Image _image;
-        private readonly GifBolt.GifPlayer _player;
-        private WriteableBitmap? _writeableBitmap;
-        private DispatcherTimer? _renderTimer;
-        private bool _isPlaying;
-        private int _repeatCount;
-        /// <summary>
-        /// Stocke le timestamp de la dernière frame rendue (pour debug timing réel).
-        /// </summary>
-        private DateTime _lastFrameTimestamp = default;
+        this._image = image;
+        this._player = new GifBolt.GifPlayer();
+        // Default: enforce minimum delay per Chrome/macOS/ezgif standard
+        this._player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
-        public int Width => this._player.Width;
-        public int Height => this._player.Height;
-        public int FrameCount => this._player.FrameCount;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
-        /// </summary>
-        /// <param name="image">The Image control to animate.</param>
-        /// <param name="path">The file path to the GIF image.</param>
-        /// <param name="onLoaded">Callback invoked when loading completes successfully.</param>
-        /// <param name="onError">Callback invoked when loading fails.</param>
-        public GifAnimationController(Image image, string path, Action? onLoaded = null, Action<Exception>? onError = null)
+        // Load the GIF asynchronously to avoid blocking the UI thread
+        System.Threading.Tasks.Task.Run(() =>
         {
-            this._image = image;
-            this._player = new GifBolt.GifPlayer();
-            // Default: enforce minimum delay per Chrome/macOS/ezgif standard
-            this._player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
-
-            // Load the GIF asynchronously to avoid blocking the UI thread
-            System.Threading.Tasks.Task.Run(() =>
-            {
-                try
-                {
-                    if (!this._player.Load(path))
-                    {
-                        var error = new InvalidOperationException($"Failed to load GIF from path: {path}. File may not exist or be corrupt.");
-                        this._player.Dispose();
-                        global::Avalonia.Threading.Dispatcher.UIThread.Post(() => onError?.Invoke(error));
-                        return;
-                    }
-
-                    var wb = new WriteableBitmap(
-                        new PixelSize(this._player.Width, this._player.Height),
-                        new Vector(96, 96),
-                        PixelFormat.Bgra8888,
-                        AlphaFormat.Premul);
-
-                    // Assign the bitmap and initialize the timer on the UI thread
-                    global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    {
-                        this._writeableBitmap = wb;
-                        this._image.Source = this._writeableBitmap;
-                        this._renderTimer = new DispatcherTimer
-                        {
-                            Interval = TimeSpan.FromMilliseconds(16)
-                        };
-                        this._renderTimer.Tick += this.OnRenderTick;
-                        onLoaded?.Invoke();
-                    });
-                }
-                catch (Exception ex)
-                {
-                    global::Avalonia.Threading.Dispatcher.UIThread.Post(() => onError?.Invoke(ex));
-                }
-            });
-        }
-
-
-        /// <summary>
-        /// Sets the repeat behavior for the animation.
-        /// </summary>
-        /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
-        public void SetRepeatBehavior(string repeatBehavior)
-        {
-            this._repeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this._player.IsLooping);
-        }
-
-        /// <summary>
-        /// Sets the minimum frame delay (in milliseconds).
-        /// </summary>
-        /// <param name="minDelayMs">The minimum frame delay.</param>
-        public void SetMinFrameDelayMs(int minDelayMs)
-        {
-            if (this._player != null)
-            {
-                this._player.SetMinFrameDelayMs(minDelayMs);
-            }
-        }
-
-        /// <summary>
-        /// Starts playback of the animation.
-        /// </summary>
-        public void Play()
-        {
-            this._player.Play();
-            this._isPlaying = true;
-            if (this._renderTimer != null)
-            {
-                // Démarre le timer avec le délai de la première frame
-                int initialDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
-                this._renderTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(initialDelay, 16));
-                this._renderTimer.Start();
-            }
-        }
-
-        /// <summary>
-        /// Pauses playback of the animation.
-        /// </summary>
-        public void Pause()
-        {
-            this._player.Pause();
-            this._isPlaying = false;
-            this._renderTimer?.Stop();
-        }
-
-        /// <summary>
-        /// Stops playback and resets to the first frame.
-        /// </summary>
-        public void Stop()
-        {
-            this._player.Stop();
-            this._isPlaying = false;
-            this._renderTimer?.Stop();
-        }
-
-        private void OnRenderTick(object? sender, EventArgs e)
-        {
-            if (this._player == null || !this._isPlaying || this._writeableBitmap == null || this._renderTimer == null)
-            {
-                return;
-            }
-
             try
             {
-                int frameDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
-                var now = DateTime.UtcNow;
-                double elapsedMs = 0;
-                if (this._lastFrameTimestamp != default)
+                if (!this._player.Load(path))
                 {
-                    elapsedMs = (now - this._lastFrameTimestamp).TotalMilliseconds;
-                }
-                this._lastFrameTimestamp = now;
-
-                if (this._player.TryGetFramePixelsRgba32(this._player.CurrentFrame, out byte[] rgbaPixels))
-                {
-                    if (rgbaPixels.Length == 0)
-                    {
-                        return;
-                    }
-
-                    // Convert RGBA to BGRA with premultiplied alpha for Avalonia
-                    byte[] bgraPixels = new byte[rgbaPixels.Length];
-                    for (int i = 0; i < rgbaPixels.Length; i += 4)
-                    {
-                        byte r = rgbaPixels[i];
-                        byte g = rgbaPixels[i + 1];
-                        byte b = rgbaPixels[i + 2];
-                        byte a = rgbaPixels[i + 3];
-
-                        // For premultiplied alpha: if alpha=0, RGB MUST be 0 to avoid color bleed
-                        if (a == 0)
-                        {
-                            bgraPixels[i] = 0;     // B
-                            bgraPixels[i + 1] = 0; // G
-                            bgraPixels[i + 2] = 0; // R
-                            bgraPixels[i + 3] = 0; // A
-                        }
-                        else if (a < 255)
-                        {
-                            // Premultiply alpha for proper composition
-                            float alpha = a / 255f;
-                            bgraPixels[i] = (byte)(b * alpha);     // B
-                            bgraPixels[i + 1] = (byte)(g * alpha); // G
-                            bgraPixels[i + 2] = (byte)(r * alpha); // R
-                            bgraPixels[i + 3] = a;                 // A
-                        }
-                        else
-                        {
-                            // Fully opaque, no premultiplication needed
-                            bgraPixels[i] = b;     // B
-                            bgraPixels[i + 1] = g; // G
-                            bgraPixels[i + 2] = r; // R
-                            bgraPixels[i + 3] = a; // A
-                        }
-                    }
-
-                    using (var buffer = this._writeableBitmap.Lock())
-                    {
-                        Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
-                    }
-                    this._image.InvalidateVisual();
-                }
-                else
-                {
-                }
-
-                // Advance to the next frame using shared helper
-                var advanceResult = FrameAdvanceHelper.AdvanceFrame(
-                    this._player.CurrentFrame,
-                    this._player.FrameCount,
-                    this._repeatCount);
-
-                if (advanceResult.IsComplete)
-                {
-                    this.Stop();
+                    var error = new InvalidOperationException($"Failed to load GIF from path: {path}. File may not exist or be corrupt.");
+                    this._player.Dispose();
+                    global::Avalonia.Threading.Dispatcher.UIThread.Post(() => onError?.Invoke(error));
                     return;
                 }
 
-                // Update the current frame and repeat count
-                this._player.CurrentFrame = advanceResult.NextFrame;
-                this._repeatCount = advanceResult.UpdatedRepeatCount;
+                var wb = new WriteableBitmap(
+                    new PixelSize(this._player.Width, this._player.Height),
+                    new Vector(96, 96),
+                    PixelFormat.Bgra8888,
+                    AlphaFormat.Premul);
 
-                // Dynamically update the timer interval for the next frame
-                int nextDelay = this._player.GetFrameDelayMs(advanceResult.NextFrame);
-                if (this._renderTimer != null)
+                // Assign the bitmap and initialize the timer on the UI thread
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextDelay, FrameTimingHelper.MinRenderIntervalMs);
-                    this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
-                }
+                    this._writeableBitmap = wb;
+                    this._image.Source = this._writeableBitmap;
+                    this._renderTimer = new DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromMilliseconds(16)
+                    };
+                    this._renderTimer.Tick += this.OnRenderTick;
+                    onLoaded?.Invoke();
+                });
             }
-            catch
+            catch (Exception ex)
             {
-                // Swallow render errors
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() => onError?.Invoke(ex));
             }
-        }
+        });
+    }
 
-        /// <summary>
-        /// Releases all resources held by the animation controller.
-        /// </summary>
-        public void Dispose()
+
+    /// <summary>
+    /// Sets the repeat behavior for the animation.
+    /// </summary>
+    /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
+    public void SetRepeatBehavior(string repeatBehavior)
+    {
+        this._repeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this._player.IsLooping);
+    }
+
+    /// <summary>
+    /// Sets the minimum frame delay (in milliseconds).
+    /// </summary>
+    /// <param name="minDelayMs">The minimum frame delay.</param>
+    public void SetMinFrameDelayMs(int minDelayMs)
+    {
+        if (this._player != null)
         {
-            this._renderTimer?.Stop();
-            this._renderTimer = null;
-            this._player?.Dispose();
-            this._writeableBitmap = null;
-            this._lastFrameTimestamp = default;
+            this._player.SetMinFrameDelayMs(minDelayMs);
         }
     }
+
+    /// <summary>
+    /// Starts playback of the animation.
+    /// </summary>
+    public void Play()
+    {
+        this._player.Play();
+        this._isPlaying = true;
+        if (this._renderTimer != null)
+        {
+            // Démarre le timer avec le délai de la première frame
+            int initialDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
+            this._renderTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(initialDelay, 16));
+            this._renderTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// Pauses playback of the animation.
+    /// </summary>
+    public void Pause()
+    {
+        this._player.Pause();
+        this._isPlaying = false;
+        this._renderTimer?.Stop();
+    }
+
+    /// <summary>
+    /// Stops playback and resets to the first frame.
+    /// </summary>
+    public void Stop()
+    {
+        this._player.Stop();
+        this._isPlaying = false;
+        this._renderTimer?.Stop();
+    }
+
+    private void OnRenderTick(object? sender, EventArgs e)
+    {
+        if (this._player == null || !this._isPlaying || this._writeableBitmap == null || this._renderTimer == null)
+        {
+            return;
+        }
+
+        try
+        {
+            int frameDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
+            var now = DateTime.UtcNow;
+            double elapsedMs = 0;
+            if (this._lastFrameTimestamp != default)
+            {
+                elapsedMs = (now - this._lastFrameTimestamp).TotalMilliseconds;
+            }
+            this._lastFrameTimestamp = now;
+
+            if (this._player.TryGetFramePixelsRgba32(this._player.CurrentFrame, out byte[] rgbaPixels))
+            {
+                if (rgbaPixels.Length == 0)
+                {
+                    return;
+                }
+
+                // Convert RGBA to BGRA with premultiplied alpha for Avalonia
+                byte[] bgraPixels = new byte[rgbaPixels.Length];
+                for (int i = 0; i < rgbaPixels.Length; i += 4)
+                {
+                    byte r = rgbaPixels[i];
+                    byte g = rgbaPixels[i + 1];
+                    byte b = rgbaPixels[i + 2];
+                    byte a = rgbaPixels[i + 3];
+
+                    // For premultiplied alpha: if alpha=0, RGB MUST be 0 to avoid color bleed
+                    if (a == 0)
+                    {
+                        bgraPixels[i] = 0;     // B
+                        bgraPixels[i + 1] = 0; // G
+                        bgraPixels[i + 2] = 0; // R
+                        bgraPixels[i + 3] = 0; // A
+                    }
+                    else if (a < 255)
+                    {
+                        // Premultiply alpha for proper composition
+                        float alpha = a / 255f;
+                        bgraPixels[i] = (byte)(b * alpha);     // B
+                        bgraPixels[i + 1] = (byte)(g * alpha); // G
+                        bgraPixels[i + 2] = (byte)(r * alpha); // R
+                        bgraPixels[i + 3] = a;                 // A
+                    }
+                    else
+                    {
+                        // Fully opaque, no premultiplication needed
+                        bgraPixels[i] = b;     // B
+                        bgraPixels[i + 1] = g; // G
+                        bgraPixels[i + 2] = r; // R
+                        bgraPixels[i + 3] = a; // A
+                    }
+                }
+
+                using (var buffer = this._writeableBitmap.Lock())
+                {
+                    Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
+                }
+                this._image.InvalidateVisual();
+            }
+            else
+            {
+            }
+
+            // Advance to the next frame using shared helper
+            var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+                this._player.CurrentFrame,
+                this._player.FrameCount,
+                this._repeatCount);
+
+            if (advanceResult.IsComplete)
+            {
+                this.Stop();
+                return;
+            }
+
+            // Update the current frame and repeat count
+            this._player.CurrentFrame = advanceResult.NextFrame;
+            this._repeatCount = advanceResult.UpdatedRepeatCount;
+
+            // Dynamically update the timer interval for the next frame
+            int nextDelay = this._player.GetFrameDelayMs(advanceResult.NextFrame);
+            if (this._renderTimer != null)
+            {
+                int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextDelay, FrameTimingHelper.MinRenderIntervalMs);
+                this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
+            }
+        }
+        catch
+        {
+            // Swallow render errors
+        }
+    }
+
+    /// <summary>
+    /// Releases all resources held by the animation controller.
+    /// </summary>
+    public void Dispose()
+    {
+        this._renderTimer?.Stop();
+        this._renderTimer = null;
+        this._player?.Dispose();
+        this._writeableBitmap = null;
+        this._lastFrameTimestamp = default;
+    }
+}

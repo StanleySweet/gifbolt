@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 using System.Windows;
+using System.Windows.Controls;
+using GifBolt.Internal;
 using Microsoft.Win32;
 
 namespace GifBolt.SampleApp
@@ -12,6 +14,15 @@ namespace GifBolt.SampleApp
         public MainWindow()
         {
             this.InitializeComponent();
+        }
+
+        private void OnFilterChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (this.filterComboBox != null && this.filterComboBox.SelectedIndex >= 0 && this.filterComboBox.SelectedIndex < 4 && this.GifControl != null)
+            {
+                var filter = (ScalingFilter)this.filterComboBox.SelectedIndex;
+                this.GifControl.ScalingFilter = filter;
+            }
         }
 
         private void OnPlay(object sender, RoutedEventArgs e)
