@@ -40,6 +40,9 @@ namespace GifBolt.Avalonia
         private DispatcherTimer? _renderTimer;
         private bool _isPlaying;
         private int _repeatCount = -1;
+        private double _cachedViewportWidth = -1;
+        private double _cachedViewportHeight = -1;
+        private bool _hasRenderedOnce;
 
         #region Styled Properties
         /// <summary>
@@ -127,6 +130,24 @@ namespace GifBolt.Avalonia
             get => this.GetValue(ScalingFilterProperty);
             set => this.SetValue(ScalingFilterProperty, value);
         }
+
+        /// <summary>
+        /// Defines the <see cref="DiagnosticsEnabled"/> property.
+        /// </summary>
+        public static readonly StyledProperty<bool> DiagnosticsEnabledProperty =
+            AvaloniaProperty.Register<GifBoltControl, bool>(
+                nameof(DiagnosticsEnabled),
+                defaultValue: false);
+
+        /// <summary>
+        /// Gets or sets a value indicating whether diagnostics logs are enabled.
+        /// When enabled, the control prints timing information to help diagnose delays.
+        /// </summary>
+        public bool DiagnosticsEnabled
+        {
+            get => this.GetValue(DiagnosticsEnabledProperty);
+            set => this.SetValue(DiagnosticsEnabledProperty, value);
+        }
         #endregion
 
         static GifBoltControl()
@@ -182,10 +203,30 @@ namespace GifBolt.Avalonia
 
             if (this._bitmap != null && this._player != null)
             {
+                this.LogDiag("Render() invoked; drawing current bitmap.");
+                if (!this._hasRenderedOnce)
+                {
+                    this._hasRenderedOnce = true;
+                    this.LogDiag("First Render() call observed.");
+                }
                 var sourceSize = new Size(this._bitmap.PixelSize.Width, this._bitmap.PixelSize.Height);
                 var viewportSize = this.Bounds.Size;
-                var destRect = this.CalculateStretchRect(sourceSize, viewportSize);
 
+                // Recalculate rect only if size changed
+                Rect destRect;
+                if (this._cachedViewportWidth != viewportSize.Width || this._cachedViewportHeight != viewportSize.Height)
+                {
+                    this._cachedViewportWidth = viewportSize.Width;
+                    this._cachedViewportHeight = viewportSize.Height;
+                    destRect = this.CalculateStretchRect(sourceSize, viewportSize);
+                }
+                else
+                {
+                    // Use cached calculation - just recreate it quickly
+                    destRect = this.CalculateStretchRect(sourceSize, viewportSize);
+                }
+
+                // Render bitmap with Avalonia's smooth scaling/interpolation
                 // Render bitmap with Avalonia's smooth scaling/interpolation
                 context.DrawImage(this._bitmap, destRect);
             }
@@ -254,6 +295,7 @@ namespace GifBolt.Avalonia
                     {
                         Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
                     }
+                    this.LogDiag($"RenderCurrentFrame(): copied {bgraPixels.Length} bytes for frame {this._player.CurrentFrame}.");
                 }
             }
         }
@@ -321,15 +363,19 @@ namespace GifBolt.Avalonia
             {
                 try
                 {
+                    var t0 = DateTime.UtcNow;
                     var player = new GifPlayer();
                     // Default: enforce minimum delay per Chrome/macOS/ezgif standard
                     player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
                     if (!player.Load(source))
                     {
+                        this.LogDiag($"LoadGifPlayer(): failed to load '{source}'.");
                         player.Dispose();
                         return;
                     }
+                    var tLoad = DateTime.UtcNow;
+                    this.LogDiag($"LoadGifPlayer(): player.Load took {(tLoad - t0).TotalMilliseconds:F1} ms. Size={player.Width}x{player.Height}, Frames={player.FrameCount}, Frame0Delay={player.GetFrameDelayMs(0)} ms.");
 
                     // Create bitmap for display with premultiplied alpha for proper composition
                     var bitmap = new WriteableBitmap(
@@ -338,18 +384,32 @@ namespace GifBolt.Avalonia
                         PixelFormat.Bgra8888,
                         AlphaFormat.Premul);
 
+                    // Render first frame on background thread to avoid delay
+                    if (player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) && bgraPixels.Length > 0)
+                    {
+                        using (var buffer = bitmap.Lock())
+                        {
+                            Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
+                        }
+                        this.LogDiag($"LoadGifPlayer(): pre-copied first frame pixels ({bgraPixels.Length} bytes) on background thread in {(DateTime.UtcNow - tLoad).TotalMilliseconds:F1} ms.");
+                    }
+
                     global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                     {
+                        var tUI = DateTime.UtcNow;
                         this._player = player;
                         this._bitmap = bitmap;
                         this._repeatCount = this.Loop ? -1 : 1;
 
-                        // Render first frame immediately
+                        // Render the current frame immediately on the UI thread
+                        // to avoid waiting for the first timer tick or GIF delay.
                         this.RenderCurrentFrame();
                         this.InvalidateVisual();
+                        this.LogDiag($"UI assignment + immediate render took {(DateTime.UtcNow - tUI).TotalMilliseconds:F1} ms. Bounds={this.Bounds.Width}x{this.Bounds.Height}.");
 
                         if (this.AutoStart)
                         {
+                            this.LogDiag("AutoStart=true; calling Play().");
                             this.Play();
                         }
                     });
@@ -380,6 +440,13 @@ namespace GifBolt.Avalonia
             {
                 this._player.Play();
                 this._isPlaying = true;
+                this.LogDiag($"Play(): starting at frame {this._player.CurrentFrame}, initial delay={this._player.GetFrameDelayMs(this._player.CurrentFrame)} ms.");
+
+                // Render first frame immediately to avoid delay on Play
+                this.RenderCurrentFrame();
+                this.InvalidateVisual();
+
+                // Start timer; interval will update on first tick.
                 this._renderTimer?.Start();
             }
         }
@@ -422,5 +489,17 @@ namespace GifBolt.Avalonia
             this.Source = path;
         }
         #endregion
+
+        /// <summary>
+        /// Writes a diagnostics message if <see cref="DiagnosticsEnabled"/> is true.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
+        private void LogDiag(string message)
+        {
+            if (this.DiagnosticsEnabled)
+            {
+                Console.WriteLine($"[GifBolt] DIAG: {message}");
+            }
+        }
     }
 }
