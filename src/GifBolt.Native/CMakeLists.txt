@@ -29,7 +29,21 @@ if(WIN32)
     target_sources(GifBolt.Native PRIVATE
         src/D3D11DeviceCommandContext.cpp
         include/D3D11DeviceCommandContext.h)
+
+    # Link Direct3D libraries with delay-loading to avoid module-not-found errors
+    # when Direct3D is not available at DLL load time. Libraries will be loaded
+    # on-demand when rendering is actually performed.
     target_link_libraries(GifBolt.Native PRIVATE d3d11 dxgi d3dcompiler)
+
+    # Add delay-load linker flags for Direct3D libraries
+    if(MSVC)
+        target_link_options(GifBolt.Native PRIVATE
+            /DELAYLOAD:d3d11.dll
+            /DELAYLOAD:dxgi.dll
+            /DELAYLOAD:d3dcompiler_47.dll
+            delayimp.lib)
+    endif()
+
     target_compile_definitions(GifBolt.Native PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
