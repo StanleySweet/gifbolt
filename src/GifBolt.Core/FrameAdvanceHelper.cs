@@ -1,3 +1,7 @@
+// <copyright file="FrameAdvanceHelper.cs" company="GifBolt Contributors">
+// Copyright (c) 2026 GifBolt Contributors. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+// </copyright>
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 

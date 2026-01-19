@@ -14,6 +14,16 @@ Ex: `GifBoltControl:Control{private IntPtr _nativeHandle; public string Source{g
 
 **sealed(ERROR):** Classes=sealed unless designed for inheritance. ✓:`public abstract class Base{abstract void Play();} public sealed class Impl:Control{}` ✗:`public class Impl:Control{}`
 
+**File Headers(MANDATORY):** ALL C# files must begin with copyright/license XML comment block. Format:
+```
+// <copyright file="FileName.cs" company="GifBolt Contributors">
+// Copyright (c) 2026 GifBolt Contributors. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+// </copyright>
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+```
+
 **Docs(MANDATORY):** ALL public classes/interfaces/methods/properties/fields require XML docs w/ `<summary>`,`<remarks>`,`<param>`,`<returns>`,`<exception>`. Format: `///<summary>Brief desc</summary>///<remarks>Context</remarks>///<param name="x">Desc</param>///<returns>Result</returns>///<exception cref="T">When</exception>`. Private: brief comments explaining purpose.
 
 **Braces:** Allman style(new line); braces for all blocks(even single-line). Ex: `class X{\n public bool M(){\n if(x){\n return false;\n }\n return true;\n }\n}`
