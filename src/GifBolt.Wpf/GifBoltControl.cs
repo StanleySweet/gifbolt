@@ -192,26 +192,16 @@ namespace GifBolt.Wpf
                         return;
                     }
 
-                    // Extract first frame
-                    if (player.TryGetFramePixelsRgba32(0, out byte[] rgbaPixels) && rgbaPixels.Length > 0)
+                    // Extract first frame in BGRA premultiplied format
+                    if (player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) && bgraPixels.Length > 0)
                     {
-                        // Convert RGBA to BGRA for WPF
-                        byte[] bgraPixels = new byte[rgbaPixels.Length];
-                        for (int i = 0; i < rgbaPixels.Length; i += 4)
-                        {
-                            bgraPixels[i] = rgbaPixels[i + 2];     // B
-                            bgraPixels[i + 1] = rgbaPixels[i + 1]; // G
-                            bgraPixels[i + 2] = rgbaPixels[i];     // R
-                            bgraPixels[i + 3] = rgbaPixels[i + 3]; // A
-                        }
-
                         // Create bitmap
                         var bitmap = new WriteableBitmap(
                             player.Width,
                             player.Height,
                             96,
                             96,
-                            PixelFormats.Bgra32,
+                            PixelFormats.Pbgra32,
                             null);
 
                         bitmap.WritePixels(

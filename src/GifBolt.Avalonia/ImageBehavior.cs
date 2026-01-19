@@ -405,11 +405,23 @@ internal sealed class GifAnimationController : IDisposable
                     PixelFormat.Bgra8888,
                     AlphaFormat.Premul);
 
-                // Assign the bitmap and initialize the timer on the UI thread
+                // Get frame 0 pixels on background thread to avoid UI blocking
+                if (this._player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) && bgraPixels.Length > 0)
+                {
+                    // Copy pixels to bitmap on background thread
+                    using (var buffer = wb.Lock())
+                    {
+                        Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
+                    }
+                }
+
+                // Assign the bitmap on the UI thread
                 global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     this._writeableBitmap = wb;
                     this._image.Source = this._writeableBitmap;
+                    this._image.InvalidateVisual();
+
                     this._renderTimer = new DispatcherTimer
                     {
                         Interval = TimeSpan.FromMilliseconds(16)
@@ -454,6 +466,13 @@ internal sealed class GifAnimationController : IDisposable
     {
         this._player.Play();
         this._isPlaying = true;
+
+        // Render the current frame immediately to avoid delay
+        if (this._writeableBitmap != null)
+        {
+            this.RenderFrame(this._player.CurrentFrame);
+        }
+
         if (this._renderTimer != null)
         {
             // Démarre le timer avec le délai de la première frame
@@ -483,6 +502,39 @@ internal sealed class GifAnimationController : IDisposable
         this._renderTimer?.Stop();
     }
 
+    /// <summary>
+    /// Renders a specific frame to the WriteableBitmap.
+    /// </summary>
+    /// <param name="frameIndex">The index of the frame to render.</param>
+    private void RenderFrame(int frameIndex)
+    {
+        if (this._player == null || this._writeableBitmap == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (this._player.TryGetFramePixelsBgra32Premultiplied(frameIndex, out byte[] bgraPixels))
+            {
+                if (bgraPixels.Length == 0)
+                {
+                    return;
+                }
+
+                using (var buffer = this._writeableBitmap.Lock())
+                {
+                    Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
+                }
+                this._image.InvalidateVisual();
+            }
+        }
+        catch
+        {
+            // Swallow render errors
+        }
+    }
+
     private void OnRenderTick(object? sender, EventArgs e)
     {
         if (this._player == null || !this._isPlaying || this._writeableBitmap == null || this._renderTimer == null)
@@ -501,58 +553,8 @@ internal sealed class GifAnimationController : IDisposable
             }
             this._lastFrameTimestamp = now;
 
-            if (this._player.TryGetFramePixelsRgba32(this._player.CurrentFrame, out byte[] rgbaPixels))
-            {
-                if (rgbaPixels.Length == 0)
-                {
-                    return;
-                }
-
-                // Convert RGBA to BGRA with premultiplied alpha for Avalonia
-                byte[] bgraPixels = new byte[rgbaPixels.Length];
-                for (int i = 0; i < rgbaPixels.Length; i += 4)
-                {
-                    byte r = rgbaPixels[i];
-                    byte g = rgbaPixels[i + 1];
-                    byte b = rgbaPixels[i + 2];
-                    byte a = rgbaPixels[i + 3];
-
-                    // For premultiplied alpha: if alpha=0, RGB MUST be 0 to avoid color bleed
-                    if (a == 0)
-                    {
-                        bgraPixels[i] = 0;     // B
-                        bgraPixels[i + 1] = 0; // G
-                        bgraPixels[i + 2] = 0; // R
-                        bgraPixels[i + 3] = 0; // A
-                    }
-                    else if (a < 255)
-                    {
-                        // Premultiply alpha for proper composition
-                        float alpha = a / 255f;
-                        bgraPixels[i] = (byte)(b * alpha);     // B
-                        bgraPixels[i + 1] = (byte)(g * alpha); // G
-                        bgraPixels[i + 2] = (byte)(r * alpha); // R
-                        bgraPixels[i + 3] = a;                 // A
-                    }
-                    else
-                    {
-                        // Fully opaque, no premultiplication needed
-                        bgraPixels[i] = b;     // B
-                        bgraPixels[i + 1] = g; // G
-                        bgraPixels[i + 2] = r; // R
-                        bgraPixels[i + 3] = a; // A
-                    }
-                }
-
-                using (var buffer = this._writeableBitmap.Lock())
-                {
-                    Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
-                }
-                this._image.InvalidateVisual();
-            }
-            else
-            {
-            }
+            // Render the current frame
+            this.RenderFrame(this._player.CurrentFrame);
 
             // Advance to the next frame using shared helper
             var advanceResult = FrameAdvanceHelper.AdvanceFrame(
