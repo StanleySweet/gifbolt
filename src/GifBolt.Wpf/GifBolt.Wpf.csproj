@@ -5,6 +5,19 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>GifBolt.Wpf</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>GifBolt Contributors</Authors>
+    <Description>WPF control for animating GIFs with GPU acceleration support via GifBolt native library. Cross-platform support for Windows (D3D11) and macOS (Metal via Parallels/CrossOver).</Description>
+    <PackageProjectUrl>https://github.com/yourusername/GifBolt</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/GifBolt</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
