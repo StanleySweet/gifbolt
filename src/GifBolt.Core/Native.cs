@@ -63,55 +63,13 @@ namespace GifBolt.Internal
         // Static constructor to load DLL and resolve function pointers
         static Native()
         {
-            const string dllName = "GifBolt.Native";
-
-            // Try multiple paths to find the native DLL
-            string[] searchPaths = new[]
-                    {
-                    System.IO.Path.Combine(
-                        System.IO.Path.GetDirectoryName(typeof(Native).Assembly.Location) ?? string.Empty,
-                        dllName + ".dll"),
-                    System.IO.Path.Combine(
-                        AppDomain.CurrentDomain.BaseDirectory,
-                        dllName + ".dll"),
-                    System.IO.Path.Combine(
-                        Environment.CurrentDirectory,
-                        dllName + ".dll"),
-                    dllName + ".dll",
-                };
-
-            bool loaded = false;
-            foreach (string dllPath in searchPaths)
-            {
-                if (string.IsNullOrEmpty(dllPath))
-                {
-                    continue;
-                }
-
-
-                if (System.IO.File.Exists(dllPath) || dllPath == dllName + ".dll")
-                {
-                    IntPtr result = LoadLibrary(dllPath);
-                    if (result != IntPtr.Zero)
-                    {
-                        _hModule = result;
-                        loaded = true;
-                        break;
-                    }
-                    else
-                    {
-                        int error = Marshal.GetLastWin32Error();
-                    }
-                }
-                else
-                {
-                }
-            }
-
-            if (!loaded || _hModule == IntPtr.Zero)
-            {
-                throw new DllNotFoundException($"Could not load {dllName}.dll from any search path. Check gifbolt_load.log for details.");
-            }
+#if NET6_0_OR_GREATER
+            // Cross-platform loader for .NET 6+
+            LoadLibraryCrossPlatform();
+#else
+            // Windows-only loader for .NET Standard 2.0
+            LoadLibraryWindows();
+#endif
 
             // Resolve all function pointers
             _gbDecoderCreate = GetDelegate<GbDecoderCreateDelegate>("gb_decoder_create");
@@ -218,7 +176,150 @@ namespace GifBolt.Internal
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void GbDecoderSetCurrentFrameDelegate(IntPtr decoder, int currentFrame);
 
-        // Kernel32 functions for manual DLL loading
+#if NET6_0_OR_GREATER
+        /// <summary>
+        /// Cross-platform native library loading for .NET 6+.
+        /// Searches in multiple standard locations before throwing.
+        /// </summary>
+        private static void LoadLibraryCrossPlatform()
+        {
+            const string baseName = "GifBolt.Native";
+            string libraryName;
+            string[] searchPaths;
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                libraryName = $"{baseName}.dll";
+                searchPaths = new[]
+                {
+                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, libraryName),
+                    System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(Native).Assembly.Location) ?? string.Empty, libraryName),
+                    libraryName,
+                };
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                libraryName = $"lib{baseName}.dylib";
+                searchPaths = new[]
+                {
+                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, libraryName),
+                    System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(Native).Assembly.Location) ?? string.Empty, libraryName),
+                    System.IO.Path.Combine(Environment.CurrentDirectory, libraryName),
+                    libraryName,
+                };
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                libraryName = $"lib{baseName}.so";
+                searchPaths = new[]
+                {
+                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, libraryName),
+                    System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(Native).Assembly.Location) ?? string.Empty, libraryName),
+                    System.IO.Path.Combine(Environment.CurrentDirectory, libraryName),
+                    libraryName,
+                };
+            }
+            else
+            {
+                throw new PlatformNotSupportedException($"Unsupported platform for GifBolt.Native");
+            }
+
+            DllNotFoundException? lastException = null;
+            foreach (string searchPath in searchPaths)
+            {
+                try
+                {
+                    _hModule = NativeLibrary.Load(searchPath);
+                    return;
+                }
+                catch (DllNotFoundException ex)
+                {
+                    lastException = ex;
+                }
+            }
+
+
+            // If we get here, we couldn't load from any path
+            throw new DllNotFoundException(
+                $"Could not load {libraryName}. Searched in:\n" +
+                string.Join("\n", searchPaths) +
+                $"\n\nMake sure the native library is built and copied to the output directory.\n" +
+                $"Build the native library with: cmake --build build --config Debug",
+                lastException);
+        }
+
+        /// <summary>
+        /// Gets a delegate for an unmanaged function exported by the native library.
+        /// </summary>
+        private static T GetDelegate<T>(string symbol) where T : Delegate
+        {
+            IntPtr addr = NativeLibrary.GetExport(_hModule, symbol);
+
+            return Marshal.GetDelegateForFunctionPointer<T>(addr);
+        }
+#else
+        // Windows-only native library loading for .NET Standard 2.0
+        private static void LoadLibraryWindows()
+        {
+            const string dllName = "GifBolt.Native";
+
+            // Try multiple paths to find the native DLL
+            string[] searchPaths = new[]
+            {
+                System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(typeof(Native).Assembly.Location) ?? string.Empty,
+                    dllName + ".dll"),
+                System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    dllName + ".dll"),
+                System.IO.Path.Combine(
+                    Environment.CurrentDirectory,
+                    dllName + ".dll"),
+                dllName + ".dll",
+            };
+
+            bool loaded = false;
+            foreach (string dllPath in searchPaths)
+            {
+                if (string.IsNullOrEmpty(dllPath))
+                {
+                    continue;
+                }
+
+                if (System.IO.File.Exists(dllPath) || dllPath == dllName + ".dll")
+                {
+                    IntPtr result = LoadLibrary(dllPath);
+                    if (result != IntPtr.Zero)
+                    {
+                        _hModule = result;
+                        loaded = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!loaded || _hModule == IntPtr.Zero)
+            {
+                throw new DllNotFoundException($"Could not load {dllName}.dll from any search path.");
+            }
+        }
+
+        /// <summary>
+        /// Gets a delegate for an unmanaged function exported by the native library.
+        /// </summary>
+        private static T GetDelegate<T>(string symbol) where T : Delegate
+        {
+            IntPtr addr = GetProcAddress(_hModule, symbol);
+            if (addr == IntPtr.Zero)
+            {
+                throw new EntryPointNotFoundException($"Could not find symbol '{symbol}' in native library");
+            }
+
+            return Marshal.GetDelegateForFunctionPointer<T>(addr);
+        }
+#endif
+
+        // Kernel32 functions for Windows-only manual DLL loading
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern IntPtr LoadLibrary(string dllToLoad);
 
@@ -228,18 +329,6 @@ namespace GifBolt.Internal
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool FreeLibrary(IntPtr hModule);
 
-        private static T? GetDelegate<T>(string functionName)
-            where T : class
-        {
-            IntPtr procAddress = GetProcAddress(_hModule, functionName);
-            if (procAddress == IntPtr.Zero)
-            {
-                int error = Marshal.GetLastWin32Error();
-                throw new EntryPointNotFoundException($"Function '{functionName}' not found in native DLL.");
-            }
-
-            return Marshal.GetDelegateForFunctionPointer(procAddress, typeof(T)) as T;
-        }
 
         /// <summary>
         /// Creates a new GifBolt decoder instance.

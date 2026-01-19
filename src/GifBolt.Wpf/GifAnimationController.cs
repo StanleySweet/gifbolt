@@ -387,7 +387,7 @@ namespace GifBolt.Wpf
 
             try
             {
-                // Get the frame delay for the current frame (respects the 100ms minimum set in base constructor)
+                // Get the frame delay for the current frame (respects the minimum set in base constructor)
                 int frameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
                 long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
 
@@ -410,10 +410,20 @@ namespace GifBolt.Wpf
                     this.Player.CurrentFrame = advanceResult.NextFrame;
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameStartTime = DateTime.UtcNow;
-                }
 
-                // Render the current frame
-                this.RenderFrame(this.Player.CurrentFrame);
+                    // Render the new frame immediately
+                    this.RenderFrame(this.Player.CurrentFrame);
+
+                    // Update timer interval for the new frame's delay
+                    int nextFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
+                    int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextFrameDelayMs, FrameTimingHelper.MinRenderIntervalMs);
+                    this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
+                }
+                else
+                {
+                    // Render current frame while waiting for frame delay to elapse
+                    this.RenderFrame(this.Player.CurrentFrame);
+                }
             }
             catch
             {
