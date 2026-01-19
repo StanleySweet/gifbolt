@@ -8,7 +8,6 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 
 namespace GifBolt.Avalonia
 {
@@ -20,7 +19,7 @@ namespace GifBolt.Avalonia
     /// This class provides the same attached behavior pattern as the WPF version,
     /// allowing GIF animation on Avalonia Image controls with identical API.
     /// </remarks>
-    public static class AnimationBehavior
+    public sealed class AnimationBehavior
     {
         /// <summary>
         /// Gets or sets the animated GIF source URI.
@@ -29,9 +28,7 @@ namespace GifBolt.Avalonia
         public static readonly AttachedProperty<string?> SourceUriProperty =
             AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, string?>(
                 "SourceUri",
-                defaultValue: null,
-                notifying: false,
-                coerceValue: null);
+                defaultValue: null);
 
         /// <summary>
         /// Gets or sets the repeat behavior for the animation.
@@ -40,9 +37,7 @@ namespace GifBolt.Avalonia
         public static readonly AttachedProperty<string?> RepeatBehaviorProperty =
             AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, string?>(
                 "RepeatBehavior",
-                defaultValue: "0x",
-                notifying: false,
-                coerceValue: null);
+                defaultValue: "0x");
 
         /// <summary>
         /// Gets or sets whether animation starts in design mode.
@@ -50,9 +45,7 @@ namespace GifBolt.Avalonia
         public static readonly AttachedProperty<bool> AnimateInDesignModeProperty =
             AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, bool>(
                 "AnimateInDesignMode",
-                defaultValue: false,
-                notifying: false,
-                coerceValue: null);
+                defaultValue: false);
 
         /// <summary>
         /// Internal property to store the GifAnimationController instance.
@@ -60,14 +53,12 @@ namespace GifBolt.Avalonia
         private static readonly AttachedProperty<GifAnimationController?> _animationControllerProperty =
             AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, GifAnimationController?>(
                 "AnimationController",
-                defaultValue: null,
-                notifying: false,
-                coerceValue: null);
+                defaultValue: null);
 
         static AnimationBehavior()
         {
-            SourceUriProperty.Changed.Subscribe(OnSourceUriChanged);
-            RepeatBehaviorProperty.Changed.Subscribe(OnRepeatBehaviorChanged);
+            SourceUriProperty.Changed.AddClassHandler<Image>(OnSourceUriChanged);
+            RepeatBehaviorProperty.Changed.AddClassHandler<Image>(OnRepeatBehaviorChanged);
         }
 
         /// <summary>
@@ -177,9 +168,9 @@ namespace GifBolt.Avalonia
         /// <summary>
         /// Handles changes to the SourceUri property.
         /// </summary>
-        private static void OnSourceUriChanged(AvaloniaPropertyChangedEventArgs e)
+        private static void OnSourceUriChanged(Image image, AvaloniaPropertyChangedEventArgs e)
         {
-            if (e.Sender is not Image image)
+            if (image == null)
             {
                 return;
             }
@@ -254,9 +245,9 @@ namespace GifBolt.Avalonia
         /// <summary>
         /// Handles changes to the RepeatBehavior property.
         /// </summary>
-        private static void OnRepeatBehaviorChanged(AvaloniaPropertyChangedEventArgs e)
+        private static void OnRepeatBehaviorChanged(Image image, AvaloniaPropertyChangedEventArgs e)
         {
-            if (e.Sender is not Image image)
+            if (image == null)
             {
                 return;
             }
@@ -271,7 +262,7 @@ namespace GifBolt.Avalonia
         /// <summary>
         /// Handles image unloaded event.
         /// </summary>
-        private static void OnImageUnloaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        private static void OnImageUnloaded(object? sender, EventArgs e)
         {
             if (sender is not Image image)
             {
