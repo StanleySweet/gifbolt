@@ -6,6 +6,9 @@ using System.Diagnostics.CodeAnalysis;
 // StyleCop Suppressions for accepted patterns that differ from StyleCop defaults
 // but align with GifBolt coding standards
 
+// SA1633: File header (GifBolt uses SPDX License headers instead of XML comments)
+[assembly: SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1633:File header should have copyright", Justification = "GifBolt uses SPDX-License-Identifier headers")]
+
 // SA1200: Using directives at file scope (GifBolt style: allows using before namespace)
 [assembly: SuppressMessage("StyleCop.CSharp.OrderingRules", "SA1200:Using directives should be placed correctly", Justification = "File-scoped using directives preferred")]
 
