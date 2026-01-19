@@ -32,6 +32,11 @@
     <ProjectReference Include="../GifBolt.Core/GifBolt.Core.csproj" />
   </ItemGroup>
 
+  <!-- Include build targets file for NuGet package -->
+  <ItemGroup>
+    <None Include="build/GifBolt.Avalonia.targets" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+
   <!-- Include native libraries from GifBolt.Core only if they exist -->
   <ItemGroup>
     <None Include="../GifBolt.Core/runtimes/win-x64/native/GifBolt.Native.dll" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="Exists('../GifBolt.Core/runtimes/win-x64/native/GifBolt.Native.dll') AND ('$(RuntimeIdentifier)' == 'win-x64' OR '$(RuntimeIdentifier)' == '')" />

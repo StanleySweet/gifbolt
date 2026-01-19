@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- This file is packaged in the NuGet and imported by consuming projects -->
+<Project>
+  <!-- Ensure GifBolt.Core's targets are imported for native library copying -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\..\GifBolt.Core\build\GifBolt.targets" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\GifBolt.Core\build\GifBolt.targets')" />
+</Project>

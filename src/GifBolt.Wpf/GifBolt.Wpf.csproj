@@ -37,6 +37,11 @@
     <None Include="..\GifBolt.Core\runtimes\linux-x64\native\libGifBolt.Native.so" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="Exists('..\GifBolt.Core\runtimes\linux-x64\native\libGifBolt.Native.so') AND ('$(RuntimeIdentifier)' == 'linux-x64' OR '$(RuntimeIdentifier)' == '')" />
   </ItemGroup>
 
+  <!-- Include build targets file for NuGet package -->
+  <ItemGroup>
+    <None Include="build/GifBolt.Wpf.targets" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Include="app.config" />
   </ItemGroup>
