@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- This file is packaged in the NuGet and imported by consuming projects -->
+<!-- It ensures native libraries are copied to the output directory at build time -->
+<Project>
+  <!-- Copy native libraries to output directory based on the target platform -->
+  <Target Name="GifBoltCopyNativeLibraries" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <!-- Windows x64 -->
+      <GifBoltNativeLibs Include="$(MSBuildThisFileDirectory)..\runtimes\win-x64\native\*" Condition="'$(PlatformTarget)' == 'x64' OR ('$(PlatformTarget)' == '' AND '$(Platform)' == 'x64')" />
+      <!-- Windows x86 -->
+      <GifBoltNativeLibs Include="$(MSBuildThisFileDirectory)..\runtimes\win-x86\native\*" Condition="'$(PlatformTarget)' == 'x86'" />
+      <!-- macOS x64 -->
+      <GifBoltNativeLibs Include="$(MSBuildThisFileDirectory)..\runtimes\osx-x64\native\*" Condition="'$(RuntimeIdentifier)' == 'osx-x64' OR '$(RuntimeIdentifier)' == 'osx'" />
+      <!-- macOS arm64 -->
+      <GifBoltNativeLibs Include="$(MSBuildThisFileDirectory)..\runtimes\osx-arm64\native\*" Condition="'$(RuntimeIdentifier)' == 'osx-arm64'" />
+      <!-- Linux x64 -->
+      <GifBoltNativeLibs Include="$(MSBuildThisFileDirectory)..\runtimes\linux-x64\native\*" Condition="'$(RuntimeIdentifier)' == 'linux-x64' OR '$(RuntimeIdentifier)' == 'linux'" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(GifBoltNativeLibs)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" ContinueOnError="true" />
+  </Target>
+
+  <!-- Fallback for Windows projects that don't set platform info correctly -->
+  <Target Name="GifBoltCopyNativeLibrariesFallbackWindows" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true' AND '$(OS)' == 'Windows_NT' AND '@(GifBoltNativeLibs)' == ''">
+    <ItemGroup>
+      <!-- Default to x64 on Windows if no platform info available -->
+      <GifBoltNativeLibsFallback Include="$(MSBuildThisFileDirectory)..\runtimes\win-x64\native\*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(GifBoltNativeLibsFallback)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" ContinueOnError="true" />
+  </Target>
+</Project>

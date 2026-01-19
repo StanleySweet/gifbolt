@@ -30,6 +30,11 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Include build targets file for NuGet package -->
+  <ItemGroup>
+    <None Include="build/GifBolt.targets" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+
   <!-- Include native libraries for each platform -->
   <ItemGroup>
     <!-- Windows x64 -->
