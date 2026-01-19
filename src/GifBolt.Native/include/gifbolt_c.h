@@ -49,6 +49,13 @@ extern "C"
     /// \return 1 if successful; 0 otherwise.
     GB_API int gb_decoder_load_from_path(gb_decoder_t decoder, const char* path);
 
+    /// \brief Loads a GIF from an in-memory buffer.
+    /// \param decoder The decoder handle.
+    /// \param data Pointer to the GIF data buffer.
+    /// \param length Length of the buffer in bytes.
+    /// \return 1 if successful; 0 otherwise.
+    GB_API int gb_decoder_load_from_memory(gb_decoder_t decoder, const void* data, int length);
+
     /// \brief Gets the total number of frames in the loaded GIF.
     /// \param decoder The decoder handle.
     /// \return The frame count, or 0 if no GIF is loaded or on error.

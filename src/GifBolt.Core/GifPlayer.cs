@@ -7,6 +7,8 @@
 
 using GifBolt.Internal;
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace GifBolt;
@@ -65,35 +67,54 @@ public sealed class GifPlayer : IDisposable
     /// <returns>true if the GIF was loaded successfully; otherwise false.</returns>
     public bool Load(string path)
     {
-        this.DisposeDecoder();
-        var h = Native.gb_decoder_create();
-        if (h == IntPtr.Zero)
+        if (string.IsNullOrWhiteSpace(path))
         {
             return false;
         }
 
-        var tmp = new DecoderHandle(h);
-        int ok = Native.gb_decoder_load_from_path(tmp.DangerousGetHandle(), path);
-        if (ok == 0)
+        return this.LoadDecoder(
+            handle => Native.gb_decoder_load_from_path(handle.DangerousGetHandle(), path) != 0,
+            $"path:{path}");
+    }
+
+    /// <summary>Loads a GIF from an in-memory byte buffer.</summary>
+    /// <param name="data">The GIF data buffer.</param>
+    /// <returns>true if the GIF was loaded successfully; otherwise false.</returns>
+    public bool Load(byte[] data)
+    {
+        if (data == null || data.Length == 0)
         {
-            tmp.Dispose();
             return false;
         }
 
-        this._decoder = tmp;
-        this.Width = Native.gb_decoder_get_width(this._decoder.DangerousGetHandle());
-        this.Height = Native.gb_decoder_get_height(this._decoder.DangerousGetHandle());
-        this.FrameCount = Native.gb_decoder_get_frame_count(this._decoder.DangerousGetHandle());
-        this.IsLooping = Native.gb_decoder_get_loop_count(this._decoder.DangerousGetHandle()) < 0;
-        this.CurrentFrame = 0;
+        return this.LoadDecoder(
+            handle => this.LoadFromMemory(handle, data),
+            $"memory:{data.Length}b");
+    }
 
-        // Start background prefetching if enabled
-        if (this.EnablePrefetching)
+    /// <summary>Loads a GIF from a stream by buffering it in memory.</summary>
+    /// <param name="stream">The stream containing GIF data.</param>
+    /// <returns>true if the GIF was loaded successfully; otherwise false.</returns>
+    public bool Load(Stream stream)
+    {
+        if (stream == null)
         {
-            Native.gb_decoder_start_prefetching(this._decoder.DangerousGetHandle(), 0);
+            return false;
         }
 
-        return true;
+        try
+        {
+            using (var memory = new MemoryStream())
+            {
+                stream.CopyTo(memory);
+                return this.Load(memory.ToArray());
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"GifPlayer: stream load failed: {ex.Message}");
+            return false;
+        }
     }
 
     /// <summary>Starts playback of the GIF.</summary>
@@ -232,6 +253,13 @@ public sealed class GifPlayer : IDisposable
         return 0;
     }
 
+    /// <summary>Releases the unmanaged resources associated with the player.</summary>
+    public void Dispose()
+    {
+        this.DisposeDecoder();
+        GC.SuppressFinalize(this);
+    }
+
     private void DisposeDecoder()
     {
         if (this._decoder != null)
@@ -243,10 +271,77 @@ public sealed class GifPlayer : IDisposable
         }
     }
 
-    /// <summary>Releases the unmanaged resources associated with the player.</summary>
-    public void Dispose()
+    private bool LoadDecoder(Func<DecoderHandle, bool> loader)
+    {
+        return this.LoadDecoder(loader, "unspecified");
+    }
+
+    private bool LoadDecoder(Func<DecoderHandle, bool> loader, string debugContext)
     {
         this.DisposeDecoder();
-        GC.SuppressFinalize(this);
+        var handle = Native.gb_decoder_create();
+        if (handle == IntPtr.Zero)
+        {
+            Debug.WriteLine($"GifPlayer: decoder create failed ({debugContext}).");
+            return false;
+        }
+
+        var tmp = new DecoderHandle(handle);
+        bool ok;
+        try
+        {
+            ok = loader(tmp);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"GifPlayer: load threw ({debugContext}): {ex.Message}");
+            tmp.Dispose();
+            return false;
+        }
+
+        if (!ok)
+        {
+            Debug.WriteLine($"GifPlayer: load failed ({debugContext}).");
+            tmp.Dispose();
+            return false;
+        }
+
+        this.AssignDecoder(tmp);
+        return true;
+    }
+
+    private bool LoadFromMemory(DecoderHandle handle, byte[] data)
+    {
+        var pinned = GCHandle.Alloc(data, GCHandleType.Pinned);
+        try
+        {
+            int ok = Native.gb_decoder_load_from_memory(
+                handle.DangerousGetHandle(),
+                pinned.AddrOfPinnedObject(),
+                data.Length);
+            return ok != 0;
+        }
+        finally
+        {
+            if (pinned.IsAllocated)
+            {
+                pinned.Free();
+            }
+        }
+    }
+
+    private void AssignDecoder(DecoderHandle handle)
+    {
+        this._decoder = handle;
+        this.Width = Native.gb_decoder_get_width(this._decoder.DangerousGetHandle());
+        this.Height = Native.gb_decoder_get_height(this._decoder.DangerousGetHandle());
+        this.FrameCount = Native.gb_decoder_get_frame_count(this._decoder.DangerousGetHandle());
+        this.IsLooping = Native.gb_decoder_get_loop_count(this._decoder.DangerousGetHandle()) < 0;
+        this.CurrentFrame = 0;
+
+        if (this.EnablePrefetching)
+        {
+            Native.gb_decoder_start_prefetching(this._decoder.DangerousGetHandle(), 0);
+        }
     }
 }

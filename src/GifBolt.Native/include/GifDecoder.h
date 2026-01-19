@@ -64,6 +64,12 @@ class GifDecoder
     /// \return true if the GIF was loaded successfully; false otherwise.
     bool LoadFromFile(const std::string& filePath);
 
+    /// \brief Loads a GIF image from an in-memory buffer.
+    /// \param data Pointer to the GIF data buffer.
+    /// \param length Length of the buffer in bytes.
+    /// \return true if the GIF was loaded successfully; false otherwise.
+    bool LoadFromMemory(const uint8_t* data, size_t length);
+
     /// \brief Loads a GIF image from a URL.
     /// \param url The URL to the GIF image.
     /// \return true if the GIF was loaded successfully; false otherwise.

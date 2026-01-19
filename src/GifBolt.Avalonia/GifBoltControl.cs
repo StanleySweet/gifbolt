@@ -84,6 +84,7 @@ namespace GifBolt.Avalonia
         private double _cachedViewportHeight = -1;
         private bool _hasRenderedOnce;
         private string? _tempFilePath;
+        private byte[]? _sourceBytes;
 
         /// <summary>
         /// Gets or sets the path or URI to the GIF image source.
@@ -245,7 +246,24 @@ namespace GifBolt.Avalonia
                 return;
             }
 
+            this._sourceBytes = null;
             this.Source = path;
+        }
+
+        /// <summary>
+        /// Loads a new GIF from an in-memory buffer.
+        /// </summary>
+        /// <param name="data">The GIF data buffer.</param>
+        public void LoadGif(byte[] data)
+        {
+            if (data == null || data.Length == 0)
+            {
+                return;
+            }
+
+            this._sourceBytes = data;
+            this.Source = null;
+            this.LoadGifIfReady();
         }
 
         /// <summary>
@@ -423,20 +441,27 @@ namespace GifBolt.Avalonia
 
             this.CleanupTempFile();
 
-            if (string.IsNullOrWhiteSpace(this.Source))
+            byte[]? sourceBytes = this._sourceBytes;
+            string? resolvedPath = null;
+
+            if (sourceBytes == null)
             {
-                this._bitmap = null;
-                return;
+                if (string.IsNullOrWhiteSpace(this.Source))
+                {
+                    this._bitmap = null;
+                    return;
+                }
+
+                resolvedPath = this.ResolveSourceToFilePath(this.Source);
+                sourceBytes = this._sourceBytes;  // ResolveSourceToFilePath might have set it for assets
+
+                if (sourceBytes == null && (string.IsNullOrWhiteSpace(resolvedPath) || !File.Exists(resolvedPath)))
+                {
+                    Debug.WriteLine($"GifBoltControl: could not resolve source '{this.Source}'.");
+                    return;
+                }
             }
 
-            var resolvedPath = this.ResolveSourceToFilePath(this.Source);
-            if (string.IsNullOrWhiteSpace(resolvedPath) || !File.Exists(resolvedPath))
-            {
-                Debug.WriteLine($"GifBoltControl: could not resolve source '{this.Source}'.");
-                return;
-            }
-
-            var source = resolvedPath;
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
@@ -447,7 +472,11 @@ namespace GifBolt.Avalonia
                     // Default: enforce minimum delay per Chrome/macOS/ezgif standard
                     player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
-                    if (!player.Load(source))
+                    bool loaded = sourceBytes != null
+                        ? player.Load(sourceBytes)
+                        : player.Load(resolvedPath!);
+
+                    if (!loaded)
                     {
                         player.Dispose();
                         return;
@@ -509,7 +538,8 @@ namespace GifBolt.Avalonia
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(this.Source))
+            bool hasBytes = this._sourceBytes != null && this._sourceBytes.Length > 0;
+            if (string.IsNullOrWhiteSpace(this.Source) && !hasBytes)
             {
                 return;
             }
@@ -542,10 +572,26 @@ namespace GifBolt.Avalonia
 
                             if (assetUri != null && AssetLoader.Exists(assetUri))
                             {
-                                this._tempFilePath = this.ExtractAssetToTempFile(assetUri);
-                                return this._tempFilePath;
+                                // Load asset into memory instead of temp file
+                                try
+                                {
+                                    using (var stream = AssetLoader.Open(assetUri))
+                                    using (var memory = new MemoryStream())
+                                    {
+                                        stream.CopyTo(memory);
+                                        this._sourceBytes = memory.ToArray();
+                                    }
+                                    return null;  // Signal it's in-memory
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"Failed to load asset '{assetUri}': {ex.Message}");
+                                    this._sourceBytes = null;
+                                    return null;
+                                }
                             }
 
+                            Debug.WriteLine($"Failed to resolve source '{source}'.");
                             return null;
                         }
                     }

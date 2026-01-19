@@ -15,6 +15,7 @@
 #endif
 #include <gif_lib.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <fstream>
@@ -25,9 +26,57 @@
 namespace GifBolt
 {
 
+namespace
+{
+struct MemoryBufferContext
+{
+    const uint8_t* data = nullptr;
+    size_t length = 0;
+    size_t offset = 0;
+};
+
+int ReadFromMemory(GifFileType* gif, GifByteType* destination, int size)
+{
+    if ((gif == nullptr) || (destination == nullptr) || (size <= 0))
+    {
+        return GIF_ERROR;
+    }
+
+    auto* context = static_cast<MemoryBufferContext*>(gif->UserData);
+    if (context == nullptr)
+    {
+        return GIF_ERROR;
+    }
+
+    size_t requested = static_cast<size_t>(size);
+    size_t remaining = 0;
+    if (context->offset <= context->length)
+    {
+        remaining = context->length - context->offset;
+    }
+
+    size_t toCopy = std::min(requested, remaining);
+    if (toCopy == 0)
+    {
+        return 0;  // EOF
+    }
+
+    std::memcpy(destination, context->data + context->offset, toCopy);
+    context->offset += toCopy;
+    return static_cast<int>(toCopy);
+}
+}  // namespace
+
 class GifDecoder::Impl
 {
    public:
+    enum class SourceKind
+    {
+        None = 0,
+        File = 1,
+        Memory = 2
+    };
+
     std::vector<GifFrame> _frames;    ///< Decoded frames cache
     std::vector<bool> _frameDecoded;  ///< Track which frames have been decoded
     std::vector<uint32_t> _canvas;    ///< Accumulated canvas for frame composition
@@ -49,6 +98,7 @@ class GifDecoder::Impl
     GifFileType* _gif = nullptr;  ///< GIF file handle after slurp
     uint32_t _frameCount = 0;     ///< Total number of frames
     std::string _filePath;        ///< Stored for background loading
+    std::shared_ptr<void> _gifUserData;  ///< Keeps memory source alive for giflib callbacks
 
     std::thread _backgroundLoader;            ///< Background thread for DGifSlurp
     std::mutex _gifMutex;                     ///< Protect gif pointer access
@@ -71,7 +121,13 @@ class GifDecoder::Impl
     std::mutex _prefetchMutex;                        ///< Protect prefetch state
     static constexpr uint32_t PREFETCH_AHEAD = 5;     ///< Number of frames to decode ahead
 
+    SourceKind _sourceKind = SourceKind::None;  ///< Current source type
+    std::vector<uint8_t> _memoryData;           ///< Memory-backed GIF bytes
+
     bool LoadGif(const std::string& filePath);
+    bool LoadGifFromMemory(const uint8_t* data, size_t length);
+    bool LoadFromCurrentSource();
+    GifFileType* OpenGif(int& error, std::shared_ptr<void>& userDataHolder);
     void BackgroundSlurp();                        ///< Background thread function
     void WaitForSlurp();                           ///< Wait for background slurp to complete
     void EnsureFrameDecoded(uint32_t frameIndex);  ///< Decode frame on-demand
@@ -101,25 +157,107 @@ class GifDecoder::Impl
             DGifCloseFile(this->_gif, &error);
             this->_gif = nullptr;
         }
+        this->_gifUserData.reset();
     }
 };
 
 bool GifDecoder::Impl::LoadGif(const std::string& filePath)
 {
+    this->_sourceKind = SourceKind::File;
     this->_filePath = filePath;
-    int error = 0;
-    GifFileType* tempGif = DGifOpenFileName(filePath.c_str(), &error);
+    this->_memoryData.clear();
+    return this->LoadFromCurrentSource();
+}
 
-    if (!tempGif)
+bool GifDecoder::Impl::LoadGifFromMemory(const uint8_t* data, size_t length)
+{
+    if ((data == nullptr) || (length == 0))
     {
         return false;
     }
 
-    // Read ONLY header info (instant)
+    this->_sourceKind = SourceKind::Memory;
+    this->_filePath.clear();
+    this->_memoryData.assign(data, data + length);
+    return this->LoadFromCurrentSource();
+}
+
+GifFileType* GifDecoder::Impl::OpenGif(int& error, std::shared_ptr<void>& userDataHolder)
+{
+    switch (this->_sourceKind)
+    {
+        case SourceKind::File:
+            return DGifOpenFileName(this->_filePath.c_str(), &error);
+
+        case SourceKind::Memory:
+        {
+            if (this->_memoryData.empty())
+            {
+                return nullptr;
+            }
+
+            auto context = std::make_shared<MemoryBufferContext>();
+            context->data = this->_memoryData.data();
+            context->length = this->_memoryData.size();
+            context->offset = 0;
+
+            GifFileType* gif =
+                DGifOpen(static_cast<void*>(context.get()), &ReadFromMemory, &error);
+            if (gif != nullptr)
+            {
+                gif->UserData = context.get();
+                userDataHolder = context;
+            }
+
+            return gif;
+        }
+
+        default:
+            return nullptr;
+    }
+}
+
+bool GifDecoder::Impl::LoadFromCurrentSource()
+{
+    if (this->_sourceKind == SourceKind::None)
+    {
+        return false;
+    }
+
+    this->StopPrefetching();
+    this->WaitForSlurp();
+
+    if (this->_gif != nullptr)
+    {
+        int closeError = 0;
+        DGifCloseFile(this->_gif, &closeError);
+        this->_gif = nullptr;
+    }
+
+    this->_gifUserData.reset();
+    this->_frames.clear();
+    this->_frameDecoded.clear();
+    this->_canvas.clear();
+    this->_bgraPremultipliedCache.clear();
+    this->_looping = false;
+    this->_frameCount = 0;
+    this->_width = 0;
+    this->_height = 0;
+    this->_slurpComplete = false;
+    this->_slurpFailed = false;
+
+    int error = 0;
+    std::shared_ptr<void> headerUserData;
+    GifFileType* tempGif = this->OpenGif(error, headerUserData);
+
+    if (tempGif == nullptr)
+    {
+        return false;
+    }
+
     this->_width = tempGif->SWidth;
     this->_height = tempGif->SHeight;
 
-    // Extract background color
     if (tempGif->SColorMap && tempGif->SBackGroundColor < tempGif->SColorMap->ColorCount)
     {
         const GifColorType& bgColor = tempGif->SColorMap->Colors[tempGif->SBackGroundColor];
@@ -132,25 +270,23 @@ bool GifDecoder::Impl::LoadGif(const std::string& filePath)
     }
 
     DGifCloseFile(tempGif, &error);
+    headerUserData.reset();
 
-    // Initialize thread pool for parallel frame decoding
-    // Use hardware_concurrency - 1 to leave one thread for main work
     size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
     this->_threadPool = std::make_unique<ThreadPool>(numThreads);
 
-    // Launch background thread to do DGifSlurp (heavy operation)
     this->_backgroundLoader = std::thread(&Impl::BackgroundSlurp, this);
 
-    // Return IMMEDIATELY - DGifSlurp runs in background
     return true;
 }
 
 void GifDecoder::Impl::BackgroundSlurp()
 {
     int error = 0;
-    GifFileType* gif = DGifOpenFileName(this->_filePath.c_str(), &error);
+    std::shared_ptr<void> userData;
+    GifFileType* gif = this->OpenGif(error, userData);
 
-    if (!gif)
+    if (gif == nullptr)
     {
         this->_slurpFailed = true;
         return;
@@ -168,6 +304,7 @@ void GifDecoder::Impl::BackgroundSlurp()
     {
         std::lock_guard<std::mutex> lock(this->_gifMutex);
         this->_gif = gif;
+        this->_gifUserData = userData;
         this->_frameCount = gif->ImageCount;
 
         // Check for looping extension
@@ -471,6 +608,11 @@ GifDecoder::~GifDecoder() = default;
 bool GifDecoder::LoadFromFile(const std::string& filePath)
 {
     return _pImpl->LoadGif(filePath);
+}
+
+bool GifDecoder::LoadFromMemory(const uint8_t* data, size_t length)
+{
+    return _pImpl->LoadGifFromMemory(data, length);
 }
 
 bool GifDecoder::LoadFromUrl(const std::string& url)

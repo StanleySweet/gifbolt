@@ -62,6 +62,18 @@ extern "C"
         return ptr->LoadFromFile(path) ? 1 : 0;
     }
 
+    GB_API int gb_decoder_load_from_memory(gb_decoder_t decoder, const void* data, int length)
+    {
+        if ((decoder == nullptr) || (data == nullptr) || (length <= 0))
+        {
+            return 0;
+        }
+
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        const auto* bytes = reinterpret_cast<const uint8_t*>(data);
+        return ptr->LoadFromMemory(bytes, static_cast<size_t>(length)) ? 1 : 0;
+    }
+
     GB_API int gb_decoder_get_frame_count(gb_decoder_t decoder)
     {
         if (decoder == nullptr)

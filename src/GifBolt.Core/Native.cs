@@ -38,6 +38,7 @@ namespace GifBolt.Internal
         private static GbDecoderCreateDelegate? _gbDecoderCreate;
         private static GbDecoderDestroyDelegate? _gbDecoderDestroy;
         private static GbDecoderLoadFromPathDelegate? _gbDecoderLoadFromPath;
+        private static GbDecoderLoadFromMemoryDelegate? _gbDecoderLoadFromMemory;
         private static GbDecoderGetFrameCountDelegate? _gbDecoderGetFrameCount;
         private static GbDecoderGetWidthDelegate? _gbDecoderGetWidth;
         private static GbDecoderGetHeightDelegate? _gbDecoderGetHeight;
@@ -116,6 +117,7 @@ namespace GifBolt.Internal
             _gbDecoderCreate = GetDelegate<GbDecoderCreateDelegate>("gb_decoder_create");
             _gbDecoderDestroy = GetDelegate<GbDecoderDestroyDelegate>("gb_decoder_destroy");
             _gbDecoderLoadFromPath = GetDelegate<GbDecoderLoadFromPathDelegate>("gb_decoder_load_from_path");
+            _gbDecoderLoadFromMemory = GetDelegate<GbDecoderLoadFromMemoryDelegate>("gb_decoder_load_from_memory");
             _gbDecoderGetFrameCount = GetDelegate<GbDecoderGetFrameCountDelegate>("gb_decoder_get_frame_count");
             _gbDecoderGetWidth = GetDelegate<GbDecoderGetWidthDelegate>("gb_decoder_get_width");
             _gbDecoderGetHeight = GetDelegate<GbDecoderGetHeightDelegate>("gb_decoder_get_height");
@@ -149,6 +151,9 @@ namespace GifBolt.Internal
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private delegate int GbDecoderLoadFromPathDelegate(IntPtr decoder, string path);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbDecoderLoadFromMemoryDelegate(IntPtr decoder, IntPtr buffer, int length);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int GbDecoderGetFrameCountDelegate(IntPtr decoder);
@@ -255,6 +260,16 @@ namespace GifBolt.Internal
         /// <param name="path">File path of the GIF to load.</param>
         /// <returns>Status code (0 = success, non-zero = error).</returns>
         internal static int gb_decoder_load_from_path(IntPtr decoder, string path) => _gbDecoderLoadFromPath(decoder, path);
+
+           /// <summary>
+           /// Loads a GIF from an in-memory buffer into the decoder.
+           /// </summary>
+           /// <param name="decoder">Pointer to the decoder.</param>
+           /// <param name="buffer">Pointer to the GIF data buffer.</param>
+           /// <param name="length">Length of the buffer in bytes.</param>
+           /// <returns>Status code (0 = success, non-zero = error).</returns>
+           internal static int gb_decoder_load_from_memory(IntPtr decoder, IntPtr buffer, int length)
+               => _gbDecoderLoadFromMemory(decoder, buffer, length);
 
         /// <summary>
         /// Gets the number of frames in the loaded GIF.
