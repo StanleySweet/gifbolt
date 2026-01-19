@@ -322,9 +322,9 @@ namespace GifBolt.Wpf
         /// <param name="minDelayMs">The minimum frame delay.</param>
         public void SetMinFrameDelayMs(int minDelayMs)
         {
-            if (this._player != null && minDelayMs > 0)
+            if (this.Player != null && minDelayMs > 0)
             {
-                this._player.SetMinFrameDelayMs(minDelayMs);
+                this.Player.SetMinFrameDelayMs(minDelayMs);
             }
         }
 
@@ -453,8 +453,6 @@ namespace GifBolt.Wpf
 
             // Call base Dispose to clean up player
             base.Dispose();
-                }
-            }
 
             // Release bitmap data
             this._writeableBitmap = null;
@@ -488,7 +486,6 @@ namespace GifBolt.Wpf
                 }
             }
 
-            this._lastFrameTimestamp = default;
             GC.SuppressFinalize(this);
         }
     }

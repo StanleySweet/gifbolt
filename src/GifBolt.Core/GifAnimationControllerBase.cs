@@ -18,7 +18,10 @@ namespace GifBolt
         /// <summary>
         /// Gets the GIF player instance.
         /// </summary>
-        protected GifPlayer? Player { get; protected set; }
+        protected GifPlayer? Player
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether animation is playing.
