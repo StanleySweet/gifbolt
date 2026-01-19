@@ -16,11 +16,7 @@ namespace GifBolt
         /// The default minimum frame delay in milliseconds (100 ms).
         /// Matches Chrome, macOS, and ezgif standards to prevent GIFs from playing too fast.
         /// </summary>
-        public const int DefaultMinFrameDelayMs = 100;
-
-        /// <summary>
-        /// The minimum render interval in milliseconds for UI frameworks (16 ms = ~60 FPS).
-        /// </summary>
+        public const int DefaultMinFrameDelayMs = 16;
         public const int MinRenderIntervalMs = 16;
     }
 }

@@ -207,47 +207,54 @@ namespace GifBolt.Wpf
                 }
             }
 
-            // Resolve the source path (handle relative URIs)
-            string? resolvedPath = ResolveSourceUri(sourceUri);
-            if (string.IsNullOrWhiteSpace(resolvedPath) || string.IsNullOrWhiteSpace(sourceUri))
+            // Resolve the source (handles pack URIs, relative paths, BitmapImage, etc.)
+            if (!GifSourceResolver.TryResolve(sourceUri, out byte[]? bytes, out string? resolvedPath))
+            {
+                return;
+            }
+
+            // Either bytes or path must be non-null
+            if (bytes == null && string.IsNullOrWhiteSpace(resolvedPath))
             {
                 return;
             }
 
             // Create new animation controller
             var repeatBehavior = GetRepeatBehavior(image) ?? "0x";
-            var controller = new GifAnimationController(
-                image,
-                resolvedPath!,
-                onLoaded: () =>
-                {
-                    // Verify controller is still current
-                    var current = GetAnimationController(image);
-                    if (current == null)
-                    {
-                        return;
-                    }
+            var controller = bytes != null
+                ? new GifAnimationController(image, bytes, onLoaded: OnControllerLoaded, onError: OnControllerError)
+                : new GifAnimationController(image, resolvedPath!, onLoaded: OnControllerLoaded, onError: OnControllerError);
 
-                    // Apply repeat behavior
-                    if (!string.IsNullOrWhiteSpace(repeatBehavior))
-                    {
-                        current.SetRepeatBehavior(repeatBehavior);
-                    }
-
-                    // Auto-start (default for XamlAnimatedGif compatibility)
-                    try
-                    {
-                        current.Play();
-                    }
-                    catch
-                    {
-                        // Suppress errors during autostart
-                    }
-                },
-                onError: (ex) =>
+            void OnControllerLoaded()
+            {
+                // Verify controller is still current
+                var current = GetAnimationController(image);
+                if (current == null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[GifBolt] Error loading GIF '{sourceUri}': {ex.Message}");
-                });
+                    return;
+                }
+
+                // Apply repeat behavior
+                if (!string.IsNullOrWhiteSpace(repeatBehavior))
+                {
+                    current.SetRepeatBehavior(repeatBehavior);
+                }
+
+                // Auto-start (default for XamlAnimatedGif compatibility)
+                try
+                {
+                    current.Play();
+                }
+                catch
+                {
+                    // Suppress errors during autostart
+                }
+            }
+
+            void OnControllerError(Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GifBolt] Error loading GIF '{sourceUri}': {ex.Message}");
+            }
 
             SetAnimationController(image, controller);
             image.Unloaded += OnImageUnloaded;
@@ -312,43 +319,6 @@ namespace GifBolt.Wpf
                 controller.Dispose();
                 SetAnimationController(image, null);
             }
-        }
-
-        /// <summary>
-        /// Resolves a source URI to an absolute file path.
-        /// Handles relative paths and pack URIs.
-        /// </summary>
-        /// <param name="sourceUri">The source URI or file path.</param>
-        /// <returns>The resolved absolute file path, or null if resolution fails.</returns>
-        private static string? ResolveSourceUri(string sourceUri)
-        {
-            if (string.IsNullOrWhiteSpace(sourceUri))
-            {
-                return null;
-            }
-
-            // Already a rooted path
-            if (System.IO.Path.IsPathRooted(sourceUri))
-            {
-                return sourceUri;
-            }
-
-            // Try relative to application directory
-            var appDir = AppDomain.CurrentDomain.BaseDirectory;
-            var fullPath = System.IO.Path.Combine(appDir, sourceUri);
-            if (System.IO.File.Exists(fullPath))
-            {
-                return fullPath;
-            }
-
-            // Try as-is (might be a relative path that works)
-            if (System.IO.File.Exists(sourceUri))
-            {
-                return sourceUri;
-            }
-
-            // Could not resolve
-            return null;
         }
     }
 }

@@ -123,7 +123,7 @@ namespace GifBolt.Wpf
                     }
 
                     this.Player = new GifBolt.GifPlayer();
-                    this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
+                    // this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
                     bool loaded = this._sourceBytes != null
                         ? this.Player.Load(this._sourceBytes)
@@ -258,9 +258,9 @@ namespace GifBolt.Wpf
 
             if (this._renderTimer != null && !this._isDisposed)
             {
-                int initialDelay = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
-                int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(initialDelay, FrameTimingHelper.MinRenderIntervalMs);
-                this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
+                // Use a fixed, fast timer (16ms = 60 FPS) for smooth rendering
+                // Frame advancement is calculated based on actual elapsed time, not timer interval
+                this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
                 this._renderTimer.Start();
             }
         }
@@ -387,8 +387,9 @@ namespace GifBolt.Wpf
 
             try
             {
-                // Get the frame delay for the current frame (respects the minimum set in base constructor)
-                int frameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
+                // Get the frame delay for the current frame and clamp to minimum
+                int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
+                int frameDelayMs = Math.Max(rawFrameDelayMs, FrameTimingHelper.DefaultMinFrameDelayMs);
                 long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame
@@ -411,19 +412,18 @@ namespace GifBolt.Wpf
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameStartTime = DateTime.UtcNow;
 
-                    // Render the new frame immediately
-                    this.RenderFrame(this.Player.CurrentFrame);
+                    // DEBUG: Log frame advancement
+                    var msg = $"Frame {advanceResult.NextFrame}: delay={frameDelayMs}ms, elapsed={elapsedMs}ms";
+                    System.Diagnostics.Debug.WriteLine(msg);
+                    try
+                    {
+                        System.IO.File.AppendAllText("/tmp/gifbolt_timing.log", msg + "\n");
+                    }
+                    catch { }
+                }
 
-                    // Update timer interval for the new frame's delay
-                    int nextFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
-                    int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextFrameDelayMs, FrameTimingHelper.MinRenderIntervalMs);
-                    this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
-                }
-                else
-                {
-                    // Render current frame while waiting for frame delay to elapse
-                    this.RenderFrame(this.Player.CurrentFrame);
-                }
+                // Always render on every tick for smooth visual feedback
+                this.RenderFrame(this.Player.CurrentFrame);
             }
             catch
             {

@@ -80,7 +80,7 @@ namespace GifBolt.Avalonia
                 {
                     // Initialize player property
                     this.Player = new GifPlayer();
-                    this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
+                    // this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
                     if (!this.Player.Load(path))
                     {
@@ -178,11 +178,16 @@ namespace GifBolt.Avalonia
 
             if (this._animationTimer != null)
             {
-                // Start the timer with the delay of the first frame
-                int initialDelay = this.Player?.GetFrameDelayMs(this.Player?.CurrentFrame ?? 0) ?? 16;
-                int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(initialDelay, FrameTimingHelper.MinRenderIntervalMs);
-                this._animationTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
+                // Always use 16ms fixed interval - frame advancement is time-based, not timer-based
+                this._animationTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
                 this._animationTimer.Start();
+
+                // DEBUG
+                try
+                {
+                    System.IO.File.AppendAllText("/tmp/gifbolt_timing.log", $"[START] Animation started with 16ms timer\n");
+                }
+                catch { }
             }
         }
 
@@ -265,9 +270,20 @@ namespace GifBolt.Avalonia
 
             try
             {
-                // Get the frame delay for the current frame (respects the minimum set in base constructor)
-                int frameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
+                // Get the frame delay for the current frame and clamp to minimum
+                int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
+                int frameDelayMs = Math.Max(rawFrameDelayMs, FrameTimingHelper.DefaultMinFrameDelayMs);
                 long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
+
+                // DEBUG: Log every tick to understand timing
+                if (this.Player.CurrentFrame == 0)
+                {
+                    try
+                    {
+                        System.IO.File.AppendAllText("/tmp/gifbolt_timing.log", $"[TICK] Frame 0: raw={rawFrameDelayMs}ms, clamped={frameDelayMs}ms, elapsed={elapsedMs}ms\n");
+                    }
+                    catch { }
+                }
 
                 // Only advance frame if enough time has elapsed for the current frame
                 if (elapsedMs >= frameDelayMs)
@@ -289,19 +305,18 @@ namespace GifBolt.Avalonia
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameStartTime = DateTime.UtcNow;
 
-                    // Render the new frame immediately
-                    this.RenderFrame(this.Player.CurrentFrame);
+                    // DEBUG: Log frame advancement
+                    var msg = $"Frame {advanceResult.NextFrame}: delay={frameDelayMs}ms, elapsed={elapsedMs}ms";
+                    System.Diagnostics.Debug.WriteLine(msg);
+                    try
+                    {
+                        System.IO.File.AppendAllText("/tmp/gifbolt_timing.log", msg + "\n");
+                    }
+                    catch { }
+                }
 
-                    // Update timer interval for the new frame's delay
-                    int nextFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
-                    int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextFrameDelayMs, FrameTimingHelper.MinRenderIntervalMs);
-                    this._animationTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
-                }
-                else
-                {
-                    // Render current frame while waiting for frame delay to elapse
-                    this.RenderFrame(this.Player.CurrentFrame);
-                }
+                // Always render on every tick for smooth visual feedback
+                this.RenderFrame(this.Player.CurrentFrame);
             }
             catch
             {

@@ -133,14 +133,34 @@ public partial class MainWindow : Window
 
     private void OnFilterChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (sender is not ComboBox comboBox || comboBox.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        var filterItem = comboBox.SelectedItem as ComboBoxItem;
+        if (filterItem == null)
+        {
+            return;
+        }
+
+        var filterName = filterItem.Content?.ToString() ?? "Unknown";
+        this.UpdateStatus($"Scaling filter: {filterName}");
     }
 
     private void UpdateStatus(string message)
     {
-        var statusText = this.FindControl<global::Avalonia.Controls.TextBlock>("statusText");
-        if (statusText != null)
+        try
         {
-            statusText.Text = message;
+            var statusText = this.FindControl<global::Avalonia.Controls.TextBlock>("statusText");
+            if (statusText != null)
+            {
+                statusText.Text = message;
+            }
+        }
+        catch
+        {
+            // Ignore errors during initialization when name scope isn't ready
         }
     }
 }
