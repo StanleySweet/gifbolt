@@ -313,7 +313,6 @@ namespace GifBolt.Avalonia
             this._player?.Dispose();
             this._player = null;
             this._bitmap = null;
-            this.CleanupTempFile();
         }
 
         /// <summary>
@@ -434,8 +433,6 @@ namespace GifBolt.Avalonia
                 this._player.Dispose();
                 this._player = null;
             }
-
-            this.CleanupTempFile();
 
             byte[]? sourceBytes = this._sourceBytes;
             string? resolvedPath = null;
