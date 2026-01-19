@@ -61,7 +61,7 @@ if(NOT MSVC)
     target_compile_options(GifBolt.Native PRIVATE -O3)
 else()
     # MSVC: /O2 for release optimization, /RTC1 for debug
-    target_compile_options(GifBolt.Native PRIVATE $<$<CONFIG:Release>:/O2> $<$<CONFIG:Debug>:/RTC1>>)
+    target_compile_options(GifBolt.Native PRIVATE $<$<CONFIG:Release>:/O2> $<$<CONFIG:Debug>:/RTC1>)
 endif()
 
 # Export macro for Windows builds
