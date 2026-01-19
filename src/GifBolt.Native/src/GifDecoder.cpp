@@ -77,7 +77,10 @@ class GifDecoder::Impl
         Memory = 2
     };
 
-    std::vector<GifFrame> _frames;    ///< Decoded frames cache
+    // Lazy frame caching: store only N frames instead of all frames
+    static constexpr uint32_t MAX_CACHED_FRAMES = 6;  ///< Maximum frames to cache in memory
+    std::vector<GifFrame> _frameCache;   ///< LRU cache for decoded frames
+    std::vector<uint32_t> _cachedFrameIndices;  ///< Indices of frames in cache (for LRU tracking)
     std::vector<bool> _frameDecoded;  ///< Track which frames have been decoded
     std::vector<uint32_t> _canvas;    ///< Accumulated canvas for frame composition
     DisposalMethod _previousDisposal = DisposalMethod::None;  ///< Previous frame disposal
@@ -136,6 +139,10 @@ class GifDecoder::Impl
                        std::vector<uint32_t>& pixels, int width, int height,
                        int transparentIndex = -1);
     void ComposeFrame(const GifFrame& frame, std::vector<uint32_t>& canvas);
+
+    /// \brief Retrieve a frame from cache, loading if necessary.
+    /// Uses LRU eviction to maintain memory bounds.
+    GifFrame& GetOrDecodeFrame(uint32_t frameIndex);
 
     // Async prefetching methods
     void StartPrefetching(uint32_t startFrame);  ///< Start background prefetch
@@ -235,7 +242,8 @@ bool GifDecoder::Impl::LoadFromCurrentSource()
     }
 
     this->_gifUserData.reset();
-    this->_frames.clear();
+    this->_frameCache.clear();
+    this->_cachedFrameIndices.clear();
     this->_frameDecoded.clear();
     this->_canvas.clear();
     this->_bgraPremultipliedCache.clear();
@@ -325,9 +333,10 @@ void GifDecoder::Impl::BackgroundSlurp()
             }
         }
 
-        // Initialize frame storage
-        this->_frames.resize(this->_frameCount);
+        // Initialize frame storage: use LRU cache instead of storing all frames
         this->_frameDecoded.resize(this->_frameCount, false);
+        this->_frameCache.clear();
+        this->_cachedFrameIndices.clear();
         this->_canvas.resize(this->_width * this->_height, 0x00000000);
     }
 
@@ -410,6 +419,63 @@ void GifDecoder::Impl::EnsureFrameDecoded(uint32_t frameIndex)
     }
 }
 
+GifFrame& GifDecoder::Impl::GetOrDecodeFrame(uint32_t frameIndex)
+{
+    // Check if frame is already in cache
+    for (size_t i = 0; i < this->_cachedFrameIndices.size(); ++i)
+    {
+        if (this->_cachedFrameIndices[i] == frameIndex)
+        {
+            // Move to end (most recently used)
+            std::rotate(this->_cachedFrameIndices.begin() + i,
+                       this->_cachedFrameIndices.begin() + i + 1,
+                       this->_cachedFrameIndices.end());
+            std::rotate(this->_frameCache.begin() + i,
+                       this->_frameCache.begin() + i + 1,
+                       this->_frameCache.end());
+            return this->_frameCache.back();
+        }
+    }
+
+    // Frame not in cache - need to decode it
+    // First ensure frame is decoded to get raw pixel data
+    this->EnsureFrameDecoded(frameIndex);
+
+    // Create or get the frame from the full decode buffer
+    GifFrame newFrame;
+    if (frameIndex < this->_frameDecoded.size() && this->_frameDecoded[frameIndex])
+    {
+        // Frame was decoded - get it from the GIF structure
+        SavedImage* image = &this->_gif->SavedImages[frameIndex];
+        GifImageDesc* desc = &image->ImageDesc;
+
+        // Copy pixel data (assuming it was already set in EnsureFrameDecoded)
+        newFrame.width = this->_width;
+        newFrame.height = this->_height;
+        newFrame.offsetX = desc->Left;
+        newFrame.offsetY = desc->Top;
+        newFrame.transparentIndex = -1;
+        newFrame.disposal = DisposalMethod::None;
+        newFrame.delayMs = 100;
+
+        // Get the pixel data that was composed during EnsureFrameDecoded
+        newFrame.pixels = this->_canvas;
+    }
+
+    // Add to cache
+    this->_frameCache.push_back(newFrame);
+    this->_cachedFrameIndices.push_back(frameIndex);
+
+    // Evict least recently used if cache is full
+    if (this->_cachedFrameIndices.size() > this->MAX_CACHED_FRAMES)
+    {
+        this->_frameCache.erase(this->_frameCache.begin());
+        this->_cachedFrameIndices.erase(this->_cachedFrameIndices.begin());
+    }
+
+    return this->_frameCache.back();
+}
+
 void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex)
 {
     SavedImage* image = &gif->SavedImages[frameIndex];
@@ -468,7 +534,7 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex)
     // Move canvas to avoid copying millions of pixels
     composedFrame.pixels = _canvas;  // Still copy here for composition continuity
 
-    _frames[frameIndex] = std::move(composedFrame);  // Move instead of copy
+    // Note: We don't store in _frames anymore - that's handled by GetOrDecodeFrame in the cache
 }
 
 void GifDecoder::Impl::ApplyColorMap(const GifByteType* raster, const ColorMapObject* colorMap,
@@ -636,9 +702,8 @@ const GifFrame& GifDecoder::GetFrame(uint32_t index) const
     {
         throw std::out_of_range("Frame index out of range");
     }
-    // Ensure frame is decoded before returning (lazy loading)
-    _pImpl->EnsureFrameDecoded(index);
-    return _pImpl->_frames[index];
+    // Lazy loading with LRU cache - decode only when needed
+    return _pImpl->GetOrDecodeFrame(index);
 }
 
 uint32_t GifDecoder::GetWidth() const
@@ -678,16 +743,15 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
         return nullptr;
     }
 
-    // Ensure frame is decoded (lazy loading)
-    _pImpl->EnsureFrameDecoded(index);
+    // Get frame from LRU cache (lazy loading)
+    const GifFrame& frame = _pImpl->GetOrDecodeFrame(index);
 
-    // Check if decode succeeded
-    if (!_pImpl->_frameDecoded[index] || _pImpl->_frames[index].pixels.empty())
+    // Check if frame has pixel data
+    if (frame.pixels.empty())
     {
         return nullptr;
     }
 
-    const GifFrame& frame = _pImpl->_frames[index];
     const size_t pixelCount = frame.pixels.size();
     const size_t byteCount = pixelCount * 4;
 
@@ -714,10 +778,8 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(
         return nullptr;
     }
 
-    // Ensure frame is decoded (lazy loading)
-    _pImpl->EnsureFrameDecoded(index);
-
-    const GifFrame& frame = _pImpl->_frames[index];
+    // Get frame from LRU cache (lazy loading)
+    const GifFrame& frame = _pImpl->GetOrDecodeFrame(index);
     const uint32_t sourceWidth = frame.width;
     const uint32_t sourceHeight = frame.height;
 
