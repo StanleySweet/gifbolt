@@ -1,0 +1,43 @@
+From ecc5a8d67e5a5a9b01a8962bc05c9ba215d7cff1 Mon Sep 17 00:00:00 2001
+From: Stanislas Daniel Claude Dolcini <stanislas.dolcini@gmail.com>
+Date: Mon, 19 Jan 2026 21:21:03 +0100
+Subject: [PATCH 05/11] perf: Optimize Avalonia bitmap updates to avoid
+ recreation per frame
+
+- Remove WriteableBitmap recreation on every frame (was allocating 60x/sec)
+- Keep bitmap alive and update pixels via Lock() buffer
+- Add InvalidateVisual() to trigger frame refresh
+- Cleaner, more efficient pixel update path
+---
+ src/GifBolt.Avalonia/GifAnimationController.cs | 10 ++--------
+ 1 file changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/src/GifBolt.Avalonia/GifAnimationController.cs b/src/GifBolt.Avalonia/GifAnimationController.cs
+index 2fad9ad..c0c4f30 100644
+--- a/src/GifBolt.Avalonia/GifAnimationController.cs
++++ b/src/GifBolt.Avalonia/GifAnimationController.cs
+@@ -117,20 +117,14 @@ namespace GifBolt.Avalonia
+             {
+                 int width = this._player.Width;
+                 int height = this._player.Height;
+-                int stride = width * 4;
+-
+-                // Avalonia WriteableBitmap requires recreating to trigger refresh
+-                this._writeableBitmap = new WriteableBitmap(
+-                    new PixelSize(width, height),
+-                    new Vector(96, 96),
+-                    PixelFormat.Bgra8888);
+
+                 using (var frameBuffer = this._writeableBitmap.Lock())
+                 {
+                     System.Runtime.InteropServices.Marshal.Copy(pixels, 0, frameBuffer.Address, pixels.Length);
+                 }
+
+-                this._image.Source = this._writeableBitmap;
++                // Invalidate the bitmap to trigger redraw in Avalonia
++                this._image.InvalidateVisual();
+             }
+
+             // Advance to the next frame using shared helper
+--
+2.49.0

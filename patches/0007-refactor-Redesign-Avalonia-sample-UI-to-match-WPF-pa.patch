@@ -1,0 +1,316 @@
+From 7e76da8f7f18a940cc177c399a1bffdb16082cfa Mon Sep 17 00:00:00 2001
+From: Stanislas Daniel Claude Dolcini <stanislas.dolcini@gmail.com>
+Date: Mon, 19 Jan 2026 21:35:55 +0100
+Subject: [PATCH 07/11] refactor: Redesign Avalonia sample UI to match WPF
+ pattern
+
+- Replace hardcoded GIF paths with file dialog (OnLoadGif)
+- Add interactive controls: Load GIF, Play/Pause/Stop, Repeat behavior combo
+- Simplify layout to focus on actual functionality vs demo images
+- Make GifAnimationController public for direct instantiation
+- UI now matches WPF sample: simple, functional, cross-platform compatible
+- Placeholder text when no GIF is loaded
+---
+ .../Views/MainWindow.axaml                    | 130 ++++++++----------
+ .../Views/MainWindow.axaml.cs                 |  80 ++++++++++-
+ .../GifAnimationController.cs                 |   2 +-
+ src/GifBolt.Wpf/GifAnimationController.cs     |   2 +-
+ 4 files changed, 136 insertions(+), 78 deletions(-)
+
+diff --git a/samples/GifBolt.AvaloniaApp/Views/MainWindow.axaml b/samples/GifBolt.AvaloniaApp/Views/MainWindow.axaml
+index 6043179..ef7f12c 100644
+--- a/samples/GifBolt.AvaloniaApp/Views/MainWindow.axaml
++++ b/samples/GifBolt.AvaloniaApp/Views/MainWindow.axaml
+@@ -8,7 +8,7 @@
+         x:Class="GifBolt.AvaloniaApp.Views.MainWindow"
+         x:DataType="vm:MainWindowViewModel"
+         Icon="/Assets/avalonia-logo.ico"
+-    Title="GifBolt Avalonia Sample - macOS Metal Backend">
++        Title="GifBolt Avalonia Sample">
+
+     <Design.DataContext>
+         <vm:MainWindowViewModel/>
+@@ -18,93 +18,75 @@
+         <!-- Header -->
+         <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,20">
+             <TextBlock Text="GifBolt - Avalonia Sample" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
+-            <TextBlock Text="Cross-platform GIF rendering with Metal (macOS), D3D11 (Windows)"
++            <TextBlock Text="XamlAnimatedGif-compatible GIF animation with GPU acceleration"
+                        HorizontalAlignment="Center" Foreground="Gray"/>
+         </StackPanel>
+
+         <!-- Main Content -->
+         <StackPanel Grid.Row="1" Spacing="20">
+-            <!-- Animation Behavior Example -->
+-            <StackPanel Spacing="15">
+-                <TextBlock Text="AnimationBehavior Example (XamlAnimatedGif Compatible)" FontSize="16" FontWeight="Bold"/>
+-                <TextBlock Text="Using attached properties on a standard Image control" Foreground="Gray"/>
++            <!-- Quick Load Example -->
++            <StackPanel Spacing="10">
++                <TextBlock Text="Load a GIF file to see it in action" FontSize="14" FontWeight="Bold"/>
++                <StackPanel Orientation="Horizontal" Spacing="10">
++                    <Button x:Name="LoadButton" Content="Load GIF..." Padding="10,5" Click="OnLoadGif"/>
++                    <TextBlock x:Name="FileLabel" VerticalAlignment="Center" Foreground="Gray" Text="(No file selected)"/>
++                </StackPanel>
++            </StackPanel>
+
+-                <Border BorderBrush="Gray" BorderThickness="1" Width="450" Height="300"
+-                        HorizontalAlignment="Left" Background="#F5F5F5">
+-                    <Image gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
++            <!-- Animation Display -->
++            <Border BorderBrush="Gray" BorderThickness="1" Padding="10" Background="#F5F5F5">
++                <Grid>
++                    <Image x:Name="AnimatedImage"
+                            gif:AnimationBehavior.RepeatBehavior="Forever"
+-                           Stretch="Uniform"/>
+-                </Border>
++                           Stretch="Uniform"
++                           MaxHeight="300"
++                           HorizontalAlignment="Center"
++                           VerticalAlignment="Center"/>
++                    <TextBlock Text="Load a GIF file using the button above"
++                               HorizontalAlignment="Center"
++                               VerticalAlignment="Center"
++                               Foreground="Gray"
++                               x:Name="EmptyPlaceholder"/>
++                </Grid>
++            </Border>
+
+-                <Border BorderBrush="Blue" BorderThickness="2" CornerRadius="5"
+-                        Padding="15" Background="#E3F2FD">
+-                    <StackPanel Spacing="5">
+-                        <TextBlock Text="✨ Drop-in Replacement for XamlAnimatedGif!" FontWeight="Bold" Foreground="DarkBlue"/>
+-                        <TextBlock TextWrapping="Wrap">
+-                            Just use AnimationBehavior.SourceUri on any Image control. Same API, better performance!
+-                        </TextBlock>
+-                        <TextBlock FontFamily="Consolas,Courier New" Margin="10,5,0,0">
+-                            &lt;Image gif:AnimationBehavior.SourceUri="file.gif"
+-                        </TextBlock>
+-                        <TextBlock FontFamily="Consolas,Courier New" Margin="10,0,0,0">
+-                                   gif:AnimationBehavior.RepeatBehavior="Forever"/&gt;
+-                        </TextBlock>
+-                    </StackPanel>
+-                </Border>
++            <!-- Controls -->
++            <StackPanel Spacing="10">
++                <TextBlock Text="Animation Controls" FontSize="12" FontWeight="Bold"/>
++                <StackPanel Orientation="Horizontal" Spacing="10">
++                    <Button x:Name="PlayButton" Content="Play" Padding="10,5" IsEnabled="False"/>
++                    <Button x:Name="PauseButton" Content="Pause" Padding="10,5" IsEnabled="False"/>
++                    <Button x:Name="StopButton" Content="Stop" Padding="10,5" IsEnabled="False"/>
++                </StackPanel>
++                <StackPanel Spacing="5">
++                    <TextBlock Text="Repeat Behavior:" FontSize="11"/>
++                    <ComboBox x:Name="RepeatCombo" SelectedIndex="0">
++                        <ComboBoxItem>Forever</ComboBoxItem>
++                        <ComboBoxItem>1x (Play Once)</ComboBoxItem>
++                        <ComboBoxItem>3x (Repeat 3 times)</ComboBoxItem>
++                    </ComboBox>
++                </StackPanel>
+             </StackPanel>
+
+-            <!-- Examples Grid -->
+-            <Grid ColumnDefinitions="*,10,*" RowDefinitions="*,10,*" Margin="0,10,0,0">
+-                <!-- Example 1: Loop Forever -->
+-                <Border Grid.Row="0" Grid.Column="0" BorderBrush="Gray" BorderThickness="1" Padding="10">
+-                    <StackPanel Spacing="5">
+-                        <TextBlock Text="Loop Forever (Default)" FontWeight="Bold"/>
+-                        <Image gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
+-                               gif:AnimationBehavior.RepeatBehavior="Forever"
+-                               Height="150"
+-                               Stretch="Uniform"/>
+-                    </StackPanel>
+-                </Border>
+-
+-                <!-- Example 2: Repeat 3 times -->
+-                <Border Grid.Row="0" Grid.Column="2" BorderBrush="Gray" BorderThickness="1" Padding="10">
+-                    <StackPanel Spacing="5">
+-                        <TextBlock Text="Repeat 3 times" FontWeight="Bold"/>
+-                        <Image gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
+-                               gif:AnimationBehavior.RepeatBehavior="3x"
+-                               Height="150"
+-                               Stretch="Uniform"/>
+-                    </StackPanel>
+-                </Border>
+-
+-                <!-- Example 3: Play Once -->
+-                <Border Grid.Row="2" Grid.Column="0" BorderBrush="Gray" BorderThickness="1" Padding="10">
+-                    <StackPanel Spacing="5">
+-                        <TextBlock Text="Play Once" FontWeight="Bold"/>
+-                        <Image gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
+-                               gif:AnimationBehavior.RepeatBehavior="1x"
+-                               Height="150"
+-                               Stretch="Uniform"/>
+-                    </StackPanel>
+-                </Border>
+-
+-                <!-- Example 4: Design Mode -->
+-                <Border Grid.Row="2" Grid.Column="2" BorderBrush="Gray" BorderThickness="1" Padding="10">
+-                    <StackPanel Spacing="5">
+-                        <TextBlock Text="With Design Mode Animation" FontWeight="Bold"/>
+-                        <Image gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
+-                               gif:AnimationBehavior.RepeatBehavior="Forever"
+-                               gif:AnimationBehavior.AnimateInDesignMode="True"
+-                               Height="150"
+-                               Stretch="Uniform"/>
+-                    </StackPanel>
+-                </Border>
+-            </Grid>
++            <!-- API Documentation -->
++            <Border BorderBrush="Blue" BorderThickness="2" CornerRadius="5"
++                    Padding="15" Background="#E3F2FD">
++                <StackPanel Spacing="8">
++                    <TextBlock Text="✨ XamlAnimatedGif Compatible API" FontWeight="Bold" Foreground="DarkBlue"/>
++                    <TextBlock TextWrapping="Wrap" Text="Use AnimationBehavior attached properties on any standard Image control:"/>
++                    <TextBlock FontFamily="Consolas,Courier New" Foreground="DarkBlue" TextWrapping="Wrap">
++                        &lt;Image gif:AnimationBehavior.SourceUri="file.gif"
++                    </TextBlock>
++                    <TextBlock FontFamily="Consolas,Courier New" Foreground="DarkBlue" Margin="20,0,0,0" TextWrapping="Wrap">
++                        gif:AnimationBehavior.RepeatBehavior="Forever"/&gt;
++                    </TextBlock>
++                </StackPanel>
++            </Border>
+         </StackPanel>
+
+         <!-- Status Bar -->
+         <Border Grid.Row="2" BorderBrush="Gray" BorderThickness="0,1,0,0" Padding="10" Margin="0,20,0,0">
+-            <TextBlock x:Name="statusText" Text="Ready" Foreground="Gray"/>
++            <TextBlock x:Name="StatusText" Text="Ready" Foreground="Gray" FontSize="11"/>
+         </Border>
+     </Grid>
+
+diff --git a/samples/GifBolt.AvaloniaApp/Views/MainWindow.axaml.cs b/samples/GifBolt.AvaloniaApp/Views/MainWindow.axaml.cs
+index 270ce99..9e9b547 100644
+--- a/samples/GifBolt.AvaloniaApp/Views/MainWindow.axaml.cs
++++ b/samples/GifBolt.AvaloniaApp/Views/MainWindow.axaml.cs
+@@ -2,6 +2,7 @@
+ // SPDX-FileCopyrightText: 2026 GifBolt Contributors
+
+ using System;
++using System.Collections.Generic;
+ using Avalonia.Controls;
+ using Avalonia.Interactivity;
+ using GifBolt;
+@@ -14,6 +15,8 @@ namespace GifBolt.AvaloniaApp.Views;
+ /// </summary>
+ public partial class MainWindow : Window
+ {
++    private GifBolt.Avalonia.GifAnimationController? _currentController;
++
+     /// <summary>
+     /// Initializes a new instance of the <see cref="MainWindow"/> class.
+     /// </summary>
+@@ -26,10 +29,83 @@ public partial class MainWindow : Window
+     private void OnWindowOpened(object? sender, EventArgs e)
+     {
+         // Update status
+-        var statusText = this.FindControl<global::Avalonia.Controls.TextBlock>("statusText");
++        var statusText = this.FindControl<TextBlock>("StatusText");
+         if (statusText != null)
+         {
+-            statusText.Text = "GifBolt loaded - Metal backend active on macOS";
++            statusText.Text = "Ready - click Load GIF to begin";
++        }
++    }
++
++    /// <summary>
++    /// Handles the Load GIF button click.
++    /// </summary>
++    private async void OnLoadGif(object? sender, RoutedEventArgs e)
++    {
++        var dialog = new OpenFileDialog
++        {
++            AllowMultiple = false,
++            Filters = new List<FileDialogFilter>
++            {
++                new() { Name = "GIF Files", Extensions = new List<string> { "gif" } },
++                new() { Name = "All Files", Extensions = new List<string> { "*" } }
++            }
++        };
++
++        var result = await dialog.ShowAsync(this);
++        if (result?.Length > 0)
++        {
++            try
++            {
++                // Clean up old controller
++                this._currentController?.Dispose();
++
++                // Get the image control
++                var image = this.FindControl<Image>("AnimatedImage");
++                var emptyText = this.FindControl<TextBlock>("EmptyPlaceholder");
++                var statusText = this.FindControl<TextBlock>("StatusText");
++                var repeatCombo = this.FindControl<ComboBox>("RepeatCombo");
++
++                if (image != null)
++                {
++                    // Create new animation controller
++                    this._currentController = new GifBolt.Avalonia.GifAnimationController(image, result[0]);
++
++                    // Apply repeat behavior
++                    var repeatBehavior = repeatCombo?.SelectedIndex switch
++                    {
++                        1 => "1x",
++                        2 => "3x",
++                        _ => "Forever"
++                    };
++                    this._currentController.SetRepeatBehavior(repeatBehavior);
++
++                    // Auto-start
++                    this._currentController.Play();
++
++                    // Update UI
++                    if (emptyText != null)
++                        emptyText.IsVisible = false;
++
++                    var fileName = System.IO.Path.GetFileName(result[0]);
++                    if (statusText != null)
++                        statusText.Text = $"Loaded: {fileName}";
++
++                    // Enable controls
++                    var playBtn = this.FindControl<Button>("PlayButton");
++                    var pauseBtn = this.FindControl<Button>("PauseButton");
++                    var stopBtn = this.FindControl<Button>("StopButton");
++
++                    if (playBtn != null) playBtn.IsEnabled = true;
++                    if (pauseBtn != null) pauseBtn.IsEnabled = true;
++                    if (stopBtn != null) stopBtn.IsEnabled = true;
++                }
++            }
++            catch (Exception ex)
++            {
++                var statusText = this.FindControl<TextBlock>("StatusText");
++                if (statusText != null)
++                    statusText.Text = $"Error: {ex.Message}";
++            }
+         }
+     }
+ }
+diff --git a/src/GifBolt.Avalonia/GifAnimationController.cs b/src/GifBolt.Avalonia/GifAnimationController.cs
+index 68cbe0c..1cf996d 100644
+--- a/src/GifBolt.Avalonia/GifAnimationController.cs
++++ b/src/GifBolt.Avalonia/GifAnimationController.cs
+@@ -17,7 +17,7 @@ namespace GifBolt.Avalonia
+     /// <summary>
+     /// Avalonia-specific GIF animation controller using DispatcherTimer for frame timing.
+     /// </summary>
+-    internal sealed class GifAnimationController : GifAnimationControllerBase
++    public sealed class GifAnimationController : GifAnimationControllerBase
+     {
+         private readonly Image _image;
+         private readonly WriteableBitmap _writeableBitmap;
+diff --git a/src/GifBolt.Wpf/GifAnimationController.cs b/src/GifBolt.Wpf/GifAnimationController.cs
+index 090328a..ccbb6c7 100644
+--- a/src/GifBolt.Wpf/GifAnimationController.cs
++++ b/src/GifBolt.Wpf/GifAnimationController.cs
+@@ -16,7 +16,7 @@ namespace GifBolt.Wpf
+     /// <summary>
+     /// WPF-specific GIF animation controller using CompositionTarget.Rendering for frame timing.
+     /// </summary>
+-    internal sealed class GifAnimationController : GifAnimationControllerBase
++    public sealed class GifAnimationController : GifAnimationControllerBase
+     {
+         private readonly Image _image;
+         private readonly WriteableBitmap _writeableBitmap;
+--
+2.49.0

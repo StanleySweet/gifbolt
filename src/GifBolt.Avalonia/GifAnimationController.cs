@@ -31,6 +31,7 @@ internal sealed class GifAnimationController : IDisposable
     /// Stocke le timestamp de la dernière frame rendue (pour debug timing réel).
     /// </summary>
     private DateTime _lastFrameTimestamp = default;
+    private DateTime _frameStartTime;
 
     public int Width => this._player.Width;
     public int Height => this._player.Height;
@@ -130,6 +131,7 @@ internal sealed class GifAnimationController : IDisposable
     {
         this._player.Play();
         this._isPlaying = true;
+        this._frameStartTime = DateTime.UtcNow;
 
         // Render the current frame immediately to avoid delay
         if (this._writeableBitmap != null)
@@ -141,7 +143,8 @@ internal sealed class GifAnimationController : IDisposable
         {
             // Démarre le timer avec le délai de la première frame
             int initialDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
-            this._renderTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(initialDelay, 16));
+            int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(initialDelay, FrameTimingHelper.MinRenderIntervalMs);
+            this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
             this._renderTimer.Start();
         }
     }
@@ -208,41 +211,33 @@ internal sealed class GifAnimationController : IDisposable
 
         try
         {
-            int frameDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
-            var now = DateTime.UtcNow;
-            double elapsedMs = 0;
-            if (this._lastFrameTimestamp != default)
+            // Get the frame delay for the current frame (respects the minimum set in base constructor)
+            int frameDelayMs = this._player.GetFrameDelayMs(this._player.CurrentFrame);
+            long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
+
+            // Only advance frame if enough time has elapsed for the current frame
+            if (elapsedMs >= frameDelayMs)
             {
-                elapsedMs = (now - this._lastFrameTimestamp).TotalMilliseconds;
+                // Advance to the next frame using shared helper
+                var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+                    this._player.CurrentFrame,
+                    this._player.FrameCount,
+                    this._repeatCount);
+
+                if (advanceResult.IsComplete)
+                {
+                    this.Stop();
+                    return;
+                }
+
+                // Update the current frame and repeat count
+                this._player.CurrentFrame = advanceResult.NextFrame;
+                this._repeatCount = advanceResult.UpdatedRepeatCount;
+                this._frameStartTime = DateTime.UtcNow;
             }
-            this._lastFrameTimestamp = now;
 
             // Render the current frame
             this.RenderFrame(this._player.CurrentFrame);
-
-            // Advance to the next frame using shared helper
-            var advanceResult = FrameAdvanceHelper.AdvanceFrame(
-                this._player.CurrentFrame,
-                this._player.FrameCount,
-                this._repeatCount);
-
-            if (advanceResult.IsComplete)
-            {
-                this.Stop();
-                return;
-            }
-
-            // Update the current frame and repeat count
-            this._player.CurrentFrame = advanceResult.NextFrame;
-            this._repeatCount = advanceResult.UpdatedRepeatCount;
-
-            // Dynamically update the timer interval for the next frame
-            int nextDelay = this._player.GetFrameDelayMs(advanceResult.NextFrame);
-            if (this._renderTimer != null)
-            {
-                int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextDelay, FrameTimingHelper.MinRenderIntervalMs);
-                this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
-            }
         }
         catch
         {
@@ -260,5 +255,6 @@ internal sealed class GifAnimationController : IDisposable
         this._player?.Dispose();
         this._writeableBitmap = null;
         this._lastFrameTimestamp = default;
+        this._frameStartTime = default;
     }
 }
