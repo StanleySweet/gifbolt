@@ -22,6 +22,14 @@
     <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
+  <!-- StyleCop analyzer for code style enforcement -->
+  <ItemGroup>
+    <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
   <!-- Include native libraries for each platform -->
   <ItemGroup>
     <None Include="runtimes/win-x64/native/GifBolt.Native.dll" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="Exists('runtimes/win-x64/native/GifBolt.Native.dll')" />

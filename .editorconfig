@@ -187,6 +187,86 @@ csharp_style_var_for_built_in_types = false:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_var_elsewhere = false:suggestion
 
+## StyleCop Rules (SA = StyleCop Analyzer)
+# Global suppressions for rules that conflict with GifBolt standards
+dotnet_diagnostic.SA1200.severity = silent  # Using at file scope (GifBolt allows this)
+dotnet_diagnostic.SA1309.severity = silent  # Underscore prefix for private fields (GifBolt REQUIRES this)
+dotnet_diagnostic.SA1412.severity = silent  # UTF-8 BOM (GifBolt uses UTF-8 without BOM)
+
+# Documentation rules (SA1600-SA1699)
+dotnet_diagnostic.SA1600.severity = warning  # Elements should be documented
+dotnet_diagnostic.SA1601.severity = silent   # Partial elements - suppressed globally
+dotnet_diagnostic.SA1602.severity = silent   # Enumeration items - suppressed globally
+dotnet_diagnostic.SA1633.severity = warning  # File header should have copyright
+
+# Readability rules (SA1100-SA1108)
+dotnet_diagnostic.SA1101.severity = error    # this prefix required (enforces GifBolt standard)
+dotnet_diagnostic.SA1102.severity = warning  # Query clause should begin on new line
+dotnet_diagnostic.SA1106.severity = warning  # Code should not contain empty statements
+dotnet_diagnostic.SA1107.severity = warning  # Code should not contain multiple statements on one line
+
+# Spacing rules (SA1000-SA1027)
+dotnet_diagnostic.SA1000.severity = warning  # Keywords should be spaced correctly
+dotnet_diagnostic.SA1001.severity = warning  # Commas should be spaced correctly
+dotnet_diagnostic.SA1008.severity = warning  # Opening parenthesis should be spaced correctly
+dotnet_diagnostic.SA1009.severity = warning  # Closing parenthesis should be spaced correctly
+dotnet_diagnostic.SA1025.severity = warning  # Code should not contain multiple whitespace
+
+# Naming rules (SA1310-SA1311)
+dotnet_diagnostic.SA1310.severity = warning  # Field names should not contain underscore
+dotnet_diagnostic.SA1311.severity = warning  # Static field names should begin with underscore
+
+# Order rules (SA1200-SA1217)
+dotnet_diagnostic.SA1201.severity = warning  # Elements should appear in the correct order
+dotnet_diagnostic.SA1202.severity = warning  # Elements should be ordered by access level
+dotnet_diagnostic.SA1203.severity = warning  # Constants should appear before fields
+dotnet_diagnostic.SA1204.severity = warning  # Static elements should appear before instance elements
+dotnet_diagnostic.SA1208.severity = warning  # System using directives should be placed before other using directives
+dotnet_diagnostic.SA1209.severity = warning  # Using alias directives should be placed after using namespace directives
+dotnet_diagnostic.SA1210.severity = warning  # Using directives should be ordered alphabetically
+
+# Indentation rules (SA1500-SA1519)
+dotnet_diagnostic.SA1500.severity = warning  # Braces for multi-line statements should not share line
+dotnet_diagnostic.SA1501.severity = warning  # Statement should not be on a single line
+dotnet_diagnostic.SA1502.severity = warning  # Element should not be on a single line
+dotnet_diagnostic.SA1503.severity = warning  # Braces should not be omitted
+dotnet_diagnostic.SA1504.severity = warning  # All accessors should be single-line or multi-line
+dotnet_diagnostic.SA1505.severity = warning  # Opening braces should not be followed by blank line
+dotnet_diagnostic.SA1506.severity = warning  # Element documentation headers should not be followed by blank line
+dotnet_diagnostic.SA1507.severity = warning  # Code should not contain multiple blank lines in a row
+dotnet_diagnostic.SA1508.severity = warning  # Closing braces should not be preceded by blank line
+dotnet_diagnostic.SA1509.severity = warning  # Opening braces should not be preceded by blank line
+dotnet_diagnostic.SA1510.severity = warning  # Chained statement blocks should not be preceded by blank line
+dotnet_diagnostic.SA1511.severity = warning  # While-do footer should not be preceded by blank line
+dotnet_diagnostic.SA1512.severity = warning  # Single-line comments should not be followed by blank line
+dotnet_diagnostic.SA1513.severity = warning  # Closing brace should be followed by blank line
+dotnet_diagnostic.SA1514.severity = warning  # Element documentation header should be preceded by blank line
+dotnet_diagnostic.SA1515.severity = warning  # Single-line comment should be preceded by blank line
+dotnet_diagnostic.SA1516.severity = warning  # Elements should be separated by blank line
+dotnet_diagnostic.SA1517.severity = warning  # Code should not contain blank lines at start of file
+dotnet_diagnostic.SA1518.severity = warning  # Use line endings correctly
+dotnet_diagnostic.SA1519.severity = warning  # Braces should not be omitted from multi-line child statement
+
+# Maintainability rules (SA1400-SA1419)
+dotnet_diagnostic.SA1401.severity = error    # Fields should be private
+dotnet_diagnostic.SA1402.severity = warning  # File may only contain a single type
+dotnet_diagnostic.SA1403.severity = warning  # File may only contain a single namespace
+dotnet_diagnostic.SA1404.severity = warning  # Code analysis suppression should have justification
+dotnet_diagnostic.SA1405.severity = warning  # Debug.Assert should provide message text
+dotnet_diagnostic.SA1406.severity = warning  # Debug.Fail should provide message text
+dotnet_diagnostic.SA1407.severity = warning  # Arithmetic expressions should declare precedence
+dotnet_diagnostic.SA1408.severity = warning  # Conditional expressions should declare precedence
+dotnet_diagnostic.SA1409.severity = warning  # Remove unnecessary code
+dotnet_diagnostic.SA1410.severity = warning  # Remove delegate parentheses when possible
+dotnet_diagnostic.SA1411.severity = warning  # Attribute constructor should not use unnecessary parentheses
+dotnet_diagnostic.SA1412.severity = warning  # Store files as UTF-8 with byte order mark
+dotnet_diagnostic.SA1413.severity = warning  # Use trailing comma in multi-line initializers
+dotnet_diagnostic.SA1414.severity = warning  # Tuple types in signatures should be named
+dotnet_diagnostic.SA1415.severity = warning  # Parameter should be passed by reference
+dotnet_diagnostic.SA1416.severity = warning  # Attribute validation
+dotnet_diagnostic.SA1417.severity = warning  # Implicit generic parameters should be explicit
+dotnet_diagnostic.SA1418.severity = warning  # Nullable type should not be used
+
 ## Expression bodied members
 csharp_style_expression_bodied_methods = false:silent
 csharp_style_expression_bodied_constructors = false:silent
