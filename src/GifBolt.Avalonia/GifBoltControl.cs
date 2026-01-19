@@ -194,7 +194,6 @@ namespace GifBolt.Avalonia
             {
                 this._player.Play();
                 this._isPlaying = true;
-                this.LogDiag($"Play(): starting at frame {this._player.CurrentFrame}, initial delay={this._player.GetFrameDelayMs(this._player.CurrentFrame)} ms.");
 
                 // Render first frame immediately to avoid delay on Play
                 this.RenderCurrentFrame();
@@ -257,11 +256,9 @@ namespace GifBolt.Avalonia
 
             if (this._bitmap != null && this._player != null)
             {
-                this.LogDiag("Render() invoked; drawing current bitmap.");
                 if (!this._hasRenderedOnce)
                 {
                     this._hasRenderedOnce = true;
-                    this.LogDiag("First Render() call observed.");
                 }
 
                 var sourceSize = new Size(this._bitmap.PixelSize.Width, this._bitmap.PixelSize.Height);
