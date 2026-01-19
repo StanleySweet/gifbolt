@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 using System;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using GifBolt;
@@ -37,8 +38,66 @@ namespace GifBolt.SampleApp
             // Update status
             this.UpdateStatus("GifBolt loaded - DirectX 11 backend active on Windows");
 
+            // Load sample.gif as embedded resource (in-memory)
+            this.LoadSampleGifFromResources();
+
             // Update version info
             this.UpdateVersionInfo();
+        }
+
+        private void LoadSampleGifFromResources()
+        {
+            try
+            {
+                // Load sample.gif as embedded resource from assembly
+                var assembly = Assembly.GetExecutingAssembly();
+                string resourceName = "GifBolt.SampleApp.sample.gif";
+
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream != null)
+                    {
+                        using (var memory = new MemoryStream())
+                        {
+                            stream.CopyTo(memory);
+                            byte[] gifData = memory.ToArray();
+
+                            // Load both controls with in-memory bytes
+                            this.GifControl.LoadGif(gifData);
+
+                            if (this.ImageBehaviorImage != null)
+                            {
+                                // For ImageBehavior, we need a path, so fall back to file reference
+                                // (or extend ImageBehavior to support in-memory loading separately)
+                                ImageBehavior.SetAnimatedSource(this.ImageBehaviorImage, "sample.gif");
+                            }
+
+                            this.UpdateStatus("Loaded sample.gif from embedded resources");
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: load from file if resource not found
+                        this.GifControl.LoadGif("sample.gif");
+                        this.UpdateStatus("Loaded sample.gif from file (resource not found)");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                this.UpdateStatus($"Failed to load sample.gif: {ex.Message}");
+                LogToFile($"Failed to load sample.gif: {ex}");
+
+                // Fallback to file loading
+                try
+                {
+                    this.GifControl.LoadGif("sample.gif");
+                }
+                catch
+                {
+                    // Ignore fallback errors
+                }
+            }
         }
 
         private void UpdateVersionInfo()

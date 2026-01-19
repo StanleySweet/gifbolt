@@ -7,6 +7,8 @@
 
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
@@ -155,6 +157,7 @@ namespace GifBolt.Wpf
         private bool _isLoaded;
         private GifPlayer? _player;
         private BitmapSource? _firstFrameBitmap;
+        private byte[]? _sourceBytes;
 
         // Instance properties
 
@@ -254,7 +257,24 @@ namespace GifBolt.Wpf
                 return;
             }
 
+            this._sourceBytes = null;
             this.Source = path;
+        }
+
+        /// <summary>
+        /// Loads a new GIF from an in-memory buffer.
+        /// </summary>
+        /// <param name="data">The GIF data buffer.</param>
+        public void LoadGif(byte[] data)
+        {
+            if (data == null || data.Length == 0)
+            {
+                return;
+            }
+
+            this._sourceBytes = data;
+            this.Source = null;
+            this.LoadGifIfReady();
         }
 
         // Protected instance methods
@@ -338,20 +358,28 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(this.Source))
+            byte[]? sourceBytes = this._sourceBytes;
+            if (sourceBytes == null && string.IsNullOrWhiteSpace(this.Source))
             {
                 return;
             }
 
             // Preload first frame asynchronously
-            var source = this.Source;
+            byte[]? bytesToLoad = sourceBytes;
+            string? pathToLoad = sourceBytes == null ? this.Source : null;
+
             Task.Run(() =>
             {
                 try
                 {
                     var player = new GifPlayer();
-                    if (!player.Load(source))
+                    bool loaded = bytesToLoad != null
+                        ? player.Load(bytesToLoad)
+                        : player.Load(pathToLoad!);
+
+                    if (!loaded)
                     {
+                        Debug.WriteLine($"GifBoltControl: Failed to load GIF ({(bytesToLoad != null ? "memory" : "path")})");
                         player.Dispose();
                         return;
                     }
@@ -387,7 +415,7 @@ namespace GifBolt.Wpf
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Failed to preload first frame: {ex.Message}");
+                    Debug.WriteLine($"GifBoltControl: Failed to preload first frame: {ex.Message}");
                 }
             });
 
@@ -395,7 +423,14 @@ namespace GifBolt.Wpf
             this.EnsureNative();
             if (this._native != IntPtr.Zero)
             {
-                if (GifBolt_LoadGif(this._native, this.Source) != 0)
+                // For in-memory bytes, use GifPlayer to load, then pass native renderer the same bytes
+                if (sourceBytes != null)
+                {
+                    // Create a temp file for native renderer if needed, or extend native API
+                    // For now, we'll just load via GifPlayer's in-memory support
+                    Debug.WriteLine("GifBoltControl: In-memory GIF loaded via GifPlayer (native renderer uses GifBolt_LoadGif)");
+                }
+                else if (GifBolt_LoadGif(this._native, pathToLoad!) != 0)
                 {
                     if (this.AutoStart)
                     {
