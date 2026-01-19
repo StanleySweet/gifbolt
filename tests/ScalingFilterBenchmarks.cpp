@@ -26,7 +26,7 @@ double MeasureMs(Func&& func)
 
 TEST_CASE("Benchmark scaling filters - Quality vs Performance", "[Benchmark][Scaling]")
 {
-    const char* gifPath = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+    const char* gifPath = "assets/sample.gif";
 
     GifDecoder decoder;
     REQUIRE(decoder.LoadFromFile(gifPath));

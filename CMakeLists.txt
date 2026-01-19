@@ -5,6 +5,7 @@ project(GifBolt VERSION 1.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
 # Enable FetchContent
 include(FetchContent)
 
@@ -13,6 +14,7 @@ FetchContent_Declare(
     giflib
     URL https://sourceforge.net/projects/giflib/files/giflib-5.2.2.tar.gz
     URL_HASH SHA256=be7ffbd057cadebe2aa144542fd90c6838c6a083b5e8a9048b8ee3b66b29d5fb
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
 # Fetch Catch2
@@ -20,6 +22,7 @@ FetchContent_Declare(
     Catch2
     GIT_REPOSITORY https://github.com/catchorg/Catch2.git
     GIT_TAG v3.7.1
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
 FetchContent_MakeAvailable(Catch2)
@@ -27,33 +30,41 @@ FetchContent_MakeAvailable(Catch2)
 # Build giflib
 FetchContent_GetProperties(giflib)
 if(NOT giflib_POPULATED)
-    FetchContent_Populate(giflib)
+    FetchContent_MakeAvailable(giflib)
+endif()
 
-    # Build giflib as static library
-    add_library(gif STATIC
-        ${giflib_SOURCE_DIR}/dgif_lib.c
-        ${giflib_SOURCE_DIR}/egif_lib.c
-        ${giflib_SOURCE_DIR}/gif_err.c
-        ${giflib_SOURCE_DIR}/gif_font.c
-        ${giflib_SOURCE_DIR}/gif_hash.c
-        ${giflib_SOURCE_DIR}/gifalloc.c
-        ${giflib_SOURCE_DIR}/openbsd-reallocarray.c
-        ${giflib_SOURCE_DIR}/quantize.c
+# Build giflib as static library from fetched sources
+add_library(gif STATIC
+    ${giflib_SOURCE_DIR}/dgif_lib.c
+    ${giflib_SOURCE_DIR}/egif_lib.c
+    ${giflib_SOURCE_DIR}/gif_err.c
+    ${giflib_SOURCE_DIR}/gif_font.c
+    ${giflib_SOURCE_DIR}/gif_hash.c
+    ${giflib_SOURCE_DIR}/gifalloc.c
+    ${giflib_SOURCE_DIR}/openbsd-reallocarray.c
+    ${giflib_SOURCE_DIR}/quantize.c
+)
+
+target_include_directories(gif PUBLIC ${giflib_SOURCE_DIR})
+
+# Disable warnings and align runtime for giflib
+if(MSVC)
+    # Match GifBolt.Native runtime library
+    set_property(TARGET gif PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    set_property(TARGET gif PROPERTY MSVC_RUNTIME_LIBRARY_DEBUG "MultiThreadedDLLDebug")
+
+    # Optimization flags
+    target_compile_options(gif PRIVATE
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:Debug>:/RTC1>
     )
 
-    target_include_directories(gif PUBLIC ${giflib_SOURCE_DIR})
-
-    # Apply static CRT linking (must match GifBolt.Native)
-    if(MSVC)
-        set_property(TARGET gif PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-    endif()
-
     # Disable warnings for giflib
-    if(MSVC)
-        target_compile_options(gif PRIVATE /W0)
-    else()
-        target_compile_options(gif PRIVATE -w)
-    endif()
+    target_compile_options(gif PRIVATE /W0)
+else()
+    # GCC/Clang: maximum optimization
+    target_compile_options(gif PRIVATE -O3)
+    target_compile_options(gif PRIVATE -w) # suppress warnings
 endif()
 
 # Enable testing

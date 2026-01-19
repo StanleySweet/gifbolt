@@ -6,6 +6,7 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -364,8 +365,6 @@ namespace GifBolt.Avalonia
                     {
                         Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
                     }
-
-                    this.LogDiag($"RenderCurrentFrame(): copied {bgraPixels.Length} bytes for frame {this._player.CurrentFrame}.");
                 }
             }
         }
@@ -441,13 +440,11 @@ namespace GifBolt.Avalonia
 
                     if (!player.Load(source))
                     {
-                        this.LogDiag($"LoadGifPlayer(): failed to load '{source}'.");
                         player.Dispose();
                         return;
                     }
 
                     var tLoad = DateTime.UtcNow;
-                    this.LogDiag($"LoadGifPlayer(): player.Load took {(tLoad - t0).TotalMilliseconds:F1} ms. Size={player.Width}x{player.Height}, Frames={player.FrameCount}, Frame0Delay={player.GetFrameDelayMs(0)} ms.");
 
                     // Create bitmap for display with premultiplied alpha for proper composition
                     var bitmap = new WriteableBitmap(
@@ -464,7 +461,6 @@ namespace GifBolt.Avalonia
                             Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
                         }
 
-                        this.LogDiag($"LoadGifPlayer(): pre-copied first frame pixels ({bgraPixels.Length} bytes) on background thread in {(DateTime.UtcNow - tLoad).TotalMilliseconds:F1} ms.");
                     }
 
                     global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -478,11 +474,9 @@ namespace GifBolt.Avalonia
                         // to avoid waiting for the first timer tick or GIF delay.
                         this.RenderCurrentFrame();
                         this.InvalidateVisual();
-                        this.LogDiag($"UI assignment + immediate render took {(DateTime.UtcNow - tUI).TotalMilliseconds:F1} ms. Bounds={this.Bounds.Width}x{this.Bounds.Height}.");
 
                         if (this.AutoStart)
                         {
-                            this.LogDiag("AutoStart=true; calling Play().");
                             this.Play();
                         }
                     });
@@ -512,18 +506,6 @@ namespace GifBolt.Avalonia
             }
 
             this.LoadGifPlayer();
-        }
-
-        /// <summary>
-        /// Writes a diagnostics message if <see cref="DiagnosticsEnabled"/> is true.
-        /// </summary>
-        /// <param name="message">The message to log.</param>
-        private void LogDiag(string message)
-        {
-            if (this.DiagnosticsEnabled)
-            {
-                Console.WriteLine($"[GifBolt] DIAG: {message}");
-            }
         }
     }
 }

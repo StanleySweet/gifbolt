@@ -27,6 +27,13 @@ namespace GifBolt.Wpf
         // Static constants
         private const string _nativeLib = "GifBolt.Native";
 
+        // Static DLL import for explicit loading
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibrary(string dllToLoad);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeLibrary(IntPtr hModule);
+
         // Static dependency properties
 
         /// <summary>
@@ -59,12 +66,44 @@ namespace GifBolt.Wpf
                 typeof(GifBoltControl),
                 new PropertyMetadata(true, OnLoopChanged));
 
+        /// <summary>
+        /// Identifies the <see cref="ScalingFilter"/> dependency property.
+        /// </summary>
+        public static readonly DependencyProperty ScalingFilterProperty =
+            DependencyProperty.Register(
+                nameof(ScalingFilter),
+                typeof(ScalingFilter),
+                typeof(GifBoltControl),
+                new PropertyMetadata(ScalingFilter.Lanczos));
+
         // Static constructor
         static GifBoltControl()
         {
             DefaultStyleKeyProperty.OverrideMetadata(
                 typeof(GifBoltControl),
                 new FrameworkPropertyMetadata(typeof(GifBoltControl)));
+
+            // Explicitly load the native library with full path before P/Invoke calls
+            string appDir = System.IO.Path.GetDirectoryName(typeof(GifBoltControl).Assembly.Location) ?? string.Empty;
+            string dllPath = System.IO.Path.Combine(appDir, _nativeLib + ".dll");
+
+            if (System.IO.File.Exists(dllPath))
+            {
+                IntPtr result = LoadLibrary(dllPath);
+                if (result != IntPtr.Zero)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully loaded native library from {dllPath}");
+                }
+                else
+                {
+                    int error = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+                    throw new DllNotFoundException($"Failed to load native library '{_nativeLib}' from {dllPath}. Error code: {error}");
+                }
+            }
+            else
+            {
+                throw new DllNotFoundException($"Native library not found at {dllPath}");
+            }
         }
 
         // Static extern methods
@@ -145,6 +184,16 @@ namespace GifBolt.Wpf
         {
             get => (bool)this.GetValue(LoopProperty);
             set => this.SetValue(LoopProperty, value);
+        }
+
+        /// <summary>
+        /// Gets or sets the scaling filter to use when rendering the GIF.
+        /// Default is Lanczos for high-quality rendering.
+        /// </summary>
+        public ScalingFilter ScalingFilter
+        {
+            get => (ScalingFilter)this.GetValue(ScalingFilterProperty);
+            set => this.SetValue(ScalingFilterProperty, value);
         }
 
         // Instance constructor

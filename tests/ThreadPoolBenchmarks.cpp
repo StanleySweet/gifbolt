@@ -23,7 +23,7 @@ double MeasureMs(Func&& func)
 
 TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPool]")
 {
-    const char* gifPath = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+    const char* gifPath = "assets/sample.gif";
 
     std::cout << "\n========== THREAD POOL PARALLEL DECODING BENCHMARK ==========\n";
     std::cout << std::fixed << std::setprecision(2);
@@ -89,10 +89,11 @@ TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPo
 
     // Test 3: Burst decode (measure parallel speedup)
     {
-        std::cout << "\n--- Burst Decode (50 frames) ---\n";
-
         GifDecoder decoder3;
         REQUIRE(decoder3.LoadFromFile(gifPath));
+
+        const uint32_t burstFrames = std::min(50u, decoder3.GetFrameCount());
+        std::cout << "\n--- Burst Decode (" << burstFrames << " frames) ---\n";
 
         // Cold start - decode first frame to trigger slurp
         decoder3.GetFrame(0);
@@ -100,28 +101,29 @@ TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPo
         double burstTime = MeasureMs(
             [&]()
             {
-                for (uint32_t i = 0; i < 50 && i < frameCount; ++i)
+                for (uint32_t i = 0; i < burstFrames; ++i)
                 {
                     const GifFrame& frame = decoder3.GetFrame(i);
                     REQUIRE(frame.pixels.size() > 0);
                 }
             });
 
-        std::cout << "Burst time:       " << std::setw(8) << burstTime << " ms (50 frames)\n";
-        std::cout << "Avg per frame:    " << std::setw(8) << burstTime / 50.0 << " ms\n";
+        std::cout << "Burst time:       " << std::setw(8) << burstTime << " ms (" << burstFrames << " frames)\n";
+        std::cout << "Avg per frame:    " << std::setw(8) << burstTime / static_cast<double>(burstFrames) << " ms\n";
     }
 
     // Test 4: Random access pattern
     {
-        std::cout << "\n--- Random Access Pattern (100 frames) ---\n";
-
         GifDecoder decoder4;
         REQUIRE(decoder4.LoadFromFile(gifPath));
 
+        const uint32_t numAccesses = std::min(100u, decoder4.GetFrameCount() * 8);
+        std::cout << "\n--- Random Access Pattern (" << numAccesses << " accesses) ---\n";
+
         std::vector<uint32_t> randomIndices;
-        for (int i = 0; i < 100; ++i)
+        for (uint32_t i = 0; i < numAccesses; ++i)
         {
-            randomIndices.push_back(rand() % std::min(frameCount, 200u));
+            randomIndices.push_back(rand() % decoder4.GetFrameCount());
         }
 
         double randomTime = MeasureMs(
@@ -134,8 +136,8 @@ TEST_CASE("Benchmark thread pool parallel frame decoding", "[Benchmark][ThreadPo
                 }
             });
 
-        std::cout << "Random access:    " << std::setw(8) << randomTime << " ms (100 accesses)\n";
-        std::cout << "Avg per access:   " << std::setw(8) << randomTime / 100.0 << " ms\n";
+        std::cout << "Random access:    " << std::setw(8) << randomTime << " ms (" << numAccesses << " accesses)\n";
+        std::cout << "Avg per access:   " << std::setw(8) << randomTime / static_cast<double>(numAccesses) << " ms\n";
     }
 
     std::cout << "\n========== THREAD POOL ANALYSIS ==========\n";

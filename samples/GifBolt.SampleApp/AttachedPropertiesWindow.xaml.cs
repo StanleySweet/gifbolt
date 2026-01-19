@@ -26,6 +26,8 @@ namespace GifBolt.SampleApp
             if (dlg.ShowDialog() == true)
             {
                 // Démontre l'API compatible WpfAnimatedGif
+                ImageBehavior.SetAnimatedSource(this.Image1, dlg.FileName);
+                ImageBehavior.SetAnimatedSource(this.Image3, dlg.FileName);
                 ImageBehavior.SetAnimatedSource(this.ImageRepeat3x, dlg.FileName);
                 ImageBehavior.SetAnimatedSource(this.ImageManual, dlg.FileName);
             }

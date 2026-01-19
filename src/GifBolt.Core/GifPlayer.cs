@@ -5,8 +5,9 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
-using System;
 using GifBolt.Internal;
+using System;
+using System.Runtime.InteropServices;
 
 namespace GifBolt;
 
@@ -67,7 +68,9 @@ public sealed class GifPlayer : IDisposable
         this.DisposeDecoder();
         var h = Native.gb_decoder_create();
         if (h == IntPtr.Zero)
+        {
             return false;
+        }
 
         var tmp = new DecoderHandle(h);
         int ok = Native.gb_decoder_load_from_path(tmp.DangerousGetHandle(), path);
@@ -114,11 +117,17 @@ public sealed class GifPlayer : IDisposable
     {
         pixels = Array.Empty<byte>();
         if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+        {
             return false;
+        }
+
         int byteCount;
         var ptr = Native.gb_decoder_get_frame_pixels_rgba32(this._decoder.DangerousGetHandle(), frameIndex, out byteCount);
         if (ptr == IntPtr.Zero || byteCount <= 0)
+        {
             return false;
+        }
+
         pixels = new byte[byteCount];
         System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, byteCount);
         return true;
@@ -133,11 +142,17 @@ public sealed class GifPlayer : IDisposable
     {
         pixels = Array.Empty<byte>();
         if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+        {
             return false;
+        }
+
         int byteCount;
         var ptr = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied(this._decoder.DangerousGetHandle(), frameIndex, out byteCount);
         if (ptr == IntPtr.Zero || byteCount <= 0)
+        {
             return false;
+        }
+
         pixels = new byte[byteCount];
         System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, byteCount);
         return true;
@@ -161,13 +176,19 @@ public sealed class GifPlayer : IDisposable
         outWidth = 0;
         outHeight = 0;
         if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+        {
             return false;
+        }
+
         int byteCount;
         var ptr = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
             this._decoder.DangerousGetHandle(), frameIndex, targetWidth, targetHeight,
             out outWidth, out outHeight, out byteCount, (int)filter);
         if (ptr == IntPtr.Zero || byteCount <= 0)
+        {
             return false;
+        }
+
         pixels = new byte[byteCount];
         System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, byteCount);
         return true;
@@ -179,7 +200,10 @@ public sealed class GifPlayer : IDisposable
     public int GetFrameDelayMs(int frameIndex)
     {
         if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+        {
             return 0;
+        }
+
         return Native.gb_decoder_get_frame_delay_ms(this._decoder.DangerousGetHandle(), frameIndex);
     }
 

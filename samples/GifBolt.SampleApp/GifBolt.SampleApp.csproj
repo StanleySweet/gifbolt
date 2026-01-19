@@ -9,4 +9,15 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GifBolt.Wpf\GifBolt.Wpf.csproj" />
   </ItemGroup>
+
+  <!-- Copy native DLL to output directory -->
+  <Target Name="CopyNativeDLL" AfterTargets="Build">
+    <PropertyGroup>
+      <NativeDllRelease>..\..\build\src\GifBolt.Native\Release\GifBolt.Native.dll</NativeDllRelease>
+      <NativeDllDebug>..\..\build\src\GifBolt.Native\Debug\GifBolt.Native.dll</NativeDllDebug>
+    </PropertyGroup>
+    <Copy SourceFiles="$(NativeDllRelease)" DestinationFolder="$(OutDir)" Condition="Exists('$(NativeDllRelease)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(NativeDllDebug)" DestinationFolder="$(OutDir)" Condition="Exists('$(NativeDllDebug)') AND !Exists('$(NativeDllRelease)')" SkipUnchangedFiles="true" />
+    <Warning Text="Native DLL not found at $(NativeDllRelease) or $(NativeDllDebug) - build GifBolt.Native first with: cmake --build build --config Release" Condition="!Exists('$(NativeDllRelease)') AND !Exists('$(NativeDllDebug)')" />
+  </Target>
 </Project>

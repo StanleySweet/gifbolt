@@ -10,6 +10,9 @@
 #if defined(__APPLE__)
 #include "MetalDeviceCommandContext.h"
 #endif
+#ifdef _WIN32
+#include "D3D11DeviceCommandContext.h"
+#endif
 #include <gif_lib.h>
 
 #include <atomic>
@@ -443,6 +446,17 @@ GifDecoder::GifDecoder() : _pImpl(std::make_unique<Impl>())
     try
     {
         _pImpl->_deviceContext = std::make_shared<Renderer::MetalDeviceCommandContext>();
+    }
+    catch (...)
+    {
+        // GPU context initialization failed, will use CPU fallback
+        _pImpl->_deviceContext = nullptr;
+    }
+    // Initialize GPU context for hardware-accelerated scaling
+#elif defined(WIN32)
+    try
+    {
+        _pImpl->_deviceContext = std::make_shared<Renderer::D3D11DeviceCommandContext>();
     }
     catch (...)
     {

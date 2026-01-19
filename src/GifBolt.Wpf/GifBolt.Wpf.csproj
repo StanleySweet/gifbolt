@@ -45,4 +45,9 @@
   <ItemGroup>
     <None Include="app.config" />
   </ItemGroup>
+
+  <!-- Copy native DLL after build -->
+  <Target Name="CopyNativeDll" AfterTargets="Build">
+    <Copy SourceFiles="..\..\build\src\GifBolt.Native\Release\GifBolt.Native.dll" DestinationFolder="$(OutputPath)" Condition="Exists('..\..\build\src\GifBolt.Native\Release\GifBolt.Native.dll')" />
+  </Target>
 </Project>

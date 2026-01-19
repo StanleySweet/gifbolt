@@ -136,11 +136,14 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            var controller = GetAnimationController(image);
-            if (controller != null)
+            var existingController = GetAnimationController(image);
+            if (existingController != null)
             {
-                controller.Dispose();
+                // Stop the old controller immediately to prevent multiple GIFs playing
+                existingController.Stop();
                 SetAnimationController(image, (GifAnimationController?)null);
+                // Dispose resources asynchronously to avoid blocking UI thread
+                System.Threading.Tasks.Task.Run(() => existingController.Dispose());
             }
 
             if (e.NewValue == null)
@@ -154,18 +157,50 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            controller = new GifAnimationController(image, path!);
-            SetAnimationController(image, controller);
-
+            // Create animation controller with async loading and error callbacks
             var repeatBehavior = GetRepeatBehavior(image);
+            var initialAutoStart = GetAutoStart(image); // Capture the current AutoStart value
+
+            var controller = new GifAnimationController(
+                image,
+                path!,
+                onLoaded: () =>
+                {
+                    // Verify this controller is still current
+                    var currentController = GetAnimationController(image);
+                    if (currentController == null)
+                    {
+                        return; // Controller was replaced
+                    }
+
+                    // Only auto-start if AutoStart was true when the GIF was LOADED
+                    // Don't use the current AutoStart value, use the initial one
+                    if (initialAutoStart)
+                    {
+                        try
+                        {
+                            currentController.Play();
+                        }
+                        catch
+                        {
+                            // Swallow errors
+                        }
+                    }
+                },
+                onError: (ex) =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error loading GIF: {ex.Message}");
+                    // Silently handle errors - image will remain visible with default source
+                });
+
+            SetAnimationController(image, controller);
             controller.SetRepeatBehavior(repeatBehavior);
 
-            if (GetAutoStart(image))
+            // Only subscribe to Unloaded once per Image control
+            if (existingController == null)
             {
-                controller.Play();
+                image.Unloaded += OnImageUnloaded;
             }
-
-            image.Unloaded += OnImageUnloaded;
         }
 
         private static void OnRepeatBehaviorChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -193,8 +228,9 @@ namespace GifBolt.Wpf
             var controller = GetAnimationController(image);
             if (controller is not null)
             {
-                controller.Dispose();
                 SetAnimationController(image, null);
+                // Dispose asynchronously to avoid blocking during cleanup
+                System.Threading.Tasks.Task.Run(() => controller.Dispose());
             }
         }
 
