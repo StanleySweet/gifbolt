@@ -102,7 +102,7 @@ internal sealed class GifAnimationController : GifAnimationControllerBase
     /// Sets the repeat behavior for the animation.
     /// </summary>
     /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
-    public void SetRepeatBehavior(string repeatBehavior)
+    public override void SetRepeatBehavior(string repeatBehavior)
     {
         this.RepeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this.Player?.IsLooping ?? true);
     }
@@ -122,7 +122,7 @@ internal sealed class GifAnimationController : GifAnimationControllerBase
     /// <summary>
     /// Starts playback of the animation.
     /// </summary>
-    public void Play()
+    public override void Play()
     {
         this.Player?.Play();
         this.IsPlaying = true;
@@ -147,7 +147,7 @@ internal sealed class GifAnimationController : GifAnimationControllerBase
     /// <summary>
     /// Pauses playback of the animation.
     /// </summary>
-    public void Pause()
+    public override void Pause()
     {
         this.Player?.Pause();
         this.IsPlaying = false;
@@ -157,7 +157,7 @@ internal sealed class GifAnimationController : GifAnimationControllerBase
     /// <summary>
     /// Stops playback and resets to the first frame.
     /// </summary>
-    public void Stop()
+    public override void Stop()
     {
         this.Player?.Stop();
         this.IsPlaying = false;
@@ -243,7 +243,7 @@ internal sealed class GifAnimationController : GifAnimationControllerBase
     /// <summary>
     /// Releases all resources held by the animation controller.
     /// </summary>
-    public void Dispose()
+    public override void Dispose()
     {
         this._animationTimer?.Stop();
         this._animationTimer = null;

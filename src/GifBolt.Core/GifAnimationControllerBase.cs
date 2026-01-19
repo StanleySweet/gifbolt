@@ -92,7 +92,7 @@ namespace GifBolt
         /// </summary>
         /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
         /// <exception cref="ArgumentNullException">Thrown when repeatBehavior is null.</exception>
-        public void SetRepeatBehavior(string repeatBehavior)
+        public virtual void SetRepeatBehavior(string repeatBehavior)
         {
             if (string.IsNullOrWhiteSpace(repeatBehavior) || this.Player == null)
             {

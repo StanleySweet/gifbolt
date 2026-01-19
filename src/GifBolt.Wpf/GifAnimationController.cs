@@ -235,7 +235,7 @@ namespace GifBolt.Wpf
             });
         }
 
-        public void Play()
+        public override void Play()
         {
             if (this._isDisposed)
             {
@@ -268,7 +268,7 @@ namespace GifBolt.Wpf
         /// <summary>
         /// Pauses playback of the animation.
         /// </summary>
-        public void Pause()
+        public override void Pause()
         {
             if (this._isDisposed || this.Player == null)
             {
@@ -283,7 +283,7 @@ namespace GifBolt.Wpf
         /// <summary>
         /// Stops playback and resets to the first frame.
         /// </summary>
-        public void Stop()
+        public override void Stop()
         {
             if (this.Player == null)
             {
@@ -299,7 +299,7 @@ namespace GifBolt.Wpf
         /// Sets the repeat behavior for the animation.
         /// </summary>
         /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
-        public void SetRepeatBehavior(string repeatBehavior)
+        public override void SetRepeatBehavior(string repeatBehavior)
         {
             if (this._isDisposed)
             {
