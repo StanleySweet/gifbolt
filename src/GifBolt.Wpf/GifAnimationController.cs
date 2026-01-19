@@ -82,6 +82,7 @@ namespace GifBolt.Wpf
         private bool _isDisposed;
         private int _generationId;
         private string? _pendingRepeatBehavior;
+        private DateTime _frameStartTime;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
@@ -254,6 +255,7 @@ namespace GifBolt.Wpf
 
             this._player.Play();
             this._isPlaying = true;
+            this._frameStartTime = DateTime.UtcNow;
 
             if (this._writeableBitmap != null && !this._isDisposed)
             {
@@ -391,41 +393,33 @@ namespace GifBolt.Wpf
 
             try
             {
-                int frameDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
-                var now = DateTime.UtcNow;
-                double elapsedMs = 0;
-                if (this._lastFrameTimestamp != default)
+                // Get the frame delay for the current frame (respects the 100ms minimum set in base constructor)
+                int frameDelayMs = this._player.GetFrameDelayMs(this._player.CurrentFrame);
+                long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
+
+                // Only advance frame if enough time has elapsed for the current frame
+                if (elapsedMs >= frameDelayMs)
                 {
-                    elapsedMs = (now - this._lastFrameTimestamp).TotalMilliseconds;
+                    // Advance to next frame and reset the frame start time
+                    var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+                        this._player.CurrentFrame,
+                        this._player.FrameCount,
+                        this._repeatCount);
+
+                    if (advanceResult.IsComplete)
+                    {
+                        this.Stop();
+                        return;
+                    }
+
+                    // Update the current frame and repeat count
+                    this._player.CurrentFrame = advanceResult.NextFrame;
+                    this._repeatCount = advanceResult.UpdatedRepeatCount;
+                    this._frameStartTime = DateTime.UtcNow;
                 }
-                this._lastFrameTimestamp = now;
 
                 // Render the current frame
                 this.RenderFrame(this._player.CurrentFrame);
-
-                // Advance to the next frame using shared helper
-                var advanceResult = FrameAdvanceHelper.AdvanceFrame(
-                    this._player.CurrentFrame,
-                    this._player.FrameCount,
-                    this._repeatCount);
-
-                if (advanceResult.IsComplete)
-                {
-                    this.Stop();
-                    return;
-                }
-
-                // Update the current frame and repeat count
-                this._player.CurrentFrame = advanceResult.NextFrame;
-                this._repeatCount = advanceResult.UpdatedRepeatCount;
-
-                // Dynamically update the timer interval for the next frame
-                int nextDelay = this._player.GetFrameDelayMs(advanceResult.NextFrame);
-                if (this._renderTimer != null && !this._isDisposed)
-                {
-                    int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(nextDelay, FrameTimingHelper.MinRenderIntervalMs);
-                    this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
-                }
             }
             catch
             {
