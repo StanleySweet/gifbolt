@@ -16,11 +16,9 @@ using System.Windows.Threading;
 namespace GifBolt.Wpf
 {
     /// <summary>
-    /// Manages animation state and frame rendering for a GIF displayed in an Image control.
-    /// Handles frame decoding, timing, and pixel updates to the display.
-    /// Uses asynchronous loading and DispatcherTimer for efficient CPU usage.
+    /// WPF-specific GIF animation controller using CompositionTarget.Rendering for frame timing.
     /// </summary>
-    internal sealed class GifAnimationController : IDisposable
+    internal sealed class GifAnimationController : GifAnimationControllerBase
     {
         // Static DLL import for explicit loading
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
@@ -73,12 +71,8 @@ namespace GifBolt.Wpf
         private readonly Image _image;
         private readonly string? _sourcePath;
         private readonly byte[]? _sourceBytes;
-        private GifBolt.GifPlayer? _player;
         private WriteableBitmap? _writeableBitmap;
         private DispatcherTimer? _renderTimer;
-        private bool _isPlaying;
-        private int _repeatCount;
-        private DateTime _lastFrameTimestamp = default;
         private bool _isDisposed;
         private int _generationId;
         private string? _pendingRepeatBehavior;
@@ -128,21 +122,21 @@ namespace GifBolt.Wpf
                         return;
                     }
 
-                    this._player = new GifBolt.GifPlayer();
-                    this._player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
+                    this.Player = new GifBolt.GifPlayer();
+                    this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
                     bool loaded = this._sourceBytes != null
-                        ? this._player.Load(this._sourceBytes)
-                        : this._sourcePath != null && this._player.Load(this._sourcePath);
+                        ? this.Player.Load(this._sourceBytes)
+                        : this._sourcePath != null && this.Player.Load(this._sourcePath);
 
-                    if (!loaded || this._player == null)
+                    if (!loaded || this.Player == null)
                     {
                         var error = this._sourceBytes != null
                             ? new InvalidOperationException("Failed to load GIF from in-memory bytes.")
                             : new InvalidOperationException($"Failed to load GIF from path: {this._sourcePath}. File may not exist or be corrupt.");
 
-                        this._player?.Dispose();
-                        this._player = null;
+                        this.Player?.Dispose();
+                        this.Player = null;
 
                         if (!this._isDisposed && this._generationId == capturedGenerationId)
                         {
@@ -157,15 +151,15 @@ namespace GifBolt.Wpf
 
                     if (displayWidth < 10 || displayHeight < 10)
                     {
-                        displayWidth = this._player.Width;
-                        displayHeight = this._player.Height;
+                        displayWidth = this.Player.Width;
+                        displayHeight = this.Player.Height;
                     }
 
                     byte[]? initialPixels = null;
                     int scaledWidth = displayWidth;
                     int scaledHeight = displayHeight;
 
-                    if (this._player.TryGetFramePixelsBgra32PremultipliedScaled(
+                    if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
                         0,
                         displayWidth,
                         displayHeight,
@@ -248,23 +242,23 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            if (this._player == null)
+            if (this.Player == null)
             {
                 return;
             }
 
-            this._player.Play();
-            this._isPlaying = true;
+            this.Player.Play();
+            this.IsPlaying = true;
             this._frameStartTime = DateTime.UtcNow;
 
             if (this._writeableBitmap != null && !this._isDisposed)
             {
-                this.RenderFrame(this._player.CurrentFrame);
+                this.RenderFrame(this.Player.CurrentFrame);
             }
 
             if (this._renderTimer != null && !this._isDisposed)
             {
-                int initialDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
+                int initialDelay = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
                 int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(initialDelay, FrameTimingHelper.MinRenderIntervalMs);
                 this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
                 this._renderTimer.Start();
@@ -276,13 +270,13 @@ namespace GifBolt.Wpf
         /// </summary>
         public void Pause()
         {
-            if (this._isDisposed || this._player == null)
+            if (this._isDisposed || this.Player == null)
             {
                 return;
             }
 
-            this._player.Pause();
-            this._isPlaying = false;
+            this.Player.Pause();
+            this.IsPlaying = false;
             this._renderTimer?.Stop();
         }
 
@@ -291,13 +285,13 @@ namespace GifBolt.Wpf
         /// </summary>
         public void Stop()
         {
-            if (this._player == null)
+            if (this.Player == null)
             {
                 return;
             }
 
-            this._player.Stop();
-            this._isPlaying = false;
+            this.Player.Stop();
+            this.IsPlaying = false;
             this._renderTimer?.Stop();
         }
 
@@ -313,13 +307,13 @@ namespace GifBolt.Wpf
             }
 
             // If player is not ready yet, store the behavior to apply after loading
-            if (this._player == null)
+            if (this.Player == null)
             {
                 this._pendingRepeatBehavior = repeatBehavior;
                 return;
             }
 
-            this._repeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this._player.IsLooping);
+            this.RepeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this.Player.IsLooping);
         }
 
         /// <summary>
@@ -340,7 +334,7 @@ namespace GifBolt.Wpf
         /// <param name="frameIndex">The index of the frame to render.</param>
         private void RenderFrame(int frameIndex)
         {
-            if (this._isDisposed || this._player == null || this._writeableBitmap == null)
+            if (this._isDisposed || this.Player == null || this._writeableBitmap == null)
             {
                 return;
             }
@@ -350,7 +344,7 @@ namespace GifBolt.Wpf
                 int displayWidth = this._writeableBitmap.PixelWidth;
                 int displayHeight = this._writeableBitmap.PixelHeight;
 
-                if (this._player.TryGetFramePixelsBgra32PremultipliedScaled(
+                if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
                     frameIndex,
                     displayWidth,
                     displayHeight,
@@ -386,7 +380,7 @@ namespace GifBolt.Wpf
         private void OnRenderTick(object? sender, EventArgs e)
         {
             // Early exit if disposed or invalid
-            if (this._isDisposed || this._player == null || !this._isPlaying || this._writeableBitmap == null || this._renderTimer == null)
+            if (this._isDisposed || this.Player == null || !this.IsPlaying || this._writeableBitmap == null || this._renderTimer == null)
             {
                 return;
             }
@@ -394,7 +388,7 @@ namespace GifBolt.Wpf
             try
             {
                 // Get the frame delay for the current frame (respects the 100ms minimum set in base constructor)
-                int frameDelayMs = this._player.GetFrameDelayMs(this._player.CurrentFrame);
+                int frameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
                 long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame
@@ -402,9 +396,9 @@ namespace GifBolt.Wpf
                 {
                     // Advance to next frame and reset the frame start time
                     var advanceResult = FrameAdvanceHelper.AdvanceFrame(
-                        this._player.CurrentFrame,
-                        this._player.FrameCount,
-                        this._repeatCount);
+                        this.Player.CurrentFrame,
+                        this.Player.FrameCount,
+                        this.RepeatCount);
 
                     if (advanceResult.IsComplete)
                     {
@@ -413,13 +407,13 @@ namespace GifBolt.Wpf
                     }
 
                     // Update the current frame and repeat count
-                    this._player.CurrentFrame = advanceResult.NextFrame;
-                    this._repeatCount = advanceResult.UpdatedRepeatCount;
+                    this.Player.CurrentFrame = advanceResult.NextFrame;
+                    this.RepeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameStartTime = DateTime.UtcNow;
                 }
 
                 // Render the current frame
-                this.RenderFrame(this._player.CurrentFrame);
+                this.RenderFrame(this.Player.CurrentFrame);
             }
             catch
             {
@@ -430,12 +424,12 @@ namespace GifBolt.Wpf
         /// <summary>
         /// Releases all resources held by the animation controller.
         /// </summary>
-        public void Dispose()
+        public override void Dispose()
         {
             // Set disposed flag FIRST to block any pending operations
             this._isDisposed = true;
             this._generationId = int.MinValue; // Invalidate generation ID to block pending operations
-            this._isPlaying = false;
+            this.IsPlaying = false;
 
             // Stop and fully release the render timer
             if (this._renderTimer != null)
@@ -445,20 +439,20 @@ namespace GifBolt.Wpf
             }
 
             // Dispose player and stop prefetching thread
-            if (this._player != null)
+            if (this.Player != null)
             {
                 try
                 {
-                    this._player.Stop();
-                    this._player.Dispose();
+                    this.Player.Stop();
                 }
                 catch
                 {
                     // Swallow disposal errors
                 }
-                finally
-                {
-                    this._player = null;
+            }
+
+            // Call base Dispose to clean up player
+            base.Dispose();
                 }
             }
 

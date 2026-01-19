@@ -16,26 +16,18 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 
 /// <summary>
-/// Internal controller managing GIF animation on an Avalonia Image control.
-/// Handles frame decoding, timing, and pixel updates to the display.
+/// Avalonia-specific GIF animation controller using DispatcherTimer for frame timing.
 /// </summary>
-internal sealed class GifAnimationController : IDisposable
+internal sealed class GifAnimationController : GifAnimationControllerBase
 {
     private readonly Image _image;
-    private readonly GifBolt.GifPlayer _player;
     private WriteableBitmap? _writeableBitmap;
-    private DispatcherTimer? _renderTimer;
-    private bool _isPlaying;
-    private int _repeatCount;
-    /// <summary>
-    /// Stocke le timestamp de la dernière frame rendue (pour debug timing réel).
-    /// </summary>
-    private DateTime _lastFrameTimestamp = default;
+    private DispatcherTimer? _animationTimer;
     private DateTime _frameStartTime;
 
-    public int Width => this._player.Width;
-    public int Height => this._player.Height;
-    public int FrameCount => this._player.FrameCount;
+    public int Width => this.Player?.Width ?? 0;
+    public int Height => this.Player?.Height ?? 0;
+    public int FrameCount => this.Player?.FrameCount ?? 0;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
@@ -45,33 +37,36 @@ internal sealed class GifAnimationController : IDisposable
     /// <param name="onLoaded">Callback invoked when loading completes successfully.</param>
     /// <param name="onError">Callback invoked when loading fails.</param>
     public GifAnimationController(Image image, string path, Action? onLoaded = null, Action<Exception>? onError = null)
+        : base()
     {
         this._image = image;
-        this._player = new GifBolt.GifPlayer();
-        // Default: enforce minimum delay per Chrome/macOS/ezgif standard
-        this._player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
         // Load the GIF asynchronously to avoid blocking the UI thread
         System.Threading.Tasks.Task.Run(() =>
         {
             try
             {
-                if (!this._player.Load(path))
+                // Initialize player property
+                this.Player = new GifBolt.GifPlayer();
+                this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
+
+                if (!this.Player.Load(path))
                 {
                     var error = new InvalidOperationException($"Failed to load GIF from path: {path}. File may not exist or be corrupt.");
-                    this._player.Dispose();
+                    this.Player.Dispose();
+                    this.Player = null;
                     global::Avalonia.Threading.Dispatcher.UIThread.Post(() => onError?.Invoke(error));
                     return;
                 }
 
                 var wb = new WriteableBitmap(
-                    new PixelSize(this._player.Width, this._player.Height),
+                    new PixelSize(this.Player.Width, this.Player.Height),
                     new Vector(96, 96),
                     PixelFormat.Bgra8888,
                     AlphaFormat.Premul);
 
                 // Get frame 0 pixels on background thread to avoid UI blocking
-                if (this._player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) && bgraPixels.Length > 0)
+                if (this.Player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) && bgraPixels.Length > 0)
                 {
                     // Copy pixels to bitmap on background thread
                     using (var buffer = wb.Lock())
@@ -87,11 +82,11 @@ internal sealed class GifAnimationController : IDisposable
                     this._image.Source = this._writeableBitmap;
                     this._image.InvalidateVisual();
 
-                    this._renderTimer = new DispatcherTimer
+                    this._animationTimer = new DispatcherTimer
                     {
                         Interval = TimeSpan.FromMilliseconds(16)
                     };
-                    this._renderTimer.Tick += this.OnRenderTick;
+                    this._animationTimer.Tick += this.OnRenderTick;
                     onLoaded?.Invoke();
                 });
             }
@@ -109,7 +104,7 @@ internal sealed class GifAnimationController : IDisposable
     /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
     public void SetRepeatBehavior(string repeatBehavior)
     {
-        this._repeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this._player.IsLooping);
+        this.RepeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this.Player?.IsLooping ?? true);
     }
 
     /// <summary>
@@ -118,9 +113,9 @@ internal sealed class GifAnimationController : IDisposable
     /// <param name="minDelayMs">The minimum frame delay.</param>
     public void SetMinFrameDelayMs(int minDelayMs)
     {
-        if (this._player != null)
+        if (this.Player != null)
         {
-            this._player.SetMinFrameDelayMs(minDelayMs);
+            this.Player.SetMinFrameDelayMs(minDelayMs);
         }
     }
 
@@ -129,23 +124,23 @@ internal sealed class GifAnimationController : IDisposable
     /// </summary>
     public void Play()
     {
-        this._player.Play();
-        this._isPlaying = true;
+        this.Player?.Play();
+        this.IsPlaying = true;
         this._frameStartTime = DateTime.UtcNow;
 
         // Render the current frame immediately to avoid delay
-        if (this._writeableBitmap != null)
+        if (this._writeableBitmap != null && this.Player != null)
         {
-            this.RenderFrame(this._player.CurrentFrame);
+            this.RenderFrame(this.Player.CurrentFrame);
         }
 
-        if (this._renderTimer != null)
+        if (this._animationTimer != null)
         {
             // Démarre le timer avec le délai de la première frame
-            int initialDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
+            int initialDelay = this.Player?.GetFrameDelayMs(this.Player?.CurrentFrame ?? 0) ?? 16;
             int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(initialDelay, FrameTimingHelper.MinRenderIntervalMs);
-            this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
-            this._renderTimer.Start();
+            this._animationTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
+            this._animationTimer.Start();
         }
     }
 
@@ -154,9 +149,9 @@ internal sealed class GifAnimationController : IDisposable
     /// </summary>
     public void Pause()
     {
-        this._player.Pause();
-        this._isPlaying = false;
-        this._renderTimer?.Stop();
+        this.Player?.Pause();
+        this.IsPlaying = false;
+        this._animationTimer?.Stop();
     }
 
     /// <summary>
@@ -164,9 +159,9 @@ internal sealed class GifAnimationController : IDisposable
     /// </summary>
     public void Stop()
     {
-        this._player.Stop();
-        this._isPlaying = false;
-        this._renderTimer?.Stop();
+        this.Player?.Stop();
+        this.IsPlaying = false;
+        this._animationTimer?.Stop();
     }
 
     /// <summary>
@@ -175,14 +170,14 @@ internal sealed class GifAnimationController : IDisposable
     /// <param name="frameIndex">The index of the frame to render.</param>
     private void RenderFrame(int frameIndex)
     {
-        if (this._player == null || this._writeableBitmap == null)
+        if (this.Player == null || this._writeableBitmap == null)
         {
             return;
         }
 
         try
         {
-            if (this._player.TryGetFramePixelsBgra32Premultiplied(frameIndex, out byte[] bgraPixels))
+            if (this.Player.TryGetFramePixelsBgra32Premultiplied(frameIndex, out byte[] bgraPixels))
             {
                 if (bgraPixels.Length == 0)
                 {
@@ -204,7 +199,7 @@ internal sealed class GifAnimationController : IDisposable
 
     private void OnRenderTick(object? sender, EventArgs e)
     {
-        if (this._player == null || !this._isPlaying || this._writeableBitmap == null || this._renderTimer == null)
+        if (this.Player == null || !this.IsPlaying || this._writeableBitmap == null || this._animationTimer == null)
         {
             return;
         }
@@ -212,7 +207,7 @@ internal sealed class GifAnimationController : IDisposable
         try
         {
             // Get the frame delay for the current frame (respects the minimum set in base constructor)
-            int frameDelayMs = this._player.GetFrameDelayMs(this._player.CurrentFrame);
+            int frameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
             long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
 
             // Only advance frame if enough time has elapsed for the current frame
@@ -220,9 +215,9 @@ internal sealed class GifAnimationController : IDisposable
             {
                 // Advance to the next frame using shared helper
                 var advanceResult = FrameAdvanceHelper.AdvanceFrame(
-                    this._player.CurrentFrame,
-                    this._player.FrameCount,
-                    this._repeatCount);
+                    this.Player.CurrentFrame,
+                    this.Player.FrameCount,
+                    this.RepeatCount);
 
                 if (advanceResult.IsComplete)
                 {
@@ -231,13 +226,13 @@ internal sealed class GifAnimationController : IDisposable
                 }
 
                 // Update the current frame and repeat count
-                this._player.CurrentFrame = advanceResult.NextFrame;
-                this._repeatCount = advanceResult.UpdatedRepeatCount;
+                this.Player.CurrentFrame = advanceResult.NextFrame;
+                this.RepeatCount = advanceResult.UpdatedRepeatCount;
                 this._frameStartTime = DateTime.UtcNow;
             }
 
             // Render the current frame
-            this.RenderFrame(this._player.CurrentFrame);
+            this.RenderFrame(this.Player.CurrentFrame);
         }
         catch
         {
@@ -250,11 +245,8 @@ internal sealed class GifAnimationController : IDisposable
     /// </summary>
     public void Dispose()
     {
-        this._renderTimer?.Stop();
-        this._renderTimer = null;
-        this._player?.Dispose();
-        this._writeableBitmap = null;
-        this._lastFrameTimestamp = default;
-        this._frameStartTime = default;
+        this._animationTimer?.Stop();
+        this._animationTimer = null;
+        base.Dispose();
     }
 }
