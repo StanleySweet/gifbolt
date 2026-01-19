@@ -28,6 +28,7 @@ namespace GifBolt.Wpf
         private const string _nativeLib = "GifBolt.Native";
 
         // Static dependency properties
+
         /// <summary>
         /// Identifies the <see cref="Source"/> dependency property.
         /// </summary>

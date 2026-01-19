@@ -17,10 +17,13 @@ namespace GifBolt.Internal
     {
         /// <summary>Nearest-neighbor (point) sampling - fastest, lowest quality.</summary>
         Nearest = 0,
+
         /// <summary>Bilinear interpolation - good balance of speed and quality.</summary>
         Bilinear = 1,
+
         /// <summary>Bicubic interpolation - higher quality, slower.</summary>
         Bicubic = 2,
+
         /// <summary>Lanczos resampling - highest quality, slowest.</summary>
         Lanczos = 3
     }

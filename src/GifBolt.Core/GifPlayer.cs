@@ -21,8 +21,10 @@ public sealed class GifPlayer : IDisposable
 
     /// <summary>Gets a value indicating whether playback is in progress.</summary>
     public bool IsPlaying { get; private set; }
+
     /// <summary>Gets a value indicating whether the GIF loops indefinitely.</summary>
     public bool IsLooping { get; private set; }
+
     /// <summary>Gets or sets a value indicating whether background frame prefetching is enabled.</summary>
     /// <remarks>
     /// When enabled, frames ahead of the current playback position are decoded in background,
@@ -32,6 +34,7 @@ public sealed class GifPlayer : IDisposable
 
     /// <summary>Gets the total number of frames in the GIF.</summary>
     public int FrameCount { get; private set; }
+
     /// <summary>Gets or sets the index of the current frame.</summary>
     public int CurrentFrame
     {
@@ -39,6 +42,7 @@ public sealed class GifPlayer : IDisposable
         set
         {
             this._currentFrame = value;
+
             // Update prefetch thread about current playback position
             if (this._decoder != null && this.EnablePrefetching)
             {
@@ -46,9 +50,12 @@ public sealed class GifPlayer : IDisposable
             }
         }
     }
+
     private int _currentFrame;
+
     /// <summary>Gets the width of the image in pixels.</summary>
     public int Width { get; private set; }
+
     /// <summary>Gets the height of the image in pixels.</summary>
     public int Height { get; private set; }
 
@@ -88,8 +95,10 @@ public sealed class GifPlayer : IDisposable
 
     /// <summary>Starts playback of the GIF.</summary>
     public void Play() => this.IsPlaying = true;
+
     /// <summary>Pauses playback of the GIF.</summary>
     public void Pause() => this.IsPlaying = false;
+
     /// <summary>Stops playback and resets to the first frame.</summary>
     public void Stop()
     {
