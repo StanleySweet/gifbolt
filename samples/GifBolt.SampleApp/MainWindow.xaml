@@ -36,7 +36,6 @@
                                 </LinearGradientBrush>
                             </Border.Background>
                             <gifbolt:GifBoltControl x:Name="GifControl"
-                                                   Source="sample.gif"
                                                    AutoStart="True"
                                                    Loop="True"/>
                         </Border>
@@ -79,7 +78,6 @@
                                 <SolidColorBrush Color="#22000000"/>
                             </Border.Background>
                             <Image x:Name="ImageBehaviorImage"
-                                   gifbolt:ImageBehavior.AnimatedSource="sample.gif"
                                    gifbolt:ImageBehavior.AutoStart="True"
                                    gifbolt:ImageBehavior.RepeatBehavior="Forever"/>
                         </Border>

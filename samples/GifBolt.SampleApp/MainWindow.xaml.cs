@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 using System;
 using System.IO;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using GifBolt;
@@ -49,54 +48,48 @@ namespace GifBolt.SampleApp
         {
             try
             {
-                // Load sample.gif as embedded resource from assembly
-                var assembly = Assembly.GetExecutingAssembly();
-                string resourceName = "GifBolt.SampleApp.sample.gif";
-
-                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                // Try to find sample.gif in multiple locations
+                string[] possiblePaths = new[]
                 {
-                    if (stream != null)
+                    "sample.gif",
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "sample.gif"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../tests/assets/sample.gif"),
+                    Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../tests/assets/sample.gif"))
+                };
+
+                string? foundPath = null;
+                foreach (var path in possiblePaths)
+                {
+                    if (File.Exists(path))
                     {
-                        using (var memory = new MemoryStream())
-                        {
-                            stream.CopyTo(memory);
-                            byte[] gifData = memory.ToArray();
-
-                            // Load both controls with in-memory bytes
-                            this.GifControl.LoadGif(gifData);
-
-                            if (this.ImageBehaviorImage != null)
-                            {
-                                // For ImageBehavior, we need a path, so fall back to file reference
-                                // (or extend ImageBehavior to support in-memory loading separately)
-                                ImageBehavior.SetAnimatedSource(this.ImageBehaviorImage, "sample.gif");
-                            }
-
-                            this.UpdateStatus("Loaded sample.gif from embedded resources");
-                        }
+                        foundPath = path;
+                        break;
                     }
-                    else
+                }
+
+                if (foundPath != null)
+                {
+                    // Load as in-memory bytes
+                    byte[] gifData = File.ReadAllBytes(foundPath);
+                    this.GifControl.LoadGif(gifData);
+
+                    if (this.ImageBehaviorImage != null)
                     {
-                        // Fallback: load from file if resource not found
-                        this.GifControl.LoadGif("sample.gif");
-                        this.UpdateStatus("Loaded sample.gif from file (resource not found)");
+                        ImageBehavior.SetAnimatedSource(this.ImageBehaviorImage, foundPath);
                     }
+
+                    this.UpdateStatus($"Loaded sample.gif from {Path.GetFileName(foundPath)} (in-memory)");
+                }
+                else
+                {
+                    this.UpdateStatus("sample.gif not found - use Load button to select a GIF");
+                    LogToFile("sample.gif not found in any expected location");
                 }
             }
             catch (Exception ex)
             {
                 this.UpdateStatus($"Failed to load sample.gif: {ex.Message}");
                 LogToFile($"Failed to load sample.gif: {ex}");
-
-                // Fallback to file loading
-                try
-                {
-                    this.GifControl.LoadGif("sample.gif");
-                }
-                catch
-                {
-                    // Ignore fallback errors
-                }
             }
         }
 
