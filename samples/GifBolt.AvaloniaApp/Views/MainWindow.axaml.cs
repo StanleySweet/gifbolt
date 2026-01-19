@@ -16,7 +16,7 @@ namespace GifBolt.AvaloniaApp.Views;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private GifBoltControl? _gifControl;
+    private Image? _gifControl;
     private Image? _imageBehavior;
 
     /// <summary>
@@ -31,13 +31,8 @@ public partial class MainWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        this._gifControl = this.FindControl<GifBoltControl>("gifControl");
+        this._gifControl = this.FindControl<Image>("gifControl");
         this._imageBehavior = this.FindControl<Image>("imageBehaviorImage");
-        // Set default minimum frame delay (100ms per Chrome/macOS/ezgif standard)
-        if (this._gifControl != null)
-        {
-            this._gifControl.MinFrameDelayMs = FrameTimingHelper.DefaultMinFrameDelayMs;
-        }
     }
 
     private void OnWindowOpened(object? sender, EventArgs e)
@@ -95,20 +90,14 @@ public partial class MainWindow : Window
 
     private void OnPlayClick(object? sender, RoutedEventArgs e)
     {
-        this._gifControl?.Play();
-        this.UpdateStatus("Playing GIF animation");
     }
 
     private void OnPauseClick(object? sender, RoutedEventArgs e)
     {
-        this._gifControl?.Pause();
-        this.UpdateStatus("Paused");
     }
 
     private void OnStopClick(object? sender, RoutedEventArgs e)
     {
-        this._gifControl?.Stop();
-        this.UpdateStatus("Stopped - Reset to first frame");
     }
 
     private async void OnLoadClick(object? sender, RoutedEventArgs e)
@@ -130,10 +119,13 @@ public partial class MainWindow : Window
         {
             var path = files[0].Path.LocalPath;
             // Update both controls with the same loaded GIF
-            this._gifControl?.LoadGif(path);
+            if (this._gifControl != null)
+            {
+                AnimationBehavior.SetSourceUri(this._gifControl, path);
+            }
             if (this._imageBehavior != null)
             {
-                ImageBehavior.SetAnimatedSource(this._imageBehavior, path);
+                AnimationBehavior.SetSourceUri(this._imageBehavior, path);
             }
             this.UpdateStatus($"Loaded: {System.IO.Path.GetFileName(path)}");
         }
@@ -141,13 +133,6 @@ public partial class MainWindow : Window
 
     private void OnFilterChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (this._gifControl != null && e.AddedItems.Count > 0)
-        {
-            var selectedIndex = (sender as ComboBox)?.SelectedIndex ?? 1;
-            this._gifControl.ScalingFilter = (GifBolt.Internal.ScalingFilter)selectedIndex;
-            this._gifControl.InvalidateVisual();
-            this.UpdateStatus($"Scaling filter: {(GifBolt.Internal.ScalingFilter)selectedIndex}");
-        }
     }
 
     private void UpdateStatus(string message)

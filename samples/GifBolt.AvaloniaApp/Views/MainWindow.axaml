@@ -27,8 +27,8 @@
             <!-- Custom Control Tab -->
             <TabItem Header="Custom Control">
                 <StackPanel Spacing="15" Margin="20">
-                    <TextBlock Text="GifBoltControl Example" FontSize="16" FontWeight="Bold"/>
-                    <TextBlock Text="Using the direct GifBoltControl API" Foreground="Gray"/>
+                    <TextBlock Text="AnimationBehavior Example" FontSize="16" FontWeight="Bold"/>
+                    <TextBlock Text="Using attached properties on standard Image controls" Foreground="Gray"/>
 
                     <Border BorderBrush="Gray" BorderThickness="1" Width="450" Height="350"
                             HorizontalAlignment="Left">
@@ -38,12 +38,10 @@
                                 <GradientStop Color="#FF90CAF9" Offset="1"/>
                             </LinearGradientBrush>
                         </Border.Background>
-                        <gif:GifBoltControl x:Name="gifControl"
-                                          Source="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
-                                          AutoStart="True"
-                                          Loop="True"
-                                          Stretch="Uniform"
-                                          ScalingFilter="Lanczos"/>
+                        <Image x:Name="gifControl"
+                               gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
+                               gif:AnimationBehavior.RepeatBehavior="Forever"
+                               Stretch="Uniform"/>
                     </Border>
 
                     <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
@@ -58,9 +56,6 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Button Content="Play" Click="OnPlayClick" Width="80"/>
-                        <Button Content="Pause" Click="OnPauseClick" Width="80"/>
-                        <Button Content="Stop" Click="OnStopClick" Width="80"/>
                         <Button Content="Load..." Click="OnLoadClick" Width="80"/>
                     </StackPanel>
                 </StackPanel>
@@ -69,25 +64,24 @@
             <!-- Attached Properties Tab -->
             <TabItem Header="Attached Properties">
                 <StackPanel Spacing="15" Margin="20">
-                    <TextBlock Text="ImageBehavior Example (WpfAnimatedGif Compatible)"
+                    <TextBlock Text="AnimationBehavior Example (XamlAnimatedGif Compatible)"
                                FontSize="16" FontWeight="Bold"/>
                     <TextBlock Text="Using attached properties on standard Image controls"
                                Foreground="Gray"/>
 
-                    <TextBlock Text="✅ Live Demo: Image control with gif:ImageBehavior.AnimatedSource"
+                    <TextBlock Text="✅ Live Demo: Image control with gif:AnimationBehavior.SourceUri"
                                FontWeight="SemiBold" Margin="0,10,0,5"/>
 
                     <Border BorderBrush="Gray" BorderThickness="1" Width="450" Height="350"
                             HorizontalAlignment="Left" Background="#22000000">
                            <Image x:Name="imageBehaviorImage"
-                               gif:ImageBehavior.AnimatedSource="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
-                               gif:ImageBehavior.AutoStart="True"
-                               gif:ImageBehavior.RepeatBehavior="Forever"
+                               gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
+                               gif:AnimationBehavior.RepeatBehavior="Forever"
                                Stretch="Uniform"/>
                     </Border>
 
                     <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,10,0,0">
-                        The above Image uses attached properties for WpfAnimatedGif compatibility.
+                        The above Image uses attached properties for XamlAnimatedGif compatibility.
                         Drop in any standard Avalonia Image control!
                     </TextBlock>
 
@@ -96,16 +90,16 @@
                         <StackPanel Spacing="5">
                             <TextBlock Text="✨ Now Available!" FontWeight="Bold" Foreground="LightGreen"/>
                             <TextBlock TextWrapping="Wrap" Foreground="#DDFFFFFF">
-                                ImageBehavior attached properties are now fully functional:
+                                AnimationBehavior attached properties are now fully functional:
                             </TextBlock>
                             <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,5,0,0">
-                                &lt;Image gif:ImageBehavior.AnimatedSource="file.gif"
+                                &lt;Image gif:AnimationBehavior.SourceUri="file.gif"
                             </TextBlock>
                             <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,0,0,0">
-                                       gif:ImageBehavior.RepeatBehavior="Forever"
+                                       gif:AnimationBehavior.RepeatBehavior="Forever"
                             </TextBlock>
                             <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,0,0,0">
-                                       gif:ImageBehavior.AutoStart="True"/&gt;
+                                       gif:AnimationBehavior.AnimateInDesignMode="True"/&gt;
                             </TextBlock>
                         </StackPanel>
                     </Border>
