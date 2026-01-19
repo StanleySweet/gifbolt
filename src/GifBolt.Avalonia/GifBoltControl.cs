@@ -7,6 +7,7 @@
 
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -82,6 +83,7 @@ namespace GifBolt.Avalonia
         private double _cachedViewportWidth = -1;
         private double _cachedViewportHeight = -1;
         private bool _hasRenderedOnce;
+        private string? _tempFilePath;
 
         /// <summary>
         /// Gets or sets the path or URI to the GIF image source.
@@ -297,6 +299,7 @@ namespace GifBolt.Avalonia
             this._player?.Dispose();
             this._player = null;
             this._bitmap = null;
+            this.CleanupTempFile();
         }
 
         /// <summary>
@@ -418,13 +421,22 @@ namespace GifBolt.Avalonia
                 this._player = null;
             }
 
+            this.CleanupTempFile();
+
             if (string.IsNullOrWhiteSpace(this.Source))
             {
                 this._bitmap = null;
                 return;
             }
 
-            var source = this.Source;
+            var resolvedPath = this.ResolveSourceToFilePath(this.Source);
+            if (string.IsNullOrWhiteSpace(resolvedPath) || !File.Exists(resolvedPath))
+            {
+                Debug.WriteLine($"GifBoltControl: could not resolve source '{this.Source}'.");
+                return;
+            }
+
+            var source = resolvedPath;
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
@@ -503,6 +515,108 @@ namespace GifBolt.Avalonia
             }
 
             this.LoadGifPlayer();
+        }
+
+        private string? ResolveSourceToFilePath(string source)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(source))
+                {
+                    return null;
+                }
+
+                if (Uri.TryCreate(source, UriKind.Absolute, out Uri? uri))
+                {
+                    switch (uri.Scheme.ToLowerInvariant())
+                    {
+                        case "file":
+                            return uri.LocalPath;
+
+                        case "pack":
+                        case "avares":
+                        {
+                            var assetUri = uri.Scheme == "pack"
+                                ? this.ConvertPackToAvaresUri(uri)
+                                : uri;
+
+                            if (assetUri != null && AssetLoader.Exists(assetUri))
+                            {
+                                this._tempFilePath = this.ExtractAssetToTempFile(assetUri);
+                                return this._tempFilePath;
+                            }
+
+                            return null;
+                        }
+                    }
+                }
+
+                return Path.GetFullPath(source);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to resolve source '{source}': {ex.Message}");
+                return null;
+            }
+        }
+
+        private Uri? ConvertPackToAvaresUri(Uri packUri)
+        {
+            if (!string.Equals(packUri.Scheme, "pack", StringComparison.OrdinalIgnoreCase))
+            {
+                return packUri;
+            }
+
+            string assemblyName = this.GetType().Assembly.GetName().Name ?? "GifBolt.Avalonia";
+            string assetPath = packUri.AbsolutePath;
+
+            if (!assetPath.StartsWith('/'))
+            {
+                assetPath = "/" + assetPath;
+            }
+
+            return new Uri($"avares://{assemblyName}{assetPath}");
+        }
+
+        private string ExtractAssetToTempFile(Uri assetUri)
+        {
+            string tempDirectory = Path.Combine(Path.GetTempPath(), "gifbolt");
+            Directory.CreateDirectory(tempDirectory);
+
+            string extension = Path.GetExtension(assetUri.AbsolutePath);
+            if (string.IsNullOrEmpty(extension))
+            {
+                extension = ".gif";
+            }
+
+            string tempFile = Path.Combine(tempDirectory, Guid.NewGuid().ToString("N") + extension);
+
+            using (var stream = AssetLoader.Open(assetUri))
+            using (var fileStream = File.Create(tempFile))
+            {
+                stream.CopyTo(fileStream);
+            }
+
+            return tempFile;
+        }
+
+        private void CleanupTempFile()
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(this._tempFilePath) && File.Exists(this._tempFilePath))
+                {
+                    File.Delete(this._tempFilePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to delete temp file '{this._tempFilePath}': {ex.Message}");
+            }
+            finally
+            {
+                this._tempFilePath = null;
+            }
         }
     }
 }
