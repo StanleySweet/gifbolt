@@ -55,13 +55,16 @@ if(NOT MSVC)
     target_compile_options(GifBolt.Native PRIVATE -fPIC)
 endif()
 
-# Optimization flags
-if(NOT MSVC)
+# C++ Runtime linking: use static linking to eliminate runtime dependencies
+if(MSVC)
+    # Replace dynamic CRT (/MD, /MDd) with static (/MT, /MTd)
+    set_property(TARGET GifBolt.Native PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+    # Optimization flags
+    target_compile_options(GifBolt.Native PRIVATE $<$<CONFIG:Release>:/O2> $<$<CONFIG:Debug>:/RTC1>)
+else()
     # GCC/Clang: -O3 for maximum optimization
     target_compile_options(GifBolt.Native PRIVATE -O3)
-else()
-    # MSVC: /O2 for release optimization, /RTC1 for debug
-    target_compile_options(GifBolt.Native PRIVATE $<$<CONFIG:Release>:/O2> $<$<CONFIG:Debug>:/RTC1>)
 endif()
 
 # Export macro for Windows builds
