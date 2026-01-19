@@ -71,6 +71,8 @@ namespace GifBolt.Wpf
         }
 
         private readonly Image _image;
+        private readonly string? _sourcePath;
+        private readonly byte[]? _sourceBytes;
         private GifBolt.GifPlayer? _player;
         private WriteableBitmap? _writeableBitmap;
         private DispatcherTimer? _renderTimer;
@@ -80,7 +82,6 @@ namespace GifBolt.Wpf
         private bool _isDisposed;
         private int _generationId;
         private string? _pendingRepeatBehavior;
-        private bool? _initialAutoStart;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
@@ -93,49 +94,72 @@ namespace GifBolt.Wpf
         public GifAnimationController(Image image, string path, Action? onLoaded = null, Action<Exception>? onError = null)
         {
             this._image = image;
+            this._sourcePath = path;
+            this._sourceBytes = null;
             this._generationId = System.Environment.TickCount; // Unique ID for this instance
 
-            // Load the GIF asynchronously to avoid blocking the UI thread
+            this.BeginLoad(onLoaded, onError);
+        }
+
+        /// <summary>
+        /// Initializes a new instance using in-memory GIF bytes.
+        /// </summary>
+        public GifAnimationController(Image image, byte[] sourceBytes, Action? onLoaded = null, Action<Exception>? onError = null)
+        {
+            this._image = image;
+            this._sourceBytes = sourceBytes;
+            this._sourcePath = null;
+            this._generationId = System.Environment.TickCount;
+
+            this.BeginLoad(onLoaded, onError);
+        }
+
+        private void BeginLoad(Action? onLoaded, Action<Exception>? onError)
+        {
             int capturedGenerationId = this._generationId;
+
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
                 {
-                    // Check if disposed before proceeding
                     if (this._isDisposed || this._generationId != capturedGenerationId)
                     {
                         return;
                     }
 
                     this._player = new GifBolt.GifPlayer();
-
-                    // Default: enforce minimum delay per Chrome/macOS/ezgif standard
                     this._player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
-                    if (!this._player.Load(path))
+                    bool loaded = this._sourceBytes != null
+                        ? this._player.Load(this._sourceBytes)
+                        : this._sourcePath != null && this._player.Load(this._sourcePath);
+
+                    if (!loaded || this._player == null)
                     {
-                        var error = new InvalidOperationException($"Failed to load GIF from path: {path}. File may not exist or be corrupt.");
-                        this._player.Dispose();
+                        var error = this._sourceBytes != null
+                            ? new InvalidOperationException("Failed to load GIF from in-memory bytes.")
+                            : new InvalidOperationException($"Failed to load GIF from path: {this._sourcePath}. File may not exist or be corrupt.");
+
+                        this._player?.Dispose();
                         this._player = null;
+
                         if (!this._isDisposed && this._generationId == capturedGenerationId)
                         {
                             this._image.Dispatcher.BeginInvoke(() => onError?.Invoke(error));
                         }
+
                         return;
                     }
 
-                    // Get target display dimensions from the Image control
                     int displayWidth = Math.Max(1, (int)this._image.ActualWidth);
                     int displayHeight = Math.Max(1, (int)this._image.ActualHeight);
 
-                    // Fall back to original dimensions if display size is too small (e.g., at design time)
                     if (displayWidth < 10 || displayHeight < 10)
                     {
                         displayWidth = this._player.Width;
                         displayHeight = this._player.Height;
                     }
 
-                    // Get frame 0 pixels scaled to display dimensions on background thread (safe operation)
                     byte[]? initialPixels = null;
                     int scaledWidth = displayWidth;
                     int scaledHeight = displayHeight;
@@ -150,17 +174,14 @@ namespace GifBolt.Wpf
                         filter: GifBolt.Internal.ScalingFilter.Lanczos) &&
                         bgraPixels.Length > 0)
                     {
-                        // Copy the pixels array on the background thread to avoid blocking on UI thread
                         initialPixels = new byte[bgraPixels.Length];
                         System.Buffer.BlockCopy(bgraPixels, 0, initialPixels, 0, bgraPixels.Length);
                         scaledWidth = outWidth;
                         scaledHeight = outHeight;
                     }
 
-                    // All UI element creation and manipulation on the UI thread
                     this._image.Dispatcher.BeginInvoke(() =>
                     {
-                        // Skip if already disposed or superseded by newer controller
                         if (this._isDisposed || this._generationId != capturedGenerationId)
                         {
                             return;
@@ -176,7 +197,6 @@ namespace GifBolt.Wpf
                                 PixelFormats.Bgra32,
                                 null);
 
-                            // Write initial frame pixels on UI thread
                             if (initialPixels != null && initialPixels.Length > 0)
                             {
                                 wb.WritePixels(
@@ -189,14 +209,11 @@ namespace GifBolt.Wpf
                             this._writeableBitmap = wb;
                             this._image.Source = this._writeableBitmap;
 
-                            this._renderTimer = new DispatcherTimer(
-                                TimeSpan.FromMilliseconds(16),
-                                DispatcherPriority.Render,
-                                this.OnRenderTick,
-                                this._image.Dispatcher);
+                            this._renderTimer = new DispatcherTimer(DispatcherPriority.Render);
+                            this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
+                            this._renderTimer.Tick += this.OnRenderTick;
 
-                            // Apply pending repeat behavior if set before loading completed
-                            if (this._pendingRepeatBehavior != null)
+                            if (!string.IsNullOrWhiteSpace(this._pendingRepeatBehavior))
                             {
                                 this.SetRepeatBehavior(this._pendingRepeatBehavior);
                                 this._pendingRepeatBehavior = null;
@@ -206,7 +223,10 @@ namespace GifBolt.Wpf
                         }
                         catch (Exception ex)
                         {
-                            onError?.Invoke(ex);
+                            if (!this._isDisposed && this._generationId == capturedGenerationId)
+                            {
+                                onError?.Invoke(ex);
+                            }
                         }
                     });
                 }
@@ -220,12 +240,14 @@ namespace GifBolt.Wpf
             });
         }
 
-        /// <summary>
-        /// Starts playback of the animation.
-        /// </summary>
         public void Play()
         {
-            if (this._isDisposed || this._player == null)
+            if (this._isDisposed)
+            {
+                return;
+            }
+
+            if (this._player == null)
             {
                 return;
             }
@@ -233,7 +255,6 @@ namespace GifBolt.Wpf
             this._player.Play();
             this._isPlaying = true;
 
-            // Render the current frame immediately to avoid delay
             if (this._writeableBitmap != null && !this._isDisposed)
             {
                 this.RenderFrame(this._player.CurrentFrame);
@@ -241,9 +262,9 @@ namespace GifBolt.Wpf
 
             if (this._renderTimer != null && !this._isDisposed)
             {
-                // Start the timer with the delay of the first frame
                 int initialDelay = this._player.GetFrameDelayMs(this._player.CurrentFrame);
-                this._renderTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(initialDelay, 16));
+                int effectiveDelay = FrameAdvanceHelper.GetEffectiveFrameDelay(initialDelay, FrameTimingHelper.MinRenderIntervalMs);
+                this._renderTimer.Interval = TimeSpan.FromMilliseconds(effectiveDelay);
                 this._renderTimer.Start();
             }
         }

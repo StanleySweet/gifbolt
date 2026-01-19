@@ -271,11 +271,6 @@ public sealed class GifPlayer : IDisposable
         }
     }
 
-    private bool LoadDecoder(Func<DecoderHandle, bool> loader)
-    {
-        return this.LoadDecoder(loader, "unspecified");
-    }
-
     private bool LoadDecoder(Func<DecoderHandle, bool> loader, string debugContext)
     {
         this.DisposeDecoder();

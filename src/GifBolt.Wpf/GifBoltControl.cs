@@ -16,6 +16,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using GifBolt.Internal;
+using GifBolt.Wpf;
 
 namespace GifBolt.Wpf
 {
@@ -120,6 +121,9 @@ namespace GifBolt.Wpf
 
         [DllImport(_nativeLib, EntryPoint = "GifBolt_LoadGif", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern int GifBolt_LoadGif(IntPtr handle, string path);
+
+        [DllImport(_nativeLib, EntryPoint = "GifBolt_LoadGifFromMemory", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GifBolt_LoadGifFromMemory(IntPtr handle, byte[] data, int length);
 
         [DllImport(_nativeLib, EntryPoint = "GifBolt_Play", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GifBolt_Play(IntPtr handle);
@@ -320,6 +324,7 @@ namespace GifBolt.Wpf
                 this._native = IntPtr.Zero;
             }
 
+            // No temp files to clean when using in-memory sources
             this._firstFrameBitmap = null;
         }
 
@@ -346,6 +351,33 @@ namespace GifBolt.Wpf
             }
         }
 
+        /// <summary>
+        /// Loads a GIF from a path or pack:// URI, adapting to the source type.
+        /// </summary>
+        /// <param name="path">File path or pack:// URI</param>
+        /// <returns>Non-zero if successful, 0 if failed</returns>
+        private int LoadGifAdaptive(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return 0;
+            }
+
+            // If it's a pack:// URI, resolve it to bytes and load from memory
+            if (path.StartsWith("pack://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (GifSourceResolver.TryResolve(path, out byte[]? bytes, out string? filePath) && bytes != null)
+                {
+                    return GifBolt_LoadGifFromMemory(this._native, bytes, bytes.Length);
+                }
+
+                return 0;
+            }
+
+            // Otherwise, load directly from file path
+            return GifBolt_LoadGif(this._native, path);
+        }
+
         private void LoadGifIfReady()
         {
             if (!this._isLoaded)
@@ -364,9 +396,20 @@ namespace GifBolt.Wpf
                 return;
             }
 
+            // Resolve pack:// URIs upfront
+            string? pathToLoad = null;
+            if (sourceBytes == null && !string.IsNullOrWhiteSpace(this.Source))
+            {
+                if (GifSourceResolver.TryResolve(this.Source, out byte[]? resolvedBytes, out string? resolvedPath))
+                {
+                    sourceBytes = resolvedBytes;
+                    pathToLoad = resolvedPath;
+                }
+            }
+
             // Preload first frame asynchronously
             byte[]? bytesToLoad = sourceBytes;
-            string? pathToLoad = sourceBytes == null ? this.Source : null;
+            string? pathForGifPlayer = pathToLoad;
 
             Task.Run(() =>
             {
@@ -375,7 +418,7 @@ namespace GifBolt.Wpf
                     var player = new GifPlayer();
                     bool loaded = bytesToLoad != null
                         ? player.Load(bytesToLoad)
-                        : player.Load(pathToLoad!);
+                        : player.Load(pathForGifPlayer!);
 
                     if (!loaded)
                     {
@@ -423,19 +466,16 @@ namespace GifBolt.Wpf
             this.EnsureNative();
             if (this._native != IntPtr.Zero)
             {
-                // For in-memory bytes, use GifPlayer to load, then pass native renderer the same bytes
                 if (sourceBytes != null)
                 {
-                    // Create a temp file for native renderer if needed, or extend native API
-                    // For now, we'll just load via GifPlayer's in-memory support
-                    Debug.WriteLine("GifBoltControl: In-memory GIF loaded via GifPlayer (native renderer uses GifBolt_LoadGif)");
-                }
-                else if (GifBolt_LoadGif(this._native, pathToLoad!) != 0)
-                {
-                    if (this.AutoStart)
+                    if (GifBolt_LoadGifFromMemory(this._native, sourceBytes, sourceBytes.Length) != 0 && this.AutoStart)
                     {
                         GifBolt_Play(this._native);
                     }
+                }
+                else if (!string.IsNullOrWhiteSpace(pathToLoad) && GifBolt_LoadGif(this._native, pathToLoad) != 0 && this.AutoStart)
+                {
+                    GifBolt_Play(this._native);
                 }
             }
         }

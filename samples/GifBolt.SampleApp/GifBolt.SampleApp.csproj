@@ -10,6 +10,11 @@
     <ProjectReference Include="..\..\src\GifBolt.Wpf\GifBolt.Wpf.csproj" />
   </ItemGroup>
 
+  <!-- Embed sample.gif as WPF Resource for pack: URI testing -->
+  <ItemGroup>
+    <Resource Include="sample.gif" />
+  </ItemGroup>
+
   <!-- Copy native DLL to output directory -->
   <Target Name="CopyNativeDLL" AfterTargets="Build">
     <PropertyGroup>

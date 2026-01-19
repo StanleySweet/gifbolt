@@ -7,6 +7,8 @@
 #include <memory>
 #include <string>
 
+#include <cstddef>
+
 #include "IDeviceCommandContext.h"
 
 namespace GifBolt
@@ -46,6 +48,12 @@ class GifBoltRenderer
     /// \param path The file path or URL to the GIF image.
     /// \return true if the GIF was loaded successfully; false otherwise.
     bool LoadGif(const std::string& path);
+
+    /// \brief Loads a GIF from an in-memory buffer.
+    /// \param data Pointer to GIF data.
+    /// \param length Length of the data buffer in bytes.
+    /// \return true if the GIF was loaded successfully; false otherwise.
+    bool LoadGifFromMemory(const uint8_t* data, std::size_t length);
 
     /// \brief Starts playback of the loaded GIF.
     void Play();

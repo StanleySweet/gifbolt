@@ -351,6 +351,18 @@ extern "C"
         return r->LoadGif(path) ? 1 : 0;
     }
 
+    GB_API int GifBolt_LoadGifFromMemory(gb_renderer_t renderer, const void* data, int length)
+    {
+        if ((renderer == nullptr) || (data == nullptr) || (length <= 0))
+        {
+            return 0;
+        }
+
+        auto* r = reinterpret_cast<GifBolt::GifBoltRenderer*>(renderer);
+        const auto* bytes = reinterpret_cast<const uint8_t*>(data);
+        return r->LoadGifFromMemory(bytes, static_cast<std::size_t>(length)) ? 1 : 0;
+    }
+
     GB_API void GifBolt_Play(gb_renderer_t renderer)
     {
         if (renderer == nullptr)

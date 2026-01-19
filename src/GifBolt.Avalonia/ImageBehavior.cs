@@ -14,6 +14,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using System.Diagnostics;
 
 namespace GifBolt.Avalonia
 {
@@ -278,8 +279,8 @@ namespace GifBolt.Avalonia
                 },
                 onError: (ex) =>
                 {
-                    Console.WriteLine($"[GifBolt] ERROR: Failed to load GIF: {ex.Message}");
-                    Console.WriteLine($"[GifBolt] Stack trace: {ex.StackTrace}");
+                    Debug.WriteLine($"[GifBolt] ERROR: Failed to load GIF: {ex.Message}");
+                    Debug.WriteLine($"[GifBolt] Stack trace: {ex.StackTrace}");
                 });
         }
 
@@ -335,12 +336,12 @@ namespace GifBolt.Avalonia
                         {
                             assets.CopyTo(fileStream);
                         }
-                        Console.WriteLine($"[GifBolt] Asset extracted to: {tempPath}");
+                        Debug.WriteLine($"[GifBolt] Asset extracted to: {tempPath}");
                         return tempPath;
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[GifBolt] Failed to load asset: {ex.Message}");
+                        Debug.WriteLine($"[GifBolt] Failed to load asset: {ex.Message}");
                         return null;
                     }
                 }
@@ -375,7 +376,7 @@ namespace GifBolt.Avalonia
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[GifBolt] Failed to load asset URI: {ex.Message}");
+                        Debug.WriteLine($"[GifBolt] Failed to load asset URI: {ex.Message}");
                         return null;
                     }
                 }

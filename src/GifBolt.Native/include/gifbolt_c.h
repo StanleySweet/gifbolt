@@ -136,6 +136,13 @@ extern "C"
     /// \return 1 if successful; 0 otherwise.
     GB_API int GifBolt_LoadGif(gb_renderer_t renderer, const char* path);
 
+    /// \brief Loads a GIF from an in-memory buffer.
+    /// \param renderer The renderer handle.
+    /// \param data Pointer to the GIF data buffer.
+    /// \param length Length of the buffer in bytes.
+    /// \return 1 if successful; 0 otherwise.
+    GB_API int GifBolt_LoadGifFromMemory(gb_renderer_t renderer, const void* data, int length);
+
     /// \brief Starts playback of the loaded GIF.
     /// \param renderer The renderer handle.
     GB_API void GifBolt_Play(gb_renderer_t renderer);

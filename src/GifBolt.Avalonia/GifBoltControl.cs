@@ -5,17 +5,14 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using GifBolt;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace GifBolt.Avalonia
 {
@@ -83,7 +80,6 @@ namespace GifBolt.Avalonia
         private double _cachedViewportWidth = -1;
         private double _cachedViewportHeight = -1;
         private bool _hasRenderedOnce;
-        private string? _tempFilePath;
         private byte[]? _sourceBytes;
 
         /// <summary>
@@ -622,47 +618,6 @@ namespace GifBolt.Avalonia
             }
 
             return new Uri($"avares://{assemblyName}{assetPath}");
-        }
-
-        private string ExtractAssetToTempFile(Uri assetUri)
-        {
-            string tempDirectory = Path.Combine(Path.GetTempPath(), "gifbolt");
-            Directory.CreateDirectory(tempDirectory);
-
-            string extension = Path.GetExtension(assetUri.AbsolutePath);
-            if (string.IsNullOrEmpty(extension))
-            {
-                extension = ".gif";
-            }
-
-            string tempFile = Path.Combine(tempDirectory, Guid.NewGuid().ToString("N") + extension);
-
-            using (var stream = AssetLoader.Open(assetUri))
-            using (var fileStream = File.Create(tempFile))
-            {
-                stream.CopyTo(fileStream);
-            }
-
-            return tempFile;
-        }
-
-        private void CleanupTempFile()
-        {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(this._tempFilePath) && File.Exists(this._tempFilePath))
-                {
-                    File.Delete(this._tempFilePath);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to delete temp file '{this._tempFilePath}': {ex.Message}");
-            }
-            finally
-            {
-                this._tempFilePath = null;
-            }
         }
     }
 }

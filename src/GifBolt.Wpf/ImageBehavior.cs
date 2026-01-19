@@ -6,6 +6,7 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 using System;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -52,7 +53,7 @@ namespace GifBolt.Wpf
                 typeof(ImageBehavior),
                 new PropertyMetadata(true));
 
-        private static readonly DependencyProperty AnimationControllerProperty =
+        private static readonly DependencyProperty _animationControllerProperty =
             DependencyProperty.RegisterAttached(
                 "AnimationController",
                 typeof(GifAnimationController),
@@ -121,12 +122,12 @@ namespace GifBolt.Wpf
 
         private static GifAnimationController? GetAnimationController(Image image)
         {
-            return (GifAnimationController?)image.GetValue(AnimationControllerProperty);
+            return (GifAnimationController?)image.GetValue(_animationControllerProperty);
         }
 
         private static void SetAnimationController(Image image, GifAnimationController? value)
         {
-            image.SetValue(AnimationControllerProperty, value);
+            image.SetValue(_animationControllerProperty, value);
         }
 
         private static void OnAnimatedSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -151,8 +152,7 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            string? path = GetPathFromSource(e.NewValue);
-            if (string.IsNullOrWhiteSpace(path))
+            if (!GifSourceResolver.TryResolve(e.NewValue, out byte[]? sourceBytes, out string? path))
             {
                 return;
             }
@@ -161,9 +161,33 @@ namespace GifBolt.Wpf
             var repeatBehavior = GetRepeatBehavior(image);
             var initialAutoStart = GetAutoStart(image); // Capture the current AutoStart value
 
-            var controller = new GifAnimationController(
-                image,
-                path!,
+            var controller = sourceBytes != null
+                ? new GifAnimationController(image, sourceBytes, onLoaded: () =>
+                {
+                    var currentController = GetAnimationController(image);
+                    if (currentController == null)
+                    {
+                        return;
+                    }
+
+                    if (initialAutoStart)
+                    {
+                        try
+                        {
+                            currentController.Play();
+                        }
+                        catch
+                        {
+                        }
+                    }
+                },
+                onError: (ex) =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error loading GIF: {ex.Message}");
+                })
+                : new GifAnimationController(
+                    image,
+                    path!,
                 onLoaded: () =>
                 {
                     // Verify this controller is still current
@@ -187,11 +211,10 @@ namespace GifBolt.Wpf
                         }
                     }
                 },
-                onError: (ex) =>
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error loading GIF: {ex.Message}");
-                    // Silently handle errors - image will remain visible with default source
-                });
+                    onError: (ex) =>
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error loading GIF: {ex.Message}");
+                    });
 
             SetAnimationController(image, controller);
             controller.SetRepeatBehavior(repeatBehavior);
@@ -252,6 +275,38 @@ namespace GifBolt.Wpf
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Loads bytes from a pack:// embedded resource.
+        /// </summary>
+        private static byte[]? LoadPackUriBytes(string packUri)
+        {
+            try
+            {
+                if (!Uri.TryCreate(packUri, UriKind.Absolute, out Uri? uri))
+                {
+                    return null;
+                }
+
+                var streamInfo = System.Windows.Application.GetResourceStream(uri);
+                if (streamInfo == null || streamInfo.Stream == null)
+                {
+                    return null;
+                }
+
+                using (var stream = streamInfo.Stream)
+                using (var ms = new MemoryStream())
+                {
+                    stream.CopyTo(ms);
+                    return ms.ToArray();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GifBolt.ImageBehavior] Failed to load pack URI '{packUri}': {ex.Message}");
+                return null;
+            }
         }
     }
 }

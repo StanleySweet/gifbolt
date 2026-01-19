@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace GifBolt.Tests
@@ -11,33 +12,33 @@ namespace GifBolt.Tests
     {
         public static void Main(string[] args)
         {
-            Console.WriteLine("=== GifBolt.Core P/Invoke Tests ===\n");
+            Debug.WriteLine("=== GifBolt.Core P/Invoke Tests ===\n");
 
             TestPlayerCreation();
             TestInvalidFile();
 
-            Console.WriteLine("\n=== All tests completed ===");
+            Debug.WriteLine("\n=== All tests completed ===");
         }
 
         private static void TestPlayerCreation()
         {
-            Console.Write("Test: Player creation... ");
+            Debug.Write("Test: Player creation... ");
             try
             {
                 using (var player = new GifPlayer())
                 {
-                    Console.WriteLine("✓ PASS");
+                    Debug.WriteLine("✓ PASS");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"✗ FAIL: {ex.Message}");
+                Debug.WriteLine($"✗ FAIL: {ex.Message}");
             }
         }
 
         private static void TestInvalidFile()
         {
-            Console.Write("Test: Invalid file handling... ");
+            Debug.Write("Test: Invalid file handling... ");
             try
             {
                 using (var player = new GifPlayer())
@@ -45,17 +46,17 @@ namespace GifBolt.Tests
                     bool result = player.Load("nonexistent.gif");
                     if (!result)
                     {
-                        Console.WriteLine("✓ PASS");
+                        Debug.WriteLine("✓ PASS");
                     }
                     else
                     {
-                        Console.WriteLine("✗ FAIL: Should return false for nonexistent file");
+                        Debug.WriteLine("✗ FAIL: Should return false for nonexistent file");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"✗ FAIL: {ex.Message}");
+                Debug.WriteLine($"✗ FAIL: {ex.Message}");
             }
         }
     }

@@ -77,6 +77,28 @@ bool GifBoltRenderer::LoadGif(const std::string& path)
     return true;
 }
 
+bool GifBoltRenderer::LoadGifFromMemory(const uint8_t* data, std::size_t length)
+{
+    if (!pImpl->m_Decoder)
+    {
+        return false;
+    }
+
+    if ((data == nullptr) || (length == 0))
+    {
+        return false;
+    }
+
+    if (!pImpl->m_Decoder->LoadFromMemory(data, length))
+    {
+        return false;
+    }
+
+    pImpl->m_CurrentFrame = 0;
+    pImpl->m_Looping = pImpl->m_Decoder->IsLooping();
+    return true;
+}
+
 void GifBoltRenderer::Play()
 {
     pImpl->m_Playing = true;

@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
+using GifBolt.Internal;
+using GifBolt.Wpf;
+using Microsoft.Win32;
 using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using GifBolt;
-using GifBolt.Internal;
-using GifBolt.Wpf;
-using Microsoft.Win32;
 
 namespace GifBolt.SampleApp
 {
@@ -37,61 +36,10 @@ namespace GifBolt.SampleApp
             // Update status
             this.UpdateStatus("GifBolt loaded - DirectX 11 backend active on Windows");
 
-            // Load sample.gif as embedded resource (in-memory)
-            this.LoadSampleGifFromResources();
-
             // Update version info
             this.UpdateVersionInfo();
         }
 
-        private void LoadSampleGifFromResources()
-        {
-            try
-            {
-                // Try to find sample.gif in multiple locations
-                string[] possiblePaths = new[]
-                {
-                    "sample.gif",
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "sample.gif"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../tests/assets/sample.gif"),
-                    Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../tests/assets/sample.gif"))
-                };
-
-                string? foundPath = null;
-                foreach (var path in possiblePaths)
-                {
-                    if (File.Exists(path))
-                    {
-                        foundPath = path;
-                        break;
-                    }
-                }
-
-                if (foundPath != null)
-                {
-                    // Load as in-memory bytes
-                    byte[] gifData = File.ReadAllBytes(foundPath);
-                    this.GifControl.LoadGif(gifData);
-
-                    if (this.ImageBehaviorImage != null)
-                    {
-                        ImageBehavior.SetAnimatedSource(this.ImageBehaviorImage, foundPath);
-                    }
-
-                    this.UpdateStatus($"Loaded sample.gif from {Path.GetFileName(foundPath)} (in-memory)");
-                }
-                else
-                {
-                    this.UpdateStatus("sample.gif not found - use Load button to select a GIF");
-                    LogToFile("sample.gif not found in any expected location");
-                }
-            }
-            catch (Exception ex)
-            {
-                this.UpdateStatus($"Failed to load sample.gif: {ex.Message}");
-                LogToFile($"Failed to load sample.gif: {ex}");
-            }
-        }
 
         private void UpdateVersionInfo()
         {
