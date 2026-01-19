@@ -43,6 +43,11 @@ if(NOT giflib_POPULATED)
 
     target_include_directories(gif PUBLIC ${giflib_SOURCE_DIR})
 
+    # Apply static CRT linking (must match GifBolt.Native)
+    if(MSVC)
+        set_property(TARGET gif PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
+
     # Disable warnings for giflib
     if(MSVC)
         target_compile_options(gif PRIVATE /W0)
