@@ -1,0 +1,9 @@
+<map id="include/gifbolt_version.h" name="include/gifbolt_version.h">
+<area shape="rect" id="Node000001" title="Version information for GifBolt.Native library." alt="" coords="74,5,257,31"/>
+<area shape="rect" id="Node000002" href="$gifbolt__c_8h.html" title="C API for GifBolt renderer and decoder." alt="" coords="5,79,147,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="142,41,92,81,89,76,139,37"/>
+<area shape="rect" id="Node000004" href="$gifbolt__version_8cpp_source.html" title=" " alt="" coords="171,79,341,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="192,37,243,76,240,81,189,41"/>
+<area shape="rect" id="Node000003" href="$gifbolt__c_8cpp_source.html" title=" " alt="" coords="12,152,140,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="79,118,79,152,73,152,73,118"/>
+</map>
