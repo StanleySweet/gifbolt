@@ -55,6 +55,8 @@ namespace GifBolt.Internal
         private static GbDecoderGetBackgroundColorDelegate? _gbDecoderGetBackgroundColor;
         private static GbDecoderSetMinFrameDelayMsDelegate? _gbDecoderSetMinFrameDelayMs;
         private static GbDecoderGetMinFrameDelayMsDelegate? _gbDecoderGetMinFrameDelayMs;
+        private static GbDecoderSetMaxCachedFramesDelegate? _gbDecoderSetMaxCachedFrames;
+        private static GbDecoderGetMaxCachedFramesDelegate? _gbDecoderGetMaxCachedFrames;
         private static GbDecoderGetFramePixelsBgra32PremultipliedScaledDelegate? _gbDecoderGetFramePixelsBgra32PremultipliedScaled;
         private static GbVersionGetMajorDelegate? _gbVersionGetMajor;
         private static GbVersionGetMinorDelegate? _gbVersionGetMinor;
@@ -92,6 +94,8 @@ namespace GifBolt.Internal
             _gbDecoderGetBackgroundColor = GetDelegate<GbDecoderGetBackgroundColorDelegate>("gb_decoder_get_background_color");
             _gbDecoderSetMinFrameDelayMs = GetDelegate<GbDecoderSetMinFrameDelayMsDelegate>("gb_decoder_set_min_frame_delay_ms");
             _gbDecoderGetMinFrameDelayMs = GetDelegate<GbDecoderGetMinFrameDelayMsDelegate>("gb_decoder_get_min_frame_delay_ms");
+            _gbDecoderSetMaxCachedFrames = GetDelegate<GbDecoderSetMaxCachedFramesDelegate>("gb_decoder_set_max_cached_frames");
+            _gbDecoderGetMaxCachedFrames = GetDelegate<GbDecoderGetMaxCachedFramesDelegate>("gb_decoder_get_max_cached_frames");
             _gbDecoderGetFramePixelsBgra32PremultipliedScaled = GetDelegate<GbDecoderGetFramePixelsBgra32PremultipliedScaledDelegate>("gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled");
             _gbVersionGetMajor = GetDelegate<GbVersionGetMajorDelegate>("gb_version_get_major");
             _gbVersionGetMinor = GetDelegate<GbVersionGetMinorDelegate>("gb_version_get_minor");
@@ -148,6 +152,12 @@ namespace GifBolt.Internal
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int GbDecoderGetMinFrameDelayMsDelegate(IntPtr decoder);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GbDecoderSetMaxCachedFramesDelegate(IntPtr decoder, uint maxFrames);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate uint GbDecoderGetMaxCachedFramesDelegate(IntPtr decoder);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("StyleCop.CSharp.ReadabilityRules", "SA1117:Parameters should be on same line or separate lines", Justification = "<En attente>")]
@@ -444,6 +454,22 @@ namespace GifBolt.Internal
         /// <returns>Minimum frame delay in milliseconds.</returns>
         internal static int gb_decoder_get_min_frame_delay_ms(IntPtr decoder)
              => _gbDecoderGetMinFrameDelayMs(decoder);
+
+        /// <summary>
+        /// Sets the maximum number of frames to cache in memory.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <param name="maxFrames">Maximum number of frames to keep in the cache.</param>
+        internal static void gb_decoder_set_max_cached_frames(IntPtr decoder, uint maxFrames)
+             => _gbDecoderSetMaxCachedFrames(decoder, maxFrames);
+
+        /// <summary>
+        /// Gets the maximum number of frames cached in memory.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <returns>Maximum number of cached frames.</returns>
+        internal static uint gb_decoder_get_max_cached_frames(IntPtr decoder)
+             => _gbDecoderGetMaxCachedFrames(decoder);
 
         /// <summary>
         /// Gets scaled BGRA32 premultiplied pixel data for a frame.

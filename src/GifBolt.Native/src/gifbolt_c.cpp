@@ -30,6 +30,27 @@ extern "C"
         auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
         return static_cast<int>(ptr->GetMinFrameDelayMs());
     }
+
+    GB_API void gb_decoder_set_max_cached_frames(gb_decoder_t decoder, unsigned int maxFrames)
+    {
+        if (decoder == nullptr)
+        {
+            return;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        ptr->SetMaxCachedFrames(static_cast<uint32_t>(maxFrames));
+    }
+
+    GB_API unsigned int gb_decoder_get_max_cached_frames(gb_decoder_t decoder)
+    {
+        if (decoder == nullptr)
+        {
+            return 0;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        return static_cast<unsigned int>(ptr->GetMaxCachedFrames());
+    }
+
     GB_API gb_decoder_t gb_decoder_create(void)
     {
         try

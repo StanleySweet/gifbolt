@@ -33,7 +33,7 @@ public sealed class GifPlayer : IDisposable
     /// When enabled, frames ahead of the current playback position are decoded in background,
     /// reducing apparent latency during sequential playback. Default is true.
     /// </remarks>
-    public bool EnablePrefetching { get; set; } = true;
+    public bool EnablePrefetching { get; set; } = false;
 
     /// <summary>Gets the total number of frames in the GIF.</summary>
     public int FrameCount { get; private set; }
@@ -249,6 +249,31 @@ public sealed class GifPlayer : IDisposable
         if (this._decoder != null)
         {
             return Native.gb_decoder_get_min_frame_delay_ms(this._decoder.DangerousGetHandle());
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Sets the maximum number of frames to cache in memory.
+    /// </summary>
+    /// <param name="maxFrames">The maximum number of frames to cache. Must be greater than 0.</param>
+    public void SetMaxCachedFrames(uint maxFrames)
+    {
+        if (this._decoder != null && maxFrames > 0)
+        {
+            Native.gb_decoder_set_max_cached_frames(this._decoder.DangerousGetHandle(), maxFrames);
+        }
+    }
+
+    /// <summary>
+    /// Gets the maximum number of frames cached in memory.
+    /// </summary>
+    /// <returns>The maximum number of cached frames.</returns>
+    public uint GetMaxCachedFrames()
+    {
+        if (this._decoder != null)
+        {
+            return Native.gb_decoder_get_max_cached_frames(this._decoder.DangerousGetHandle());
         }
         return 0;
     }

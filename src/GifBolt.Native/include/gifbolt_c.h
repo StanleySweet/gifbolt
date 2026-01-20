@@ -168,6 +168,16 @@ extern "C"
     GB_API void gb_decoder_set_min_frame_delay_ms(gb_decoder_t decoder, int minDelayMs);
     GB_API int gb_decoder_get_min_frame_delay_ms(gb_decoder_t decoder);
 
+    /// \brief Sets the maximum number of frames to cache in memory.
+    /// \param decoder The decoder handle.
+    /// \param maxFrames Maximum number of frames to keep in the LRU cache (must be > 0).
+    GB_API void gb_decoder_set_max_cached_frames(gb_decoder_t decoder, unsigned int maxFrames);
+
+    /// \brief Gets the maximum number of frames cached in memory.
+    /// \param decoder The decoder handle.
+    /// \return The maximum number of cached frames, or 0 on error.
+    GB_API unsigned int gb_decoder_get_max_cached_frames(gb_decoder_t decoder);
+
     /// \brief Gets BGRA32 pixel data with premultiplied alpha for the specified frame, scaled to
     /// target dimensions.
     /// \param decoder The decoder handle.

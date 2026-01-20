@@ -240,6 +240,7 @@ namespace GifBolt.Wpf
                             this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
                             this._renderTimer.Tick += this.OnRenderTick;
 
+                            // Apply pending repeat behavior BEFORE calling onLoaded (which starts playback)
                             if (!string.IsNullOrWhiteSpace(this._pendingRepeatBehavior))
                             {
                                 this.SetRepeatBehavior(this._pendingRepeatBehavior);
@@ -464,6 +465,22 @@ namespace GifBolt.Wpf
                     {
                         this.Stop();
                         return;
+                    }
+
+                    // HACK: detect loop wrap and reload first frame
+                    if (advanceResult.NextFrame == 0)
+                    {
+                        if (this._sourceBytes != null)
+                        {
+                            this.Player.Load(this._sourceBytes);
+                        }
+                        else if (this._sourcePath != null)
+                        {
+                            this.Player.Load(this._sourcePath);
+                        }
+
+                        this.Player.CurrentFrame = 0;
+                        this.RenderFrame(0); // Reuse the existing render logic
                     }
 
                     // Update the current frame and repeat count

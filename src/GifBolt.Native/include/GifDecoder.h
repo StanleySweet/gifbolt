@@ -53,6 +53,16 @@ class GifDecoder
     /// \brief Obtient le délai minimal appliqué à chaque frame GIF (en ms).
     /// \return Délai minimal en millisecondes.
     uint32_t GetMinFrameDelayMs() const;
+
+    /// \brief Sets the maximum number of frames to cache in memory.
+    /// \param maxFrames Maximum number of frames to keep in the LRU cache.
+    ///                  Must be greater than 0.
+    void SetMaxCachedFrames(uint32_t maxFrames);
+
+    /// \brief Gets the maximum number of frames cached in memory.
+    /// \return The maximum number of cached frames.
+    uint32_t GetMaxCachedFrames() const;
+
     /// \brief Initializes a new instance of the GifDecoder class.
     GifDecoder();
 

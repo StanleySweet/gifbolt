@@ -78,7 +78,7 @@ class GifDecoder::Impl
     };
 
     // Lazy frame caching: store only N frames instead of all frames
-    static constexpr uint32_t MAX_CACHED_FRAMES = 6;  ///< Maximum frames to cache in memory
+    uint32_t MAX_CACHED_FRAMES = 10;  ///< Maximum frames to cache in memory
     std::vector<GifFrame> _frameCache;   ///< LRU cache for decoded frames
     std::vector<uint32_t> _cachedFrameIndices;  ///< Indices of frames in cache (for LRU tracking)
     std::vector<bool> _frameDecoded;  ///< Track which frames have been decoded
@@ -750,6 +750,19 @@ void GifBolt::GifDecoder::SetMinFrameDelayMs(uint32_t minDelayMs)
 uint32_t GifBolt::GifDecoder::GetMinFrameDelayMs() const
 {
     return _pImpl->_minFrameDelayMs;
+}
+
+void GifBolt::GifDecoder::SetMaxCachedFrames(uint32_t maxFrames)
+{
+    if (maxFrames > 0)
+    {
+        _pImpl->MAX_CACHED_FRAMES = maxFrames;
+    }
+}
+
+uint32_t GifBolt::GifDecoder::GetMaxCachedFrames() const
+{
+    return _pImpl->MAX_CACHED_FRAMES;
 }
 
 const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
