@@ -467,20 +467,17 @@ namespace GifBolt.Wpf
                         return;
                     }
 
-                    // HACK: detect loop wrap and reload first frame
+                    // Reset canvas state and render frame 0 when looping
                     if (advanceResult.NextFrame == 0)
                     {
-                        if (this._sourceBytes != null)
-                        {
-                            this.Player.Load(this._sourceBytes);
-                        }
-                        else if (this._sourcePath != null)
-                        {
-                            this.Player.Load(this._sourcePath);
-                        }
-
+                        this.Player.ResetCanvas();
                         this.Player.CurrentFrame = 0;
-                        this.RenderFrame(0); // Reuse the existing render logic
+                        this.RepeatCount = advanceResult.UpdatedRepeatCount;
+                        this._frameStartTime = DateTime.UtcNow;
+
+                        // Force immediate render of frame 0 after canvas reset
+                        this.RenderFrame(0);
+                        return;
                     }
 
                     // Update the current frame and repeat count

@@ -67,6 +67,7 @@ namespace GifBolt.Internal
         private static GbDecoderStartPrefetchingDelegate? _gbDecoderStartPrefetching;
         private static GbDecoderStopPrefetchingDelegate? _gbDecoderStopPrefetching;
         private static GbDecoderSetCurrentFrameDelegate? _gbDecoderSetCurrentFrame;
+        private static GbDecoderResetCanvasDelegate? _gbDecoderResetCanvas;
 
         // Static constructor to load DLL and resolve function pointers
         static Native()
@@ -106,6 +107,7 @@ namespace GifBolt.Internal
             _gbDecoderStartPrefetching = GetDelegate<GbDecoderStartPrefetchingDelegate>("gb_decoder_start_prefetching");
             _gbDecoderStopPrefetching = GetDelegate<GbDecoderStopPrefetchingDelegate>("gb_decoder_stop_prefetching");
             _gbDecoderSetCurrentFrame = GetDelegate<GbDecoderSetCurrentFrameDelegate>("gb_decoder_set_current_frame");
+            _gbDecoderResetCanvas = GetDelegate<GbDecoderResetCanvasDelegate>("gb_decoder_reset_canvas");
             _gbVersionGetMajor?.Invoke();
 
         }
@@ -191,6 +193,9 @@ namespace GifBolt.Internal
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void GbDecoderSetCurrentFrameDelegate(IntPtr decoder, int currentFrame);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GbDecoderResetCanvasDelegate(IntPtr decoder);
 
 #if NET6_0_OR_GREATER
         /// <summary>
@@ -555,5 +560,12 @@ namespace GifBolt.Internal
         /// <param name="currentFrame">Frame index to set as current.</param>
         internal static void gb_decoder_set_current_frame(IntPtr decoder, int currentFrame)
              => _gbDecoderSetCurrentFrame(decoder, currentFrame);
+
+        /// <summary>
+        /// Resets the canvas composition state for looping.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        internal static void gb_decoder_reset_canvas(IntPtr decoder)
+             => _gbDecoderResetCanvas(decoder);
     }
 }

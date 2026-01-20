@@ -329,6 +329,16 @@ extern "C"
         ptr->SetCurrentFrame(static_cast<uint32_t>(currentFrame));
     }
 
+    GB_API void gb_decoder_reset_canvas(gb_decoder_t decoder)
+    {
+        if (decoder == nullptr)
+        {
+            return;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        ptr->ResetCanvas();
+    }
+
     // Renderer C API
     GB_API gb_renderer_t GifBolt_Create(void)
     {

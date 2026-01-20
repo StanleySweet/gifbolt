@@ -1127,4 +1127,31 @@ void GifDecoder::SetCurrentFrame(uint32_t currentFrame)
     }
 }
 
+void GifDecoder::ResetCanvas()
+{
+    if (this->_pImpl)
+    {
+        std::lock_guard<std::mutex> lock(this->_pImpl->_decodeMutex);
+
+        // Clear canvas to transparent (0x00000000)
+        // Note: GIF background color is NOT used here because modern renderers
+        // compose GIFs over their own backgrounds. Using transparent allows proper compositing.
+        std::fill(this->_pImpl->_canvas.begin(), this->_pImpl->_canvas.end(), 0x00000000);
+
+        // Reset disposal state
+        this->_pImpl->_previousDisposal = DisposalMethod::None;
+        this->_pImpl->_previousCanvas.clear();
+        this->_pImpl->_prevFrameWidth = 0;
+        this->_pImpl->_prevFrameHeight = 0;
+        this->_pImpl->_prevFrameOffsetX = 0;
+        this->_pImpl->_prevFrameOffsetY = 0;
+
+        // Clear ALL caches to force complete re-composition from clean canvas
+        this->_pImpl->_frameCache.clear();
+        this->_pImpl->_cachedFrameIndices.clear();
+        this->_pImpl->_bgraPremultipliedCache.clear();
+        std::fill(this->_pImpl->_frameDecoded.begin(), this->_pImpl->_frameDecoded.end(), false);
+    }
+}
+
 }  // namespace GifBolt

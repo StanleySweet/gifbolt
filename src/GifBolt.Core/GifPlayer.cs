@@ -22,6 +22,16 @@ public sealed class GifPlayer : IDisposable
 {
     private DecoderHandle? _decoder;
 
+    /// <summary>Gets or sets the percentage of frames to cache (0.0 to 1.0). Default is 0.25 (25%).</summary>
+    /// <remarks>Applied when a GIF is loaded. Use SetMaxCachedFrames() to override with an absolute value.</remarks>
+    public float CachePercentage { get; set; } = 0.25f;
+
+    /// <summary>Gets or sets the minimum number of frames to cache. Default is 5.</summary>
+    public uint MinCachedFrames { get; set; } = 5;
+
+    /// <summary>Gets or sets the maximum number of frames to cache. Default is 100.</summary>
+    public uint MaxCachedFrames { get; set; } = 100;
+
     /// <summary>Gets a value indicating whether playback is in progress.</summary>
     public bool IsPlaying { get; private set; }
 
@@ -278,6 +288,21 @@ public sealed class GifPlayer : IDisposable
         return 0;
     }
 
+    /// <summary>
+    /// Resets the canvas composition state for looping.
+    /// </summary>
+    /// <remarks>
+    /// Call this when looping back to frame 0 to ensure proper frame composition
+    /// without reloading the entire GIF.
+    /// </remarks>
+    public void ResetCanvas()
+    {
+        if (this._decoder != null)
+        {
+            Native.gb_decoder_reset_canvas(this._decoder.DangerousGetHandle());
+        }
+    }
+
     /// <summary>Releases the unmanaged resources associated with the player.</summary>
     public void Dispose()
     {
@@ -359,9 +384,38 @@ public sealed class GifPlayer : IDisposable
         this.IsLooping = Native.gb_decoder_get_loop_count(this._decoder.DangerousGetHandle()) < 0;
         this.CurrentFrame = 0;
 
+        // Set adaptive cache size based on frame count
+        uint adaptiveCacheSize = this.CalculateAdaptiveCacheSize();
+        Native.gb_decoder_set_max_cached_frames(this._decoder.DangerousGetHandle(), adaptiveCacheSize);
+
         if (this.EnablePrefetching)
         {
             Native.gb_decoder_start_prefetching(this._decoder.DangerousGetHandle(), 0);
         }
+    }
+
+    private uint CalculateAdaptiveCacheSize()
+    {
+        if (this.FrameCount <= 0)
+        {
+            return this.MinCachedFrames;
+        }
+
+        // Calculate percentage-based cache size
+        float calculated = this.FrameCount * this.CachePercentage;
+        uint cacheSize = (uint)Math.Round(calculated);
+
+        // Clamp to min/max bounds
+        if (cacheSize < this.MinCachedFrames)
+        {
+            return this.MinCachedFrames;
+        }
+
+        if (cacheSize > this.MaxCachedFrames)
+        {
+            return this.MaxCachedFrames;
+        }
+
+        return cacheSize;
     }
 }

@@ -210,6 +210,11 @@ extern "C"
     /// \param currentFrame The current frame being displayed.
     /// \remarks The prefetch thread uses this to determine which frames to decode next.
     GB_API void gb_decoder_set_current_frame(gb_decoder_t decoder, int currentFrame);
+
+    /// \brief Resets the canvas composition state for looping.
+    /// \param decoder The decoder handle.
+    /// \remarks Call this when looping back to frame 0 to ensure proper frame composition.
+    GB_API void gb_decoder_reset_canvas(gb_decoder_t decoder);
     /// @}
 
 #ifdef __cplusplus

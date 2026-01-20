@@ -145,6 +145,11 @@ class GifDecoder
     /// \remarks The prefetch thread uses this to determine which frames to decode next.
     void SetCurrentFrame(uint32_t currentFrame);
 
+    /// \brief Resets the canvas composition state for looping.
+    /// \remarks Call this when looping back to frame 0 to ensure proper frame composition.
+    ///          This clears the canvas and resets disposal state without reloading the GIF.
+    void ResetCanvas();
+
    private:
     class Impl;
     std::unique_ptr<Impl> _pImpl;  ///< Opaque implementation (Pimpl pattern)
