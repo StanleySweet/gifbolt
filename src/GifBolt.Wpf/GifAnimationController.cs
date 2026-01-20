@@ -130,7 +130,6 @@ namespace GifBolt.Wpf
                     }
 
                     this.Player = new GifBolt.GifPlayer();
-                    // this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
                     bool loaded = this._sourceBytes != null
                         ? this.Player.Load(this._sourceBytes)
@@ -418,15 +417,6 @@ namespace GifBolt.Wpf
                     this.Player.CurrentFrame = advanceResult.NextFrame;
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameStartTime = DateTime.UtcNow;
-
-                    // DEBUG: Log frame advancement
-                    var msg = $"Frame {advanceResult.NextFrame}: delay={frameDelayMs}ms, elapsed={elapsedMs}ms";
-                    System.Diagnostics.Debug.WriteLine(msg);
-                    try
-                    {
-                        System.IO.File.AppendAllText("/tmp/gifbolt_timing.log", msg + "\n");
-                    }
-                    catch { }
                 }
 
                 // Always render on every tick for smooth visual feedback

@@ -86,7 +86,6 @@ namespace GifBolt.Avalonia
                 {
                     // Initialize player property
                     this.Player = new GifPlayer();
-                    // this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
                     if (!this.Player.Load(path))
                     {
@@ -187,13 +186,6 @@ namespace GifBolt.Avalonia
                 // Always use 16ms fixed interval - frame advancement is time-based, not timer-based
                 this._animationTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
                 this._animationTimer.Start();
-
-                // DEBUG
-                try
-                {
-                    System.IO.File.AppendAllText("/tmp/gifbolt_timing.log", $"[START] Animation started with 16ms timer\n");
-                }
-                catch { }
             }
         }
 
@@ -281,16 +273,6 @@ namespace GifBolt.Avalonia
                 int frameDelayMs = Math.Max(rawFrameDelayMs, FrameTimingHelper.DefaultMinFrameDelayMs);
                 long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
 
-                // DEBUG: Log every tick to understand timing
-                if (this.Player.CurrentFrame == 0)
-                {
-                    try
-                    {
-                        System.IO.File.AppendAllText("/tmp/gifbolt_timing.log", $"[TICK] Frame 0: raw={rawFrameDelayMs}ms, clamped={frameDelayMs}ms, elapsed={elapsedMs}ms\n");
-                    }
-                    catch { }
-                }
-
                 // Only advance frame if enough time has elapsed for the current frame
                 if (elapsedMs >= frameDelayMs)
                 {
@@ -310,15 +292,6 @@ namespace GifBolt.Avalonia
                     this.Player.CurrentFrame = advanceResult.NextFrame;
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameStartTime = DateTime.UtcNow;
-
-                    // DEBUG: Log frame advancement
-                    var msg = $"Frame {advanceResult.NextFrame}: delay={frameDelayMs}ms, elapsed={elapsedMs}ms";
-                    System.Diagnostics.Debug.WriteLine(msg);
-                    try
-                    {
-                        System.IO.File.AppendAllText("/tmp/gifbolt_timing.log", msg + "\n");
-                    }
-                    catch { }
                 }
 
                 // Always render on every tick for smooth visual feedback
