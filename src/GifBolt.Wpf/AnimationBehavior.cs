@@ -41,7 +41,7 @@ namespace GifBolt.Wpf
                 "RepeatBehavior",
                 typeof(string),
                 typeof(AnimationBehavior),
-                new PropertyMetadata("0x", OnRepeatBehaviorChanged));
+                new PropertyMetadata("Forever", OnRepeatBehaviorChanged));
 
         /// <summary>
         /// Gets or sets whether animation starts in design mode.
@@ -55,14 +55,14 @@ namespace GifBolt.Wpf
 
         /// <summary>
         /// Gets or sets the scaling filter used when resizing GIF frames.
-        /// Valid values: Nearest (fastest), Bilinear (default), Bicubic, Lanczos (highest quality).
+        /// Valid values: None (default, native resolution), Nearest, Bilinear, Bicubic, Lanczos (highest quality).
         /// </summary>
         public static readonly DependencyProperty ScalingFilterProperty =
             DependencyProperty.RegisterAttached(
                 "ScalingFilter",
                 typeof(ScalingFilter),
                 typeof(AnimationBehavior),
-                new PropertyMetadata(ScalingFilter.Bilinear, OnScalingFilterChanged));
+                new PropertyMetadata(ScalingFilter.None, OnScalingFilterChanged));
 
         /// <summary>
         /// Internal property to store the GifAnimationController instance.
@@ -232,25 +232,8 @@ namespace GifBolt.Wpf
             {
                 return;
             }
-scalingFilter = GetScalingFilter(image);
-            var controller = bytes != null
-                ? new GifAnimationController(image, bytes, onLoaded: OnControllerLoaded, onError: OnControllerError)
-                : new GifAnimationController(image, resolvedPath!, onLoaded: OnControllerLoaded, onError: OnControllerError);
 
-            void OnControllerLoaded()
-            {
-                // Verify controller is still current
-                var current = GetAnimationController(image);
-                if (current == null)
-                {
-                    return;
-                }
-
-                // Apply scaling filter
-                current.SetScalingFilter(scalingFilter);
-                    return;
-                }
-            }
+            var sourceUri = e.NewValue;
 
             // Resolve the source (handles pack URIs, relative paths, BitmapImage, etc.)
             if (!GifSourceResolver.TryResolve(sourceUri, out byte[]? bytes, out string? resolvedPath))
@@ -264,8 +247,11 @@ scalingFilter = GetScalingFilter(image);
                 return;
             }
 
+            // Capture values for use in nested functions
+            var repeatBehavior = GetRepeatBehavior(image) ?? "Forever";
+            var scalingFilter = GetScalingFilter(image);
+
             // Create new animation controller
-            var repeatBehavior = GetRepeatBehavior(image) ?? "0x";
             var controller = bytes != null
                 ? new GifAnimationController(image, bytes, onLoaded: OnControllerLoaded, onError: OnControllerError)
                 : new GifAnimationController(image, resolvedPath!, onLoaded: OnControllerLoaded, onError: OnControllerError);
@@ -284,6 +270,9 @@ scalingFilter = GetScalingFilter(image);
                 {
                     current.SetRepeatBehavior(repeatBehavior);
                 }
+
+                // Apply scaling filter
+                current.SetScalingFilter(scalingFilter);
 
                 // Auto-start (default for XamlAnimatedGif compatibility)
                 try
@@ -343,9 +332,9 @@ scalingFilter = GetScalingFilter(image);
                     // Re-trigger the source changed handler
                     OnSourceUriChanged(image, new DependencyPropertyChangedEventArgs(SourceUriProperty, null, sourceUri));
                 }
-            }changes to the ScalingFilter property.
-        /// Updates the controller with the new scaling filter.
-        /// </summary>
+            }
+        }
+
         private static void OnScalingFilterChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is not Image image)
@@ -358,10 +347,6 @@ scalingFilter = GetScalingFilter(image);
             {
                 controller.SetScalingFilter(filter);
             }
-        }
-
-        /// <summary>
-        /// Handles
         }
 
         /// <summary>

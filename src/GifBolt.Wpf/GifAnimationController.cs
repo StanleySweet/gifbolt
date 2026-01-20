@@ -78,7 +78,7 @@ namespace GifBolt.Wpf
         private string? _pendingRepeatBehavior;
         private DateTime _frameStartTime;
         private bool _wasPlayingBeforeHidden;
-        private ScalingFilter _scalingFilter = ScalingFilter.Bilinear;
+        private ScalingFilter _scalingFilter = ScalingFilter.None;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
@@ -102,8 +102,12 @@ namespace GifBolt.Wpf
         }
 
         /// <summary>
-        /// Initializes a new instance using in-memory GIF bytes.
+        /// Initializes a new instance of the <see cref="GifAnimationController"/> class using in-memory GIF bytes.
         /// </summary>
+        /// <param name="image">The image.</param>
+        /// <param name="sourceBytes">The image data.</param>
+        /// <param name="onLoaded">The loaded callback.</param>
+        /// <param name="onError">The error callback.</param>
         public GifAnimationController(Image image, byte[] sourceBytes, Action? onLoaded = null, Action<Exception>? onError = null)
         {
             this._image = image;
@@ -153,33 +157,54 @@ namespace GifBolt.Wpf
                         return;
                     }
 
-                    int displayWidth = Math.Max(1, (int)this._image.ActualWidth);
-                    int displayHeight = Math.Max(1, (int)this._image.ActualHeight);
-
-                    if (displayWidth < 10 || displayHeight < 10)
-                    {
-                        displayWidth = this.Player.Width;
-                        displayHeight = this.Player.Height;
-                    }
-
                     byte[]? initialPixels = null;
-                    int scaledWidth = displayWidth;
-                    int scaledHeight = displayHeight;
+                    int scaledWidth;
+                    int scaledHeight;
 
-                    if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
-                        0,
-                        displayWidth,
-                        displayHeight,
-                        out byte[] bgraPixels,
-                        out int outWidth,
-                        out int outHeight,
-                        filter: this._scalingFilter) &&
-                        bgraPixels.Length > 0)
+                    // Check if scaling is disabled (None filter) or enabled
+                    if (this._scalingFilter == ScalingFilter.None)
                     {
-                        initialPixels = new byte[bgraPixels.Length];
-                        System.Buffer.BlockCopy(bgraPixels, 0, initialPixels, 0, bgraPixels.Length);
-                        scaledWidth = outWidth;
-                        scaledHeight = outHeight;
+                        // Use native GIF resolution without scaling
+                        scaledWidth = this.Player.Width;
+                        scaledHeight = this.Player.Height;
+
+                        if (this.Player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) &&
+                            bgraPixels.Length > 0)
+                        {
+                            initialPixels = new byte[bgraPixels.Length];
+                            System.Buffer.BlockCopy(bgraPixels, 0, initialPixels, 0, bgraPixels.Length);
+                        }
+                    }
+                    else
+                    {
+                        // Scale to display size with selected filter
+                        int displayWidth = Math.Max(1, (int)this._image.ActualWidth);
+                        int displayHeight = Math.Max(1, (int)this._image.ActualHeight);
+
+                        if (displayWidth < 10 || displayHeight < 10)
+                        {
+                            displayWidth = this.Player.Width;
+                            displayHeight = this.Player.Height;
+                        }
+
+                        scaledWidth = displayWidth;
+                        scaledHeight = displayHeight;
+
+                        if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                            0,
+                            displayWidth,
+                            displayHeight,
+                            out byte[] bgraPixels,
+                            out int outWidth,
+                            out int outHeight,
+                            filter: this._scalingFilter) &&
+                            bgraPixels.Length > 0)
+                        {
+                            initialPixels = new byte[bgraPixels.Length];
+                            System.Buffer.BlockCopy(bgraPixels, 0, initialPixels, 0, bgraPixels.Length);
+                            scaledWidth = outWidth;
+                            scaledHeight = outHeight;
+                        }
                     }
 
                     this._image.Dispatcher.BeginInvoke(() =>
@@ -357,17 +382,36 @@ namespace GifBolt.Wpf
 
             try
             {
-                int displayWidth = this._writeableBitmap.PixelWidth;
-                int displayHeight = this._writeableBitmap.PixelHeight;
+                byte[] bgraPixels;
+                int outWidth;
+                int outHeight;
+                bool success;
 
-                if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
-                    frameIndex,
-                    displayWidth,
-                    displayHeight,
-                    out byte[] bgraPixels,
-                    out int outWidth,
-                    out int outHeight,
-                    filter: this._scalingFilter))
+                // Check if scaling is disabled or enabled
+                if (this._scalingFilter == ScalingFilter.None)
+                {
+                    // Use native resolution without scaling
+                    success = this.Player.TryGetFramePixelsBgra32Premultiplied(frameIndex, out bgraPixels);
+                    outWidth = this._writeableBitmap.PixelWidth;
+                    outHeight = this._writeableBitmap.PixelHeight;
+                }
+                else
+                {
+                    // Scale to display size with selected filter
+                    int displayWidth = this._writeableBitmap.PixelWidth;
+                    int displayHeight = this._writeableBitmap.PixelHeight;
+
+                    success = this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                        frameIndex,
+                        displayWidth,
+                        displayHeight,
+                        out bgraPixels,
+                        out outWidth,
+                        out outHeight,
+                        filter: this._scalingFilter);
+                }
+
+                if (success)
                 {
                     if (bgraPixels.Length == 0 || this._isDisposed)
                     {
@@ -405,11 +449,10 @@ namespace GifBolt.Wpf
             {
                 // Get the frame delay for the current frame and clamp to minimum
                 int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
-                int frameDelayMs = Math.Max(rawFrameDelayMs, FrameTimingHelper.DefaultMinFrameDelayMs);
                 long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame
-                if (elapsedMs >= frameDelayMs)
+                if (elapsedMs >= rawFrameDelayMs)
                 {
                     // Advance to next frame and reset the frame start time
                     var advanceResult = FrameAdvanceHelper.AdvanceFrame(

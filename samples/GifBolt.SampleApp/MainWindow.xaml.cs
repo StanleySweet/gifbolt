@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-using GifBolt.Internal;
+using GifBolt;
 using GifBolt.Wpf;
 using Microsoft.Win32;
 using System;
@@ -11,7 +11,7 @@ namespace GifBolt.SampleApp
 {
     /// <summary>
     /// Main window for the GifBolt WPF sample application.
-    /// Demonstrates both custom control and attached property usage.
+    /// Demonstrates AnimationBehavior attached property usage with scaling filters.
     /// </summary>
     public sealed partial class MainWindow : Window
     {
@@ -38,6 +38,23 @@ namespace GifBolt.SampleApp
 
             // Update version info
             this.UpdateVersionInfo();
+
+            // Load a default GIF if available
+            string sampleGif = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "sample.gif");
+            if (File.Exists(sampleGif))
+            {
+                if (this.GifImageScaling != null)
+                {
+                    AnimationBehavior.SetSourceUri(this.GifImageScaling, sampleGif);
+                }
+
+                if (this.ImageBehaviorImage != null)
+                {
+                    AnimationBehavior.SetSourceUri(this.ImageBehaviorImage, sampleGif);
+                }
+
+                this.UpdateStatus($"Loaded sample GIF: {Path.GetFileName(sampleGif)}");
+            }
         }
 
 
@@ -74,24 +91,6 @@ namespace GifBolt.SampleApp
             }
         }
 
-        private void OnPlay(object sender, RoutedEventArgs e)
-        {
-            this.GifControl.Play();
-            this.UpdateStatus("Playing GIF animation");
-        }
-
-        private void OnPause(object sender, RoutedEventArgs e)
-        {
-            this.GifControl.Pause();
-            this.UpdateStatus("Paused");
-        }
-
-        private void OnStop(object sender, RoutedEventArgs e)
-        {
-            this.GifControl.Stop();
-            this.UpdateStatus("Stopped - Reset to first frame");
-        }
-
         private void OnLoadGif(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
@@ -101,19 +100,24 @@ namespace GifBolt.SampleApp
             };
             if (dlg.ShowDialog() == true)
             {
-                // Update both controls with the same loaded GIF
-                this.GifControl.LoadGif(dlg.FileName);
+                // Update both Image controls with AnimationBehavior.SourceUri
+                if (this.GifImageScaling != null)
+                {
+                    AnimationBehavior.SetSourceUri(this.GifImageScaling, dlg.FileName);
+                }
+
                 if (this.ImageBehaviorImage != null)
                 {
-                    ImageBehavior.SetAnimatedSource(this.ImageBehaviorImage, dlg.FileName);
+                    AnimationBehavior.SetSourceUri(this.ImageBehaviorImage, dlg.FileName);
                 }
+
                 this.UpdateStatus($"Loaded: {Path.GetFileName(dlg.FileName)}");
             }
         }
 
         private void OnFilterChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (this.GifControl == null || this.FilterComboBox == null)
+            if (this.GifImageScaling == null || this.FilterComboBox == null)
             {
                 return;
             }
@@ -121,8 +125,9 @@ namespace GifBolt.SampleApp
             try
             {
                 var selectedIndex = this.FilterComboBox.SelectedIndex;
-                var filterType = (ScalingFilter)selectedIndex;
-                this.GifControl.ScalingFilter = filterType;
+                // Map ComboBox index to ScalingFilter enum: None=-1, Nearest=0, Bilinear=1, Bicubic=2, Lanczos=3
+                var filterType = selectedIndex == 0 ? ScalingFilter.None : (ScalingFilter)(selectedIndex - 1);
+                AnimationBehavior.SetScalingFilter(this.GifImageScaling, filterType);
                 this.UpdateStatus($"Scaling filter changed to: {filterType}");
             }
             catch (Exception ex)

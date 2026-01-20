@@ -20,12 +20,13 @@
 
         <!-- Main Content -->
         <TabControl Grid.Row="1">
-            <!-- Custom Control Tab -->
-            <TabItem Header="Custom Control">
+            <!-- Attached Properties with ScalingFilter Tab -->
+            <TabItem Header="Scaling Filters">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="20">
-                        <TextBlock Text="GifBoltControl Example" FontSize="16" FontWeight="Bold"/>
-                        <TextBlock Text="Using the direct GifBoltControl API" Foreground="Gray" Margin="0,5,0,15"/>
+                        <TextBlock Text="AnimationBehavior with ScalingFilter" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock Text="Using attached properties on Image control with configurable scaling"
+                                   Foreground="Gray" Margin="0,5,0,15"/>
 
                         <Border BorderBrush="Gray" BorderThickness="1" Width="450" Height="350"
                                 HorizontalAlignment="Left" Margin="0,0,0,15">
@@ -35,14 +36,14 @@
                                     <GradientStop Color="#FF90CAF9" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.Background>
-                            <gifbolt:GifBoltControl x:Name="GifControl"
-                                                   AutoStart="True"
-                                                   Loop="True"/>
+                            <Image x:Name="GifImageScaling"
+                                   gifbolt:AnimationBehavior.RepeatBehavior="Forever"/>
                         </Border>
 
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                             <TextBlock Text="Scaling Filter:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,0"/>
-                            <ComboBox x:Name="FilterComboBox" SelectedIndex="3" Width="120" SelectionChanged="OnFilterChanged">
+                            <ComboBox x:Name="FilterComboBox" SelectedIndex="0" Width="120" SelectionChanged="OnFilterChanged">
+                                <ComboBoxItem Content="None (Native)"/>
                                 <ComboBoxItem Content="Nearest"/>
                                 <ComboBoxItem Content="Bilinear"/>
                                 <ComboBoxItem Content="Bicubic"/>
@@ -51,25 +52,22 @@
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                            <Button Content="Play" Click="OnPlay" Width="80" Margin="0,0,10,0"/>
-                            <Button Content="Pause" Click="OnPause" Width="80" Margin="0,0,10,0"/>
-                            <Button Content="Stop" Click="OnStop" Width="80" Margin="0,0,10,0"/>
                             <Button Content="Load..." Click="OnLoadGif" Width="80"/>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
-            <!-- Attached Properties Tab -->
-            <TabItem Header="Attached Properties">
+            <!-- Basic Animation Tab -->
+            <TabItem Header="Basic Animation">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="20">
-                        <TextBlock Text="ImageBehavior Example (WpfAnimatedGif Compatible)"
+                        <TextBlock Text="AnimationBehavior Example"
                                    FontSize="16" FontWeight="Bold"/>
                         <TextBlock Text="Using attached properties on standard Image controls"
                                    Foreground="Gray" Margin="0,5,0,15"/>
 
-                        <TextBlock Text="✅ Live Demo: Image control with gifbolt:ImageBehavior.AnimatedSource"
+                        <TextBlock Text="✅ Live Demo: Image control with gifbolt:AnimationBehavior.SourceUri"
                                    FontWeight="SemiBold" Margin="0,10,0,5"/>
 
                         <Border BorderBrush="Gray" BorderThickness="1" Width="450" Height="350"
@@ -78,12 +76,11 @@
                                 <SolidColorBrush Color="#22000000"/>
                             </Border.Background>
                             <Image x:Name="ImageBehaviorImage"
-                                   gifbolt:ImageBehavior.AutoStart="True"
-                                   gifbolt:ImageBehavior.RepeatBehavior="Forever"/>
+                                   gifbolt:AnimationBehavior.RepeatBehavior="Forever"/>
                         </Border>
 
                         <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,10,0,15">
-                            The above Image uses attached properties for WpfAnimatedGif compatibility.
+                            The above Image uses attached properties for easy GIF animation.
                             Drop in any standard WPF Image control!
                         </TextBlock>
 
@@ -93,18 +90,18 @@
                                 <SolidColorBrush Color="#22008000"/>
                             </Border.Background>
                             <StackPanel>
-                                <TextBlock Text="✨ Now Available!" FontWeight="Bold" Foreground="LightGreen"/>
+                                <TextBlock Text="✨ Usage Example" FontWeight="Bold" Foreground="LightGreen"/>
                                 <TextBlock TextWrapping="Wrap" Foreground="#DDFFFFFF" Margin="0,5,0,0">
-                                    ImageBehavior attached properties are now fully functional:
+                                    AnimationBehavior attached properties:
                                 </TextBlock>
                                 <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,10,0,0">
-                                    &lt;Image gifbolt:ImageBehavior.AnimatedSource="file.gif"
+                                    &lt;Image gifbolt:AnimationBehavior.SourceUri="file.gif"
                                 </TextBlock>
                                 <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,0,0,0">
-                                           gifbolt:ImageBehavior.RepeatBehavior="Forever"
+                                           gifbolt:AnimationBehavior.RepeatBehavior="Forever"
                                 </TextBlock>
                                 <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,0,0,0">
-                                           gifbolt:ImageBehavior.AutoStart="True"/&gt;
+                                           gifbolt:AnimationBehavior.AutoStart="True"/&gt;
                                 </TextBlock>
                             </StackPanel>
                         </Border>

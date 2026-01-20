@@ -38,11 +38,7 @@ public partial class MainWindow : Window
     private void OnWindowOpened(object? sender, EventArgs e)
     {
         // Update status
-        var statusText = this.FindControl<global::Avalonia.Controls.TextBlock>("statusText");
-        if (statusText != null)
-        {
-            statusText.Text = "GifBolt loaded - Metal backend active on macOS";
-        }
+        this.UpdateStatus("GifBolt loaded - Metal backend active on macOS");
 
         // Update backend info
         var backendInfo = this.FindControl<global::Avalonia.Controls.TextBlock>("backendInfo");
@@ -150,17 +146,19 @@ public partial class MainWindow : Window
 
     private void UpdateStatus(string message)
     {
+        // Defer to dispatcher to ensure control tree is fully initialized
+
         try
         {
-            var statusText = this.FindControl<global::Avalonia.Controls.TextBlock>("statusText");
-            if (statusText != null)
+            var statusTextControl = this.FindControl<global::Avalonia.Controls.TextBlock>("statusText");
+            if (statusTextControl != null)
             {
-                statusText.Text = message;
+                statusTextControl.Text = message;
             }
         }
         catch
         {
-            // Ignore errors during initialization when name scope isn't ready
+            // Ignore errors if control isn't available
         }
     }
 }

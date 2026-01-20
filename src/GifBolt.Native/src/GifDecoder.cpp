@@ -316,7 +316,7 @@ void GifDecoder::Impl::BackgroundSlurp()
         this->_frameCount = gif->ImageCount;
 
         // Check for looping extension
-        for (int i = 0; i < gif->ImageCount; ++i)
+        for (int i = 0; i < gif->ImageCount && !this->_looping; ++i)
         {
             SavedImage* image = &gif->SavedImages[i];
             for (int j = 0; j < image->ExtensionBlockCount; ++j)
@@ -456,10 +456,26 @@ GifFrame& GifDecoder::Impl::GetOrDecodeFrame(uint32_t frameIndex)
         newFrame.offsetY = desc->Top;
         newFrame.transparentIndex = -1;
         newFrame.disposal = DisposalMethod::None;
-        newFrame.delayMs = 100;
 
-        // Get the pixel data that was composed during EnsureFrameDecoded
-        newFrame.pixels = this->_canvas;
+        // Get the actual frame delay from the GIF extension data
+        newFrame.delayMs = 10;  // Default fallback: 10ms (GIF standard minimum)
+        if (image->ExtensionBlockCount > 0)
+        {
+            for (int i = 0; i < image->ExtensionBlockCount; ++i)
+            {
+                if (image->ExtensionBlocks[i].Function == GRAPHICS_EXT_FUNC_CODE &&
+                    image->ExtensionBlocks[i].ByteCount >= 4)
+                {
+                    int delay = (image->ExtensionBlocks[i].Bytes[2] << 8) | image->ExtensionBlocks[i].Bytes[1];
+                    newFrame.delayMs = std::max(delay * 10, static_cast<int>(this->_minFrameDelayMs));
+                    break;
+                }
+            }
+        }
+
+        // Deep copy the pixel data from _canvas to prevent stale data on loop
+        // _canvas is reused across frame compositions, so we must copy the data
+        newFrame.pixels = std::vector<uint32_t>(this->_canvas.begin(), this->_canvas.end());
     }
 
     // Add to cache
@@ -486,7 +502,7 @@ void GifDecoder::Impl::DecodeFrame(GifFileType* gif, uint32_t frameIndex)
     frame.height = desc->Height;
     frame.offsetX = desc->Left;
     frame.offsetY = desc->Top;
-    frame.delayMs = 100;  // Default delay
+    frame.delayMs = 10;  // Default delay: 10ms (GIF standard minimum)
     frame.disposal = DisposalMethod::None;
     frame.transparentIndex = -1;  // No transparency by default
 

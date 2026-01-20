@@ -15,7 +15,10 @@ namespace GifBolt
     /// </summary>
     public enum ScalingFilter
     {
-        /// <summary>Nearest-neighbor (point) sampling - fastest, lowest quality.</summary>
+        /// <summary>No scaling - display at native GIF resolution (fastest, pixel-perfect).</summary>
+        None = -1,
+
+        /// <summary>Nearest-neighbor (point) sampling - fastest scaling, lowest quality.</summary>
         Nearest = 0,
 
         /// <summary>Bilinear interpolation - good balance of speed and quality.</summary>

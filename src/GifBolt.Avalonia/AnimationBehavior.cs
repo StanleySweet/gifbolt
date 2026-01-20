@@ -32,12 +32,12 @@ namespace GifBolt.Avalonia
 
         /// <summary>
         /// Gets or sets the repeat behavior for the animation.
-        /// Valid values: "Forever", "3x" (repeat N times), "0x" (use GIF metadata).
+        /// Valid values: "Forever" (default), "3x" (repeat N times), "0x" (use GIF metadata).
         /// </summary>
         public static readonly AttachedProperty<string?> RepeatBehaviorProperty =
             AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, string?>(
                 "RepeatBehavior",
-                defaultValue: "0x");
+                defaultValue: "Forever");
 
         /// <summary>
         /// Gets or sets whether animation starts in design mode.
@@ -49,12 +49,12 @@ namespace GifBolt.Avalonia
 
         /// <summary>
         /// Gets or sets the scaling filter used when resizing GIF frames.
-        /// Valid values: Nearest (fastest), Bilinear (default), Bicubic, Lanczos (highest quality).
+        /// Valid values: None (default, native resolution), Nearest, Bilinear, Bicubic, Lanczos (highest quality).
         /// </summary>
         public static readonly AttachedProperty<ScalingFilter> ScalingFilterProperty =
             AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, ScalingFilter>(
                 "ScalingFilter",
-                defaultValue: ScalingFilter.Bilinear);
+                defaultValue: ScalingFilter.None);
 
         /// <summary>
         /// Internal property to store the GifAnimationController instance.
@@ -244,7 +244,7 @@ namespace GifBolt.Avalonia
             }
 
             // Create new animation controller
-            var repeatBehavior = GetRepeatBehavior(image) ?? "0x";
+            var repeatBehavior = GetRepeatBehavior(image) ?? "Forever";
             var scalingFilter = GetScalingFilter(image);
             var controller = new GifAnimationController(
                 image,
