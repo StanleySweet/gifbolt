@@ -19,6 +19,8 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
@@ -30,8 +32,9 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- Include build targets file for NuGet package -->
+  <!-- Include readme and build targets files for NuGet package -->
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
     <None Include="build/GifBolt.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>
 

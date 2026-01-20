@@ -18,6 +18,8 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,8 +34,9 @@
     <ProjectReference Include="../GifBolt.Core/GifBolt.Core.csproj" />
   </ItemGroup>
 
-  <!-- Include build targets file for NuGet package -->
+  <!-- Include readme and build targets files for NuGet package -->
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
     <None Include="build/GifBolt.Avalonia.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>
 

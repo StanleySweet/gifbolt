@@ -18,6 +18,8 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,8 +39,9 @@
     <None Include="..\GifBolt.Core\runtimes\linux-x64\native\libGifBolt.Native.so" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="Exists('..\GifBolt.Core\runtimes\linux-x64\native\libGifBolt.Native.so') AND ('$(RuntimeIdentifier)' == 'linux-x64' OR '$(RuntimeIdentifier)' == '')" />
   </ItemGroup>
 
-  <!-- Include build targets file for NuGet package -->
+  <!-- Include readme and build targets files for NuGet package -->
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
     <None Include="build/GifBolt.Wpf.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>
 
