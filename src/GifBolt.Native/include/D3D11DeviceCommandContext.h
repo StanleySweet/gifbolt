@@ -10,7 +10,7 @@ namespace GifBolt
 namespace Renderer
 {
 
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef _WIN32
 
 class D3D11Texture;
 

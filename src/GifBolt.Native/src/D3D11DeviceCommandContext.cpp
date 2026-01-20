@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef _WIN32
 
 #include "D3D11DeviceCommandContext.h"
 

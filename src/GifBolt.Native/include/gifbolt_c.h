@@ -18,7 +18,7 @@ extern "C"
 {
 #endif
 
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef _WIN32
 #ifdef GIFBOLT_NATIVE_EXPORTS
 #define GB_API __declspec(dllexport)
 #else

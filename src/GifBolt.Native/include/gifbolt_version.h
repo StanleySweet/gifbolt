@@ -45,7 +45,7 @@ extern "C"
 #define GIFBOLT_VERSION_CHECK(major, minor, patch) \
     (GIFBOLT_VERSION_INT >= ((major) * 10000 + (minor) * 100 + (patch)))
 
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef _WIN32
 #ifdef GIFBOLT_NATIVE_EXPORTS
 #define GB_API __declspec(dllexport)
 #else
