@@ -447,13 +447,12 @@ GifFrame& GifDecoder::Impl::GetOrDecodeFrame(uint32_t frameIndex)
     {
         // Frame was decoded - get it from the GIF structure
         SavedImage* image = &this->_gif->SavedImages[frameIndex];
-        GifImageDesc* desc = &image->ImageDesc;
 
         // Copy pixel data (assuming it was already set in EnsureFrameDecoded)
-        newFrame.width = this->_width;
-        newFrame.height = this->_height;
-        newFrame.offsetX = desc->Left;
-        newFrame.offsetY = desc->Top;
+        newFrame.width = this->_width;      // Full canvas width for composed frame
+        newFrame.height = this->_height;    // Full canvas height for composed frame
+        newFrame.offsetX = 0;               // Composed frame is already on full canvas
+        newFrame.offsetY = 0;               // Composed frame is already on full canvas
         newFrame.transparentIndex = -1;
         newFrame.disposal = DisposalMethod::None;
 

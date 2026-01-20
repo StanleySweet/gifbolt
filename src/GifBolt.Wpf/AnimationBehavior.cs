@@ -41,7 +41,7 @@ namespace GifBolt.Wpf
                 "RepeatBehavior",
                 typeof(string),
                 typeof(AnimationBehavior),
-                new PropertyMetadata("Forever", OnRepeatBehaviorChanged));
+                new PropertyMetadata(null, OnRepeatBehaviorChanged));
 
         /// <summary>
         /// Gets or sets whether animation starts in design mode.

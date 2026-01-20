@@ -72,7 +72,6 @@ namespace GifBolt.Wpf
         private readonly string? _sourcePath;
         private readonly byte[]? _sourceBytes;
         private WriteableBitmap? _writeableBitmap;
-        private WriteableBitmap? _backBuffer;  ///< Back buffer for double-buffering
         private DispatcherTimer? _renderTimer;
         private bool _isDisposed;
         private int _generationId;
@@ -372,7 +371,8 @@ namespace GifBolt.Wpf
         }
 
         /// <summary>
-        /// Renders a specific frame to the WriteableBitmap using double-buffering to prevent visual tearing.
+        /// <summary>
+        /// Renders a specific frame to the WriteableBitmap atomically.
         /// </summary>
         /// <param name="frameIndex">The index of the frame to render.</param>
         private void RenderFrame(int frameIndex)
@@ -394,8 +394,9 @@ namespace GifBolt.Wpf
                 {
                     // Use native resolution without scaling
                     success = this.Player.TryGetFramePixelsBgra32Premultiplied(frameIndex, out bgraPixels);
-                    outWidth = this._writeableBitmap.PixelWidth;
-                    outHeight = this._writeableBitmap.PixelHeight;
+                    // For unscaled frames, use the actual GIF dimensions (not bitmap size)
+                    outWidth = this.Player.Width;
+                    outHeight = this.Player.Height;
                 }
                 else
                 {
@@ -413,64 +414,31 @@ namespace GifBolt.Wpf
                         filter: this._scalingFilter);
                 }
 
-                if (success)
+                if (success && bgraPixels.Length > 0 && !this._isDisposed)
                 {
-                    if (bgraPixels.Length == 0 || this._isDisposed)
+                    // If bitmap is larger than frame, fill it with transparent first
+                    if (this._writeableBitmap.PixelWidth > outWidth || this._writeableBitmap.PixelHeight > outHeight)
                     {
-                        return;
+                        // Create transparent fill (BGRA 0x00000000)
+                        int fillWidth = this._writeableBitmap.PixelWidth;
+                        int fillHeight = this._writeableBitmap.PixelHeight;
+                        byte[] transparentFill = new byte[fillWidth * fillHeight * 4];
+                        // transparentFill is already zero-initialized (transparent black)
+
+                        // Fill entire bitmap with transparent
+                        this._writeableBitmap.WritePixels(
+                            new Int32Rect(0, 0, fillWidth, fillHeight),
+                            transparentFill,
+                            fillWidth * 4,
+                            0);
                     }
 
-                    // Use double-buffering: write to back buffer, then swap atomically
-                    // This prevents visual tearing and progressive filling
-                    if (this._backBuffer == null || this._backBuffer.PixelWidth != outWidth || this._backBuffer.PixelHeight != outHeight)
-                    {
-                        this._backBuffer = new WriteableBitmap(outWidth, outHeight, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
-                    }
-
-                    // Use fast direct memory copy with Lock/Unlock for large bitmaps
-                    this._backBuffer.Lock();
-                    try
-                    {
-                        unsafe
-                        {
-                            // Get pointer to back buffer memory
-                            IntPtr backBufferPtr = this._backBuffer.BackBuffer;
-                            int stride = this._backBuffer.BackBufferStride;
-
-                            // Pin the managed array and copy directly to back buffer
-                            fixed (byte* sourcePtr = bgraPixels)
-                            {
-                                byte* destPtr = (byte*)backBufferPtr;
-                                int copySize = outHeight * stride;
-
-                                // Fast block copy
-                                System.Buffer.MemoryCopy(sourcePtr, destPtr, copySize, copySize);
-                            }
-                        }
-
-                        // Don't mark dirty yet - we'll do it after swapping to front
-                    }
-                    finally
-                    {
-                        this._backBuffer.Unlock();
-                    }
-
-                    // Synchronously swap buffers on UI thread (DispatcherTimer ensures we're on UI thread)
-                    if (!this._isDisposed)
-                    {
-                        // Swap: back buffer becomes front, old front becomes back
-                        var temp = this._writeableBitmap;
-                        this._writeableBitmap = this._backBuffer;
-                        this._backBuffer = temp;
-
-                        // Update image source atomically
-                        this._image.Source = this._writeableBitmap;
-
-                        // Now mark the front buffer as dirty to trigger render
-                        this._writeableBitmap.Lock();
-                        this._writeableBitmap.AddDirtyRect(new Int32Rect(0, 0, outWidth, outHeight));
-                        this._writeableBitmap.Unlock();
-                    }
+                    // Now write the frame pixels atomically
+                    this._writeableBitmap.WritePixels(
+                        new Int32Rect(0, 0, outWidth, outHeight),
+                        bgraPixels,
+                        outWidth * 4,
+                        0);
                 }
             }
             catch
@@ -493,7 +461,7 @@ namespace GifBolt.Wpf
                 int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
                 long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
 
-                // Only advance frame if enough time has elapsed for the current frame
+                // Only advance frame if enough time has elapsed for the current frame (multiplied by debug factor)
                 if (elapsedMs >= rawFrameDelayMs)
                 {
                     // Advance to next frame and reset the frame start time
