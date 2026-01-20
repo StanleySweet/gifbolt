@@ -31,6 +31,7 @@ namespace GifBolt.Avalonia
         private DispatcherTimer? _animationTimer;
         private DateTime _frameStartTime;
         private bool _wasPlayingBeforeHidden;
+        private ScalingFilter _scalingFilter = ScalingFilter.Bilinear;
 
         /// <summary>
         /// Gets the width of the GIF in pixels.
@@ -96,23 +97,40 @@ namespace GifBolt.Avalonia
                         return;
                     }
 
-                    var wb = new WriteableBitmap(
-                        new PixelSize(this.Player.Width, this.Player.Height),
-                        new Vector(96, 96),
-                        PixelFormat.Bgra8888,
-                        AlphaFormat.Premul);
+                    // Determine target display size
+                    int displayWidth = Math.Max(1, (int)this._image.Bounds.Width);
+                    int displayHeight = Math.Max(1, (int)this._image.Bounds.Height);
 
-                    // Get frame 0 pixels on background thread to avoid UI blocking
-                    if (this.Player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) && bgraPixels.Length > 0)
+                    if (displayWidth < 10 || displayHeight < 10)
                     {
+                        displayWidth = this.Player.Width;
+                        displayHeight = this.Player.Height;
+                    }
+
+                    // Get scaled frame 0 pixels on background thread
+                    if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                        0,
+                        displayWidth,
+                        displayHeight,
+                        out byte[] bgraPixels,
+                        out int outWidth,
+                        out int outHeight,
+                        filter: this._scalingFilter) &&
+                        bgraPixels.Length > 0)
+                    {
+                        var wb = new WriteableBitmap(
+                            new PixelSize(outWidth, outHeight),
+                            new Vector(96, 96),
+                            PixelFormat.Bgra8888,
+                            AlphaFormat.Premul);
+
                         // Copy pixels to bitmap on background thread
                         using (var buffer = wb.Lock())
                         {
                             Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
                         }
-                    }
 
-                    Dispatcher.UIThread.Post(() =>
+                        Dispatcher.UIThread.Post(() =>
                     {
                         this._writeableBitmap = wb;
                         this._image.Source = this._writeableBitmap;
@@ -125,6 +143,13 @@ namespace GifBolt.Avalonia
                         this._animationTimer.Tick += this.OnRenderTick;
                         onLoaded?.Invoke();
                     });
+                    }
+                    else
+                    {
+                        // Fallback: failed to get scaled pixels
+                        var error = new InvalidOperationException("Failed to decode initial frame.");
+                        Dispatcher.UIThread.Post(() => onError?.Invoke(error));
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -160,6 +185,15 @@ namespace GifBolt.Avalonia
             {
                 this.Player.SetMinFrameDelayMs(minDelayMs);
             }
+        }
+
+        /// <summary>
+        /// Sets the scaling filter used when resizing frames.
+        /// </summary>
+        /// <param name="filter">The scaling filter (Nearest, Bilinear, Bicubic, Lanczos).</param>
+        public void SetScalingFilter(ScalingFilter filter)
+        {
+            this._scalingFilter = filter;
         }
 
         /// <summary>
@@ -232,7 +266,17 @@ namespace GifBolt.Avalonia
 
             try
             {
-                if (this.Player.TryGetFramePixelsBgra32Premultiplied(frameIndex, out byte[] bgraPixels))
+                int displayWidth = this._writeableBitmap.PixelWidth;
+                int displayHeight = this._writeableBitmap.PixelHeight;
+
+                if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                    frameIndex,
+                    displayWidth,
+                    displayHeight,
+                    out byte[] bgraPixels,
+                    out int outWidth,
+                    out int outHeight,
+                    filter: this._scalingFilter))
                 {
                     if (bgraPixels.Length == 0)
                     {

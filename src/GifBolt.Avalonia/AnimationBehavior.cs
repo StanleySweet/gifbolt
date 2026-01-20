@@ -48,6 +48,15 @@ namespace GifBolt.Avalonia
                 defaultValue: false);
 
         /// <summary>
+        /// Gets or sets the scaling filter used when resizing GIF frames.
+        /// Valid values: Nearest (fastest), Bilinear (default), Bicubic, Lanczos (highest quality).
+        /// </summary>
+        public static readonly AttachedProperty<ScalingFilter> ScalingFilterProperty =
+            AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, ScalingFilter>(
+                "ScalingFilter",
+                defaultValue: ScalingFilter.Bilinear);
+
+        /// <summary>
         /// Internal property to store the GifAnimationController instance.
         /// </summary>
         private static readonly AttachedProperty<GifAnimationController?> _animationControllerProperty =
@@ -59,6 +68,7 @@ namespace GifBolt.Avalonia
         {
             SourceUriProperty.Changed.AddClassHandler<Image>(OnSourceUriChanged);
             RepeatBehaviorProperty.Changed.AddClassHandler<Image>(OnRepeatBehaviorChanged);
+            ScalingFilterProperty.Changed.AddClassHandler<Image>(OnScalingFilterChanged);
         }
 
         /// <summary>
@@ -151,6 +161,36 @@ namespace GifBolt.Avalonia
             image.SetValue(AnimateInDesignModeProperty, value);
         }
 
+        /// <summary>
+        /// Gets the value of the ScalingFilter attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <returns>The scaling filter value.</returns>
+        public static ScalingFilter GetScalingFilter(Image image)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            return image.GetValue(ScalingFilterProperty);
+        }
+
+        /// <summary>
+        /// Sets the value of the ScalingFilter attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <param name="value">The scaling filter to set.</param>
+        public static void SetScalingFilter(Image image, ScalingFilter value)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            image.SetValue(ScalingFilterProperty, value);
+        }
+
         // =============================================
         // Private Implementation
         // =============================================
@@ -205,6 +245,7 @@ namespace GifBolt.Avalonia
 
             // Create new animation controller
             var repeatBehavior = GetRepeatBehavior(image) ?? "0x";
+            var scalingFilter = GetScalingFilter(image);
             var controller = new GifAnimationController(
                 image,
                 resolvedPath!,
@@ -216,6 +257,9 @@ namespace GifBolt.Avalonia
                     {
                         return;
                     }
+
+                    // Apply scaling filter
+                    current.SetScalingFilter(scalingFilter);
 
                     // Apply repeat behavior
                     if (!string.IsNullOrWhiteSpace(repeatBehavior))
@@ -256,6 +300,23 @@ namespace GifBolt.Avalonia
             if (controller is not null && e.NewValue is string repeatBehavior)
             {
                 controller.SetRepeatBehavior(repeatBehavior);
+            }
+        }
+
+        /// <summary>
+        /// Handles changes to the ScalingFilter property.
+        /// </summary>
+        private static void OnScalingFilterChanged(Image image, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            var controller = GetAnimationController(image);
+            if (controller is not null && e.NewValue is ScalingFilter filter)
+            {
+                controller.SetScalingFilter(filter);
             }
         }
 

@@ -191,7 +191,7 @@ public sealed class GifPlayer : IDisposable
     /// <remarks>This method uses GPU acceleration for high-quality bilinear scaling.</remarks>
     public bool TryGetFramePixelsBgra32PremultipliedScaled(int frameIndex, int targetWidth, int targetHeight,
                                                             out byte[] pixels, out int outWidth, out int outHeight,
-                                                            Internal.ScalingFilter filter = Internal.ScalingFilter.Bilinear)
+                                                            ScalingFilter filter = ScalingFilter.Bilinear)
     {
         pixels = Array.Empty<byte>();
         outWidth = 0;

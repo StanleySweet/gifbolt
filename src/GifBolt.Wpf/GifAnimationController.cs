@@ -78,6 +78,7 @@ namespace GifBolt.Wpf
         private string? _pendingRepeatBehavior;
         private DateTime _frameStartTime;
         private bool _wasPlayingBeforeHidden;
+        private ScalingFilter _scalingFilter = ScalingFilter.Bilinear;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
@@ -172,7 +173,7 @@ namespace GifBolt.Wpf
                         out byte[] bgraPixels,
                         out int outWidth,
                         out int outHeight,
-                        filter: GifBolt.Internal.ScalingFilter.Lanczos) &&
+                        filter: this._scalingFilter) &&
                         bgraPixels.Length > 0)
                     {
                         initialPixels = new byte[bgraPixels.Length];
@@ -335,6 +336,15 @@ namespace GifBolt.Wpf
         }
 
         /// <summary>
+        /// Sets the scaling filter used when resizing frames.
+        /// </summary>
+        /// <param name="filter">The scaling filter (Nearest, Bilinear, Bicubic, Lanczos).</param>
+        public void SetScalingFilter(ScalingFilter filter)
+        {
+            this._scalingFilter = filter;
+        }
+
+        /// <summary>
         /// Renders a specific frame to the WriteableBitmap.
         /// </summary>
         /// <param name="frameIndex">The index of the frame to render.</param>
@@ -357,7 +367,7 @@ namespace GifBolt.Wpf
                     out byte[] bgraPixels,
                     out int outWidth,
                     out int outHeight,
-                    filter: GifBolt.Internal.ScalingFilter.Lanczos))
+                    filter: this._scalingFilter))
                 {
                     if (bgraPixels.Length == 0 || this._isDisposed)
                     {

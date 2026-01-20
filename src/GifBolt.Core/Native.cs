@@ -8,7 +8,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace GifBolt.Internal
+namespace GifBolt
 {
     /// <summary>
     /// Image scaling filter types for resizing operations.
@@ -27,7 +27,10 @@ namespace GifBolt.Internal
         /// <summary>Lanczos resampling - highest quality, slowest.</summary>
         Lanczos = 3,
     }
+}
 
+namespace GifBolt.Internal
+{
     /// <summary>
     /// Manual P/Invoke for GifBolt.Native using LoadLibrary + GetProcAddress.
     /// Provides managed access to native decoder functions without delay-load dependencies.

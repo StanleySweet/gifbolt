@@ -54,6 +54,17 @@ namespace GifBolt.Wpf
                 new PropertyMetadata(false, OnAnimateInDesignModeChanged));
 
         /// <summary>
+        /// Gets or sets the scaling filter used when resizing GIF frames.
+        /// Valid values: Nearest (fastest), Bilinear (default), Bicubic, Lanczos (highest quality).
+        /// </summary>
+        public static readonly DependencyProperty ScalingFilterProperty =
+            DependencyProperty.RegisterAttached(
+                "ScalingFilter",
+                typeof(ScalingFilter),
+                typeof(AnimationBehavior),
+                new PropertyMetadata(ScalingFilter.Bilinear, OnScalingFilterChanged));
+
+        /// <summary>
         /// Internal property to store the GifAnimationController instance.
         /// </summary>
         private static readonly DependencyProperty _animationControllerProperty =
@@ -154,6 +165,36 @@ namespace GifBolt.Wpf
         }
 
         /// <summary>
+        /// Gets the value of the ScalingFilter attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <returns>The scaling filter value.</returns>
+        public static ScalingFilter GetScalingFilter(Image image)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            return (ScalingFilter)image.GetValue(ScalingFilterProperty);
+        }
+
+        /// <summary>
+        /// Sets the value of the ScalingFilter attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <param name="value">The scaling filter to set.</param>
+        public static void SetScalingFilter(Image image, ScalingFilter value)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            image.SetValue(ScalingFilterProperty, value);
+        }
+
+        /// <summary>
         /// Private Implementation.
         /// </summary>
         private static GifAnimationController? GetAnimationController(Image image)
@@ -191,18 +232,22 @@ namespace GifBolt.Wpf
             {
                 return;
             }
+scalingFilter = GetScalingFilter(image);
+            var controller = bytes != null
+                ? new GifAnimationController(image, bytes, onLoaded: OnControllerLoaded, onError: OnControllerError)
+                : new GifAnimationController(image, resolvedPath!, onLoaded: OnControllerLoaded, onError: OnControllerError);
 
-            var sourceUri = e.NewValue as string;
-            if (string.IsNullOrWhiteSpace(sourceUri))
+            void OnControllerLoaded()
             {
-                return;
-            }
-
-            // Skip design mode if not explicitly enabled
-            if (System.ComponentModel.DesignerProperties.GetIsInDesignMode(image))
-            {
-                if (!GetAnimateInDesignMode(image))
+                // Verify controller is still current
+                var current = GetAnimationController(image);
+                if (current == null)
                 {
+                    return;
+                }
+
+                // Apply scaling filter
+                current.SetScalingFilter(scalingFilter);
                     return;
                 }
             }
@@ -298,7 +343,25 @@ namespace GifBolt.Wpf
                     // Re-trigger the source changed handler
                     OnSourceUriChanged(image, new DependencyPropertyChangedEventArgs(SourceUriProperty, null, sourceUri));
                 }
+            }changes to the ScalingFilter property.
+        /// Updates the controller with the new scaling filter.
+        /// </summary>
+        private static void OnScalingFilterChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is not Image image)
+            {
+                return;
             }
+
+            var controller = GetAnimationController(image);
+            if (controller is not null && e.NewValue is ScalingFilter filter)
+            {
+                controller.SetScalingFilter(filter);
+            }
+        }
+
+        /// <summary>
+        /// Handles
         }
 
         /// <summary>
