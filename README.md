@@ -42,53 +42,85 @@ GifBolt/
 
 ## Quick Start
 
-### Option 1: Attached Properties (Compatible with WpfAnimatedGif)
+### WPF Usage (Attached Properties)
 
-Use on standard WPF `Image` controls - works as a drop-in replacement:
+Use on standard WPF `Image` controls with attached properties:
 
 ```xml
 <Window xmlns:gif="clr-namespace:GifBolt.Wpf;assembly=GifBolt.Wpf">
-    <Image gif:ImageBehavior.AnimatedSource="animation.gif" />
+    <Image gif:AnimationBehavior.SourceUri="animation.gif" />
 
     <!-- With repeat behavior -->
-    <Image gif:ImageBehavior.AnimatedSource="animation.gif"
-           gif:ImageBehavior.RepeatBehavior="3x" />
+    <Image gif:AnimationBehavior.SourceUri="animation.gif"
+           gif:AnimationBehavior.RepeatBehavior="3x" />
 
     <!-- Looping forever -->
-    <Image gif:ImageBehavior.AnimatedSource="animation.gif"
-           gif:ImageBehavior.RepeatBehavior="Forever"
-           gif:ImageBehavior.AutoStart="True" />
+    <Image gif:AnimationBehavior.SourceUri="animation.gif"
+           gif:AnimationBehavior.RepeatBehavior="Forever" />
 </Window>
 ```
 
 Code-behind:
 
 ```csharp
-var image = new BitmapImage();
-image.BeginInit();
-image.UriSource = new Uri(fileName);
-image.EndInit();
-ImageBehavior.SetAnimatedSource(img, image);
+using GifBolt.Wpf;
+
+// Set animated source
+AnimationBehavior.SetSourceUri(myImage, "path/to/animation.gif");
+
+// Configure repeat behavior
+AnimationBehavior.SetRepeatBehavior(myImage, "Forever");
 ```
 
-### Option 2: Custom Control (Direct API)
+### Avalonia Usage (Attached Properties)
 
-Use the `GifBoltControl` for more direct control:
+Use on standard Avalonia `Image` controls with attached properties:
 
 ```xml
-<Window xmlns:gifbolt="clr-namespace:GifBolt.Wpf;assembly=GifBolt.Wpf">
-    <gifbolt:GifBoltControl Source="animation.gif"
-                           AutoStart="True"
-                           Loop="True"/>
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:gif="using:GifBolt.Avalonia">
+    <Image gif:AnimationBehavior.SourceUri="animation.gif" />
+
+    <!-- With repeat behavior -->
+    <Image gif:AnimationBehavior.SourceUri="animation.gif"
+           gif:AnimationBehavior.RepeatBehavior="3x" />
+
+    <!-- Looping forever -->
+    <Image gif:AnimationBehavior.SourceUri="animation.gif"
+           gif:AnimationBehavior.RepeatBehavior="Forever" />
 </Window>
 ```
 
+Code-behind:
+
 ```csharp
-// C# code-behind
-gifControl.LoadGif("myfile.gif");
-gifControl.Play();
-gifControl.Pause();
-gifControl.Stop();
+using GifBolt.Avalonia;
+
+// Set animated source
+AnimationBehavior.SetSourceUri(myImage, "path/to/animation.gif");
+
+// Configure repeat behavior
+AnimationBehavior.SetRepeatBehavior(myImage, "Forever");
+```
+
+### Core Library Usage (GifPlayer)
+
+For direct control or custom implementations:
+
+```csharp
+using GifBolt;
+
+var player = new GifPlayer();
+player.Load("path/to/animation.gif");
+
+// Access frame data
+byte[] pixels = player.GetFramePixels(0);
+int delay = player.GetFrameDelayMs(0);
+
+// Playback state (managed by your render loop)
+player.Play();
+player.Pause();
+player.Stop();
 ```
 
 ## Requirements
