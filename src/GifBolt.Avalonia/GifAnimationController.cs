@@ -30,6 +30,7 @@ namespace GifBolt.Avalonia
         private WriteableBitmap? _writeableBitmap;
         private DispatcherTimer? _animationTimer;
         private DateTime _frameStartTime;
+        private bool _wasPlayingBeforeHidden;
 
         /// <summary>
         /// Gets the width of the GIF in pixels.
@@ -72,6 +73,11 @@ namespace GifBolt.Avalonia
             }
 
             this._image = image;
+
+            // Subscribe to visibility changes for automatic pause/resume
+            this._image.AttachedToVisualTree += this.OnImageAttachedToVisualTree;
+            this._image.DetachedFromVisualTree += this.OnImageDetachedFromVisualTree;
+            this._image.PropertyChanged += this.OnImagePropertyChanged;
 
             // Load the GIF asynchronously to avoid blocking the UI thread
             System.Threading.Tasks.Task.Run(() =>
@@ -325,6 +331,65 @@ namespace GifBolt.Avalonia
         }
 
         /// <summary>
+        /// Handles the Image control being attached to the visual tree.
+        /// Resumes animation if it was playing before detachment.
+        /// </summary>
+        /// <param name="sender">The Image control.</param>
+        /// <param name="e">Event arguments.</param>
+        private void OnImageAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            if (this._wasPlayingBeforeHidden && !this.IsPlaying)
+            {
+                this._wasPlayingBeforeHidden = false;
+                this.Play();
+            }
+        }
+
+        /// <summary>
+        /// Handles the Image control being detached from the visual tree.
+        /// Pauses animation to save resources when not visible.
+        /// </summary>
+        /// <param name="sender">The Image control.</param>
+        /// <param name="e">Event arguments.</param>
+        private void OnImageDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            if (this.IsPlaying)
+            {
+                this._wasPlayingBeforeHidden = true;
+                this.Pause();
+            }
+        }
+
+        /// <summary>
+        /// Handles property changes on the Image control to monitor IsVisible.
+        /// Pauses/resumes animation based on visibility to save resources.
+        /// </summary>
+        /// <param name="sender">The Image control.</param>
+        /// <param name="e">Property changed event arguments.</param>
+        private void OnImagePropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property.Name != nameof(this._image.IsVisible))
+            {
+                return;
+            }
+
+            bool isVisible = this._image.IsVisible;
+
+            if (!isVisible && this.IsPlaying)
+            {
+                // Image became hidden while playing - pause and remember state
+                this._wasPlayingBeforeHidden = true;
+                this.Pause();
+            }
+            else if (isVisible && this._wasPlayingBeforeHidden)
+            {
+                // Image became visible again and was playing before - resume
+                this._wasPlayingBeforeHidden = false;
+                this.Play();
+            }
+        }
+
+        /// <summary>
         /// Releases all resources held by the animation controller.
         /// </summary>
         /// <remarks>
@@ -332,6 +397,11 @@ namespace GifBolt.Avalonia
         /// </remarks>
         public override void Dispose()
         {
+            // Unsubscribe from visibility events
+            this._image.AttachedToVisualTree -= this.OnImageAttachedToVisualTree;
+            this._image.DetachedFromVisualTree -= this.OnImageDetachedFromVisualTree;
+            this._image.PropertyChanged -= this.OnImagePropertyChanged;
+
             this._animationTimer?.Stop();
             this._animationTimer = null;
             base.Dispose();

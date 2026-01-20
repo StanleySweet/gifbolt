@@ -77,6 +77,7 @@ namespace GifBolt.Wpf
         private int _generationId;
         private string? _pendingRepeatBehavior;
         private DateTime _frameStartTime;
+        private bool _wasPlayingBeforeHidden;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
@@ -93,6 +94,9 @@ namespace GifBolt.Wpf
             this._sourceBytes = null;
             this._generationId = System.Environment.TickCount; // Unique ID for this instance
 
+            // Subscribe to visibility changes for automatic pause/resume
+            this._image.IsVisibleChanged += this.OnImageVisibilityChanged;
+
             this.BeginLoad(onLoaded, onError);
         }
 
@@ -105,6 +109,9 @@ namespace GifBolt.Wpf
             this._sourceBytes = sourceBytes;
             this._sourcePath = null;
             this._generationId = System.Environment.TickCount;
+
+            // Subscribe to visibility changes for automatic pause/resume
+            this._image.IsVisibleChanged += this.OnImageVisibilityChanged;
 
             this.BeginLoad(onLoaded, onError);
         }
@@ -432,6 +439,35 @@ namespace GifBolt.Wpf
         }
 
         /// <summary>
+        /// Handles visibility changes of the Image control.
+        /// Pauses animation when hidden and resumes when visible to save resources.
+        /// </summary>
+        /// <param name="sender">The Image control.</param>
+        /// <param name="e">Event arguments.</param>
+        private void OnImageVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (this._isDisposed)
+            {
+                return;
+            }
+
+            bool isVisible = this._image.IsVisible;
+
+            if (!isVisible && this.IsPlaying)
+            {
+                // Image became hidden while playing - pause and remember state
+                this._wasPlayingBeforeHidden = true;
+                this.Pause();
+            }
+            else if (isVisible && this._wasPlayingBeforeHidden)
+            {
+                // Image became visible again and was playing before - resume
+                this._wasPlayingBeforeHidden = false;
+                this.Play();
+            }
+        }
+
+        /// <summary>
         /// Releases all resources held by the animation controller.
         /// </summary>
         public override void Dispose()
@@ -440,6 +476,9 @@ namespace GifBolt.Wpf
             this._isDisposed = true;
             this._generationId = int.MinValue; // Invalidate generation ID to block pending operations
             this.IsPlaying = false;
+
+            // Unsubscribe from visibility changes
+            this._image.IsVisibleChanged -= this.OnImageVisibilityChanged;
 
             // Stop and fully release the render timer
             if (this._renderTimer != null)
