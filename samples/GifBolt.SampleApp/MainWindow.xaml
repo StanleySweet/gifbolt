@@ -28,7 +28,7 @@
                         <TextBlock Text="Using attached properties on Image control with configurable scaling"
                                    Foreground="Gray" Margin="0,5,0,15"/>
 
-                        <Border BorderBrush="Gray" BorderThickness="1" Width="450" Height="350"
+                        <Border BorderBrush="Gray" BorderThickness="1"
                                 HorizontalAlignment="Left" Margin="0,0,0,15">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -37,7 +37,8 @@
                                 </LinearGradientBrush>
                             </Border.Background>
                             <Image x:Name="GifImageScaling"
-                                   gifbolt:AnimationBehavior.RepeatBehavior="Forever"/>
+                                   gifbolt:AnimationBehavior.RepeatBehavior="Forever"
+                                   Stretch="Uniform"/>
                         </Border>
 
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
@@ -70,13 +71,14 @@
                         <TextBlock Text="✅ Live Demo: Image control with gifbolt:AnimationBehavior.SourceUri"
                                    FontWeight="SemiBold" Margin="0,10,0,5"/>
 
-                        <Border BorderBrush="Gray" BorderThickness="1" Width="450" Height="350"
+                        <Border BorderBrush="Gray" BorderThickness="1"
                                 HorizontalAlignment="Left" Margin="0,0,0,15">
                             <Border.Background>
                                 <SolidColorBrush Color="#22000000"/>
                             </Border.Background>
                             <Image x:Name="ImageBehaviorImage"
-                                   gifbolt:AnimationBehavior.RepeatBehavior="Forever"/>
+                                   gifbolt:AnimationBehavior.RepeatBehavior="Forever"
+                                   Stretch="Uniform"/>
                         </Border>
 
                         <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,10,0,15">

@@ -38,19 +38,23 @@
             <Border
                 Grid.Row="0"
                 Grid.Column="0"
+                Background="Gray"
                 BorderBrush="Gray"
-                BorderThickness="1">
+                BorderThickness="1"
+                ClipToBounds="True"
+                Padding="5">
                 <StackPanel>
                     <TextBlock
-                        Margin="5"
                         FontWeight="Bold"
                         Text="Simple (AutoStart, 0x = metadata)" />
                     <Image
                         x:Name="Image1"
+                        Margin="0,5,0,0"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
+                        gif:AnimationBehavior.RepeatBehavior="Forever"
                         gif:AnimationBehavior.SourceUri="pack://application:,,,/GifBolt.SampleApp;component/sample.gif"
-                        gif:AnimationBehavior.RepeatBehavior="Forever" />
+                        Stretch="Uniform" />
                 </StackPanel>
             </Border>
 
@@ -59,17 +63,20 @@
                 Grid.Row="0"
                 Grid.Column="2"
                 BorderBrush="Gray"
-                BorderThickness="1">
+                BorderThickness="1"
+                ClipToBounds="True"
+                Padding="5">
                 <StackPanel>
                     <TextBlock
-                        Margin="5"
                         FontWeight="Bold"
                         Text="Repeat 3 times" />
                     <Image
                         x:Name="ImageRepeat3x"
+                        Margin="0,5,0,0"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        gif:AnimationBehavior.RepeatBehavior="3x" />
+                        gif:AnimationBehavior.RepeatBehavior="3x"
+                        Stretch="Uniform" />
                 </StackPanel>
             </Border>
 
@@ -78,17 +85,20 @@
                 Grid.Row="2"
                 Grid.Column="0"
                 BorderBrush="Gray"
-                BorderThickness="1">
+                BorderThickness="1"
+                ClipToBounds="True"
+                Padding="5">
                 <StackPanel>
                     <TextBlock
-                        Margin="5"
                         FontWeight="Bold"
                         Text="Loop forever" />
                     <Image
                         x:Name="Image3"
+                        Margin="0,5,0,0"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        gif:AnimationBehavior.RepeatBehavior="Forever" />
+                        gif:AnimationBehavior.RepeatBehavior="Forever"
+                        Stretch="Uniform" />
                 </StackPanel>
             </Border>
 
@@ -97,17 +107,20 @@
                 Grid.Row="2"
                 Grid.Column="2"
                 BorderBrush="Gray"
-                BorderThickness="1">
+                BorderThickness="1"
+                ClipToBounds="True"
+                Padding="5">
                 <StackPanel>
                     <TextBlock
-                        Margin="5"
                         FontWeight="Bold"
                         Text="Manual start (AutoStart=False)" />
                     <Image
                         x:Name="ImageManual"
+                        Margin="0,5,0,0"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        gif:AnimationBehavior.AnimateInDesignMode="False" />
+                        gif:AnimationBehavior.AnimateInDesignMode="False"
+                        Stretch="Uniform" />
                 </StackPanel>
             </Border>
         </Grid>

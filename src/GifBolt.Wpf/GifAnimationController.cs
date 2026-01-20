@@ -72,6 +72,7 @@ namespace GifBolt.Wpf
         private readonly string? _sourcePath;
         private readonly byte[]? _sourceBytes;
         private WriteableBitmap? _writeableBitmap;
+        private WriteableBitmap? _backBuffer;  ///< Back buffer for double-buffering
         private DispatcherTimer? _renderTimer;
         private bool _isDisposed;
         private int _generationId;
@@ -371,7 +372,7 @@ namespace GifBolt.Wpf
         }
 
         /// <summary>
-        /// Renders a specific frame to the WriteableBitmap.
+        /// Renders a specific frame to the WriteableBitmap using double-buffering to prevent visual tearing.
         /// </summary>
         /// <param name="frameIndex">The index of the frame to render.</param>
         private void RenderFrame(int frameIndex)
@@ -419,24 +420,56 @@ namespace GifBolt.Wpf
                         return;
                     }
 
-                    int stride = outWidth * 4;
-
-                    // Lock the bitmap to prevent tearing/flickering
-                    if (!this._isDisposed && this._writeableBitmap != null)
+                    // Use double-buffering: write to back buffer, then swap atomically
+                    // This prevents visual tearing and progressive filling
+                    if (this._backBuffer == null || this._backBuffer.PixelWidth != outWidth || this._backBuffer.PixelHeight != outHeight)
                     {
+                        this._backBuffer = new WriteableBitmap(outWidth, outHeight, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
+                    }
+
+                    // Use fast direct memory copy with Lock/Unlock for large bitmaps
+                    this._backBuffer.Lock();
+                    try
+                    {
+                        unsafe
+                        {
+                            // Get pointer to back buffer memory
+                            IntPtr backBufferPtr = this._backBuffer.BackBuffer;
+                            int stride = this._backBuffer.BackBufferStride;
+
+                            // Pin the managed array and copy directly to back buffer
+                            fixed (byte* sourcePtr = bgraPixels)
+                            {
+                                byte* destPtr = (byte*)backBufferPtr;
+                                int copySize = outHeight * stride;
+
+                                // Fast block copy
+                                System.Buffer.MemoryCopy(sourcePtr, destPtr, copySize, copySize);
+                            }
+                        }
+
+                        // Don't mark dirty yet - we'll do it after swapping to front
+                    }
+                    finally
+                    {
+                        this._backBuffer.Unlock();
+                    }
+
+                    // Synchronously swap buffers on UI thread (DispatcherTimer ensures we're on UI thread)
+                    if (!this._isDisposed)
+                    {
+                        // Swap: back buffer becomes front, old front becomes back
+                        var temp = this._writeableBitmap;
+                        this._writeableBitmap = this._backBuffer;
+                        this._backBuffer = temp;
+
+                        // Update image source atomically
+                        this._image.Source = this._writeableBitmap;
+
+                        // Now mark the front buffer as dirty to trigger render
                         this._writeableBitmap.Lock();
-                        try
-                        {
-                            this._writeableBitmap.WritePixels(
-                                new Int32Rect(0, 0, outWidth, outHeight),
-                                bgraPixels,
-                                stride,
-                                0);
-                        }
-                        finally
-                        {
-                            this._writeableBitmap.Unlock();
-                        }
+                        this._writeableBitmap.AddDirtyRect(new Int32Rect(0, 0, outWidth, outHeight));
+                        this._writeableBitmap.Unlock();
                     }
                 }
             }
@@ -475,27 +508,24 @@ namespace GifBolt.Wpf
                         return;
                     }
 
-                    // Reset canvas state and render frame 0 when looping
-                    if (advanceResult.NextFrame == 0)
+                    // Reset canvas state when looping back to frame 0
+                    if (advanceResult.NextFrame == 0 && this.Player != null)
                     {
                         this.Player.ResetCanvas();
                         this.Player.CurrentFrame = 0;
-                        this.RepeatCount = advanceResult.UpdatedRepeatCount;
-                        this._frameStartTime = DateTime.UtcNow;
-
-                        // Force immediate render of frame 0 after canvas reset
                         this.RenderFrame(0);
-                        return;
+                        this._frameStartTime = DateTime.UtcNow;
+                        return; // Exit early after rendering frame 0
                     }
 
                     // Update the current frame and repeat count
                     this.Player.CurrentFrame = advanceResult.NextFrame;
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameStartTime = DateTime.UtcNow;
-                }
 
-                // Always render on every tick for smooth visual feedback
-                this.RenderFrame(this.Player.CurrentFrame);
+                    // Render only when frame actually changes
+                    this.RenderFrame(this.Player.CurrentFrame);
+                }
             }
             catch
             {
