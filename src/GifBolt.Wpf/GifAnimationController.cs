@@ -421,14 +421,22 @@ namespace GifBolt.Wpf
 
                     int stride = outWidth * 4;
 
-                    // Add disposal check before WritePixels to prevent deadlock
+                    // Lock the bitmap to prevent tearing/flickering
                     if (!this._isDisposed && this._writeableBitmap != null)
                     {
-                        this._writeableBitmap.WritePixels(
-                            new Int32Rect(0, 0, outWidth, outHeight),
-                            bgraPixels,
-                            stride,
-                            0);
+                        this._writeableBitmap.Lock();
+                        try
+                        {
+                            this._writeableBitmap.WritePixels(
+                                new Int32Rect(0, 0, outWidth, outHeight),
+                                bgraPixels,
+                                stride,
+                                0);
+                        }
+                        finally
+                        {
+                            this._writeableBitmap.Unlock();
+                        }
                     }
                 }
             }
