@@ -151,6 +151,15 @@ class GifDecoder
     ///          This clears the canvas and resets disposal state without reloading the GIF.
     void ResetCanvas();
 
+    /// \brief Gets the rendering backend type.
+    /// \return Backend enum value (DUMMY, D3D11, or Metal).
+    Renderer::Backend GetBackend() const;
+
+    /// \brief Gets the native GPU texture pointer for zero-copy rendering.
+    /// \param frameIndex The frame index to get the texture for.
+    /// \return Native texture pointer (ID3D11Texture2D* or MTLTexture*), or nullptr on error.
+    void* GetNativeTexturePtr(int frameIndex);
+
    private:
     class Impl;
     std::unique_ptr<Impl> _pImpl;  ///< Opaque implementation (Pimpl pattern)

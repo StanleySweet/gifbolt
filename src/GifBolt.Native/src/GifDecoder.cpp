@@ -4,6 +4,7 @@
 #include "GifDecoder.h"
 
 #include "IDeviceCommandContext.h"
+#include "ITexture.h"
 #include "MemoryPool.h"
 #include "PixelConversion.h"
 #include "ThreadPool.h"
@@ -1164,6 +1165,47 @@ void GifDecoder::ResetCanvas()
         this->_pImpl->_bgraPremultipliedCache.clear();
         std::fill(this->_pImpl->_frameDecoded.begin(), this->_pImpl->_frameDecoded.end(), false);
     }
+}
+
+Renderer::Backend GifDecoder::GetBackend() const
+{
+    if (this->_pImpl && this->_pImpl->_deviceContext)
+    {
+        return this->_pImpl->_deviceContext->GetBackend();
+    }
+    return Renderer::Backend::DUMMY;
+}
+
+void* GifDecoder::GetNativeTexturePtr(int frameIndex)
+{
+    if (!this->_pImpl || frameIndex < 0 || static_cast<uint32_t>(frameIndex) >= this->_pImpl->_frameCount)
+    {
+        return nullptr;
+    }
+
+    // Get the frame pixels to ensure it's cached
+    const uint8_t* pixels = this->GetFramePixelsBGRA32Premultiplied(static_cast<uint32_t>(frameIndex));
+    if (!pixels)
+    {
+        return nullptr;
+    }
+
+    // Create or retrieve a texture for this frame
+    if (this->_pImpl->_deviceContext)
+    {
+        auto texture = this->_pImpl->_deviceContext->CreateTexture(
+            this->_pImpl->_width,
+            this->_pImpl->_height,
+            pixels,
+            this->_pImpl->_width * this->_pImpl->_height * 4);
+
+        if (texture)
+        {
+            return texture->GetNativeTexturePtr();
+        }
+    }
+
+    return nullptr;
 }
 
 }  // namespace GifBolt

@@ -445,4 +445,25 @@ extern "C"
         return r->Render() ? 1 : 0;
     }
 
+    GB_API int gb_decoder_get_backend(gb_decoder_t decoder)
+    {
+        if (decoder == nullptr)
+        {
+            return -1;
+        }
+        auto* dec = reinterpret_cast<GifDecoder*>(decoder);
+        auto backend = dec->GetBackend();
+        return static_cast<int>(backend);
+    }
+
+    GB_API void* gb_decoder_get_native_texture_ptr(gb_decoder_t decoder, int frameIndex)
+    {
+        if (decoder == nullptr)
+        {
+            return nullptr;
+        }
+        auto* dec = reinterpret_cast<GifDecoder*>(decoder);
+        return dec->GetNativeTexturePtr(frameIndex);
+    }
+
 }  // extern "C"

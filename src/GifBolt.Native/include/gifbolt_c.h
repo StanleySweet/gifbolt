@@ -215,6 +215,17 @@ extern "C"
     /// \param decoder The decoder handle.
     /// \remarks Call this when looping back to frame 0 to ensure proper frame composition.
     GB_API void gb_decoder_reset_canvas(gb_decoder_t decoder);
+
+    /// \brief Gets the rendering backend type.
+    /// \param decoder The decoder handle.
+    /// \return Backend ID: 0=Dummy, 1=D3D11, 2=Metal; -1 on error.
+    GB_API int gb_decoder_get_backend(gb_decoder_t decoder);
+
+    /// \brief Gets the native GPU texture pointer for zero-copy rendering.
+    /// \param decoder The decoder handle.
+    /// \param frameIndex The frame index to get the texture for.
+    /// \return Native texture pointer (ID3D11Texture2D* or MTLTexture*), or NULL on error.
+    GB_API void* gb_decoder_get_native_texture_ptr(gb_decoder_t decoder, int frameIndex);
     /// @}
 
 #ifdef __cplusplus
