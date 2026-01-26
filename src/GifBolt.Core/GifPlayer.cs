@@ -305,6 +305,35 @@ public sealed class GifPlayer : IDisposable
         }
     }
 
+    /// <summary>Gets the rendering backend type.</summary>
+    /// <returns>Backend ID: 0=Dummy (Software), 1=DirectX 11, 2=Metal.</returns>
+    public int GetBackend()
+    {
+        if (this._decoder == null)
+        {
+            return -1;
+        }
+
+        return Native.gb_decoder_get_backend(this._decoder.DangerousGetHandle());
+    }
+
+    /// <summary>Gets the native GPU texture pointer for zero-copy rendering.</summary>
+    /// <param name="frameIndex">The frame index to get the texture for.</param>
+    /// <returns>Native texture pointer (ID3D11Texture2D* or MTLTexture*), or IntPtr.Zero on error.</returns>
+    /// <remarks>
+    /// This allows direct access to the native GPU texture for advanced rendering scenarios.
+    /// The returned pointer type depends on the backend: ID3D11Texture2D* for D3D11, MTLTexture* for Metal.
+    /// </remarks>
+    public IntPtr GetNativeTexturePtr(int frameIndex)
+    {
+        if (this._decoder == null)
+        {
+            return IntPtr.Zero;
+        }
+
+        return Native.gb_decoder_get_native_texture_ptr(this._decoder.DangerousGetHandle(), frameIndex);
+    }
+
     /// <summary>Releases the unmanaged resources associated with the player.</summary>
     public void Dispose()
     {

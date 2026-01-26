@@ -6,6 +6,7 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -24,20 +25,20 @@ namespace GifBolt.Avalonia
     /// Manages GIF animation playback on Avalonia Image controls using a WriteableBitmap
     /// and DispatcherTimer for frame timing. Handles asynchronous loading and frame rendering.
     /// </remarks>
-    internal sealed class GifAnimationController : GifAnimationControllerBase
+    public sealed class GifAnimationController : GifAnimationControllerBase
     {
         private readonly Image _image;
         private WriteableBitmap? _writeableBitmap;
         private DispatcherTimer? _animationTimer;
-        private DateTime _frameStartTime;
+        private Stopwatch? _frameTimer;
         private bool _wasPlayingBeforeHidden;
         private ScalingFilter _scalingFilter = ScalingFilter.None;
         private byte[]? _frameBuffer;
 
         // FPS diagnostics
-        private DateTime _fpsStartTime;
+        private Stopwatch? _fpsStopwatch;
         private int _frameCount;
-        private DateTime _lastRenderTime;
+        private long _lastRenderTimeMs;
 
         /// <summary>
         /// Gets the width of the GIF in pixels.
@@ -65,8 +66,9 @@ namespace GifBolt.Avalonia
         /// <param name="path">The file path to the GIF image.</param>
         /// <param name="onLoaded">Callback invoked when loading completes successfully.</param>
         /// <param name="onError">Callback invoked when loading fails.</param>
+        /// <param name="cacheFrames">Whether to cache decoded frames in memory for repeated playback.</param>
         /// <exception cref="ArgumentNullException">When image or path is null.</exception>
-        public GifAnimationController(Image image, string path, Action? onLoaded = null, Action<Exception>? onError = null)
+        public GifAnimationController(Image image, string path, Action? onLoaded = null, Action<Exception>? onError = null, bool cacheFrames = false)
             : base()
         {
             if (image == null)
@@ -230,38 +232,121 @@ namespace GifBolt.Avalonia
         }
 
         /// <summary>
+        /// <summary>
         /// Sets the scaling filter used when resizing frames.
         /// </summary>
+        /// <remarks>
+        /// When the filter changes, reinitializes the rendering pipeline and re-renders the current frame.
+        /// </remarks>
         /// <param name="filter">The scaling filter (Nearest, Bilinear, Bicubic, Lanczos).</param>
         public void SetScalingFilter(ScalingFilter filter)
         {
+            if (this._scalingFilter == filter)
+            {
+                return; // No change
+            }
+
+            // Pause during filter change to avoid race conditions with the animation timer
+            bool wasPlaying = this.IsPlaying;
+            if (wasPlaying)
+            {
+                this.Pause();
+            }
+
             this._scalingFilter = filter;
+
+            // If we have a valid player and bitmap, reinitialize for the new filter
+            if (this.Player != null && this._writeableBitmap != null && this._image != null)
+            {
+                try
+                {
+                    int nativeWidth = this.Player.Width;
+                    int nativeHeight = this.Player.Height;
+
+                    // Get the current display size
+                    int displayWidth = Math.Max(1, (int)this._image.Bounds.Width);
+                    int displayHeight = Math.Max(1, (int)this._image.Bounds.Height);
+
+                    if (displayWidth < 10 || displayHeight < 10)
+                    {
+                        displayWidth = nativeWidth;
+                        displayHeight = nativeHeight;
+                    }
+
+                    // Determine target bitmap dimensions based on filter
+                    int targetWidth = filter == ScalingFilter.None ? nativeWidth : displayWidth;
+                    int targetHeight = filter == ScalingFilter.None ? nativeHeight : displayHeight;
+
+                    // Recreate bitmap if dimensions changed
+                    if (this._writeableBitmap.PixelSize.Width != targetWidth ||
+                        this._writeableBitmap.PixelSize.Height != targetHeight)
+                    {
+                        this._writeableBitmap = new WriteableBitmap(
+                            new PixelSize(targetWidth, targetHeight),
+                            new Vector(96, 96),
+                            PixelFormat.Bgra8888,
+                            AlphaFormat.Premul);
+
+                        this._image.Source = this._writeableBitmap;
+                    }
+
+                    // Re-render the current frame with the new filter
+                    this.RenderFrame(this.Player.CurrentFrame);
+                }
+                catch
+                {
+                    // Suppress errors during filter change
+                }
+            }
+
+            // Resume playback if it was playing
+            if (wasPlaying)
+            {
+                this.Play();
+            }
         }
 
         /// <summary>
         /// Starts playback of the animation.
         /// </summary>
         /// <remarks>
-        /// Immediately renders the current frame and starts the animation timer.
-        /// The timer interval is adjusted based on the first frame's delay.
+        /// Starts the animation timer and begins rendering frames based on the GIF metadata delays.
         /// </remarks>
         public override void Play()
         {
-            this.Player?.Play();
-            this.IsPlaying = true;
-            this._frameStartTime = DateTime.UtcNow;
-            this._fpsStartTime = DateTime.UtcNow;
-            this._frameCount = 0;
-            this._lastRenderTime = DateTime.UtcNow;
+            if (this.Player == null)
+            {
+                return;
+            }
 
-            // Render the current frame immediately to avoid delay
-            if (this._writeableBitmap != null && this.Player != null)
+            this.Player.Play();
+            this.IsPlaying = true;
+
+            // Start high-precision frame timer
+            if (this._frameTimer == null)
+            {
+                this._frameTimer = new Stopwatch();
+            }
+            this._frameTimer.Restart();
+
+            // Initialize FPS stopwatch
+            if (this._fpsStopwatch == null)
+            {
+                this._fpsStopwatch = new Stopwatch();
+            }
+            this._fpsStopwatch.Restart();
+            this._frameCount = 0;
+            this._lastRenderTimeMs = 0;
+
+            if (this._writeableBitmap != null)
             {
                 this.RenderFrame(this.Player.CurrentFrame);
             }
 
             if (this._animationTimer != null)
             {
+                // Use a fixed, fast timer for smooth rendering
+                // Frame advancement is calculated based on actual elapsed time, not timer interval
                 this._animationTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
                 this._animationTimer.Start();
             }
@@ -278,6 +363,7 @@ namespace GifBolt.Avalonia
             this.Player?.Pause();
             this.IsPlaying = false;
             this._animationTimer?.Stop();
+            this._frameTimer?.Stop();
         }
 
         /// <summary>
@@ -365,7 +451,7 @@ namespace GifBolt.Avalonia
         /// </remarks>
         private void OnRenderTick(object? sender, EventArgs e)
         {
-            if (this.Player == null || !this.IsPlaying || this._writeableBitmap == null || this._animationTimer == null)
+            if (this.Player == null || !this.IsPlaying || this._writeableBitmap == null || this._animationTimer == null || this._frameTimer == null)
             {
                 return;
             }
@@ -381,7 +467,7 @@ namespace GifBolt.Avalonia
                     frameDelayMs = FrameTimingHelper.DefaultMinFrameDelayMs;
                 }
 
-                long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
+                long elapsedMs = this._frameTimer.ElapsedMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame
                 if (elapsedMs >= frameDelayMs)
@@ -397,30 +483,34 @@ namespace GifBolt.Avalonia
                         return;
                     }
 
+                    // Reset canvas state when looping back to frame 0
+                    if (advanceResult.NextFrame == 0 && this.Player.CurrentFrame > 0)
+                    {
+                        this.Player.ResetCanvas();
+                    }
+
                     this.Player.CurrentFrame = advanceResult.NextFrame;
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
-                    this._frameStartTime = DateTime.UtcNow;
+                    this._frameTimer.Restart();
 
                     // Render only when frame changes for better performance
-                    var renderStart = DateTime.UtcNow;
+                    var renderStart = Stopwatch.GetTimestamp();
                     this.RenderFrame(this.Player.CurrentFrame);
-                    var renderTime = (DateTime.UtcNow - renderStart).TotalMilliseconds;
+                    var renderTimeMs = (Stopwatch.GetTimestamp() - renderStart) / (double)Stopwatch.Frequency * 1000.0;
 
                     // FPS tracking
                     this._frameCount++;
-                    var timeSinceLastRender = (DateTime.UtcNow - this._lastRenderTime).TotalMilliseconds;
-                    this._lastRenderTime = DateTime.UtcNow;
+                    this._lastRenderTimeMs = this._fpsStopwatch?.ElapsedMilliseconds ?? 0;
 
-                    var totalTime = (DateTime.UtcNow - this._fpsStartTime).TotalSeconds;
-                    if (totalTime > 1.0)
+                    if (this._fpsStopwatch != null && this._fpsStopwatch.ElapsedMilliseconds > 1000)
                     {
-                        var fps = this._frameCount / totalTime;
-                        var fpsText = $"FPS: {fps:F1} | Render: {renderTime:F2}ms | Delay: {frameDelayMs}ms";
+                        var fps = this._frameCount * 1000.0 / this._fpsStopwatch.ElapsedMilliseconds;
+                        var fpsText = $"FPS: {fps:F1} | Render: {renderTimeMs:F2}ms | Delay: {frameDelayMs}ms";
 
                         // Update FPS on the Image control
                         AnimationBehavior.SetFpsText(this._image, fpsText);
 
-                        this._fpsStartTime = DateTime.UtcNow;
+                        this._fpsStopwatch.Restart();
                         this._frameCount = 0;
                     }
                 }
@@ -439,7 +529,16 @@ namespace GifBolt.Avalonia
         /// <param name="e">Event arguments.</param>
         private void OnImageAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
         {
+            // Check if we should resume playback
             if (this._wasPlayingBeforeHidden && !this.IsPlaying)
+            {
+                this._wasPlayingBeforeHidden = false;
+                this.Play();
+                return;
+            }
+
+            // Also check visibility in case it wasn't already triggered
+            if (this._image.IsVisible && this._wasPlayingBeforeHidden && !this.IsPlaying)
             {
                 this._wasPlayingBeforeHidden = false;
                 this.Play();
