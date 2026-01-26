@@ -93,6 +93,115 @@ src/
 
 ---
 
+## Development Workflow
+
+### C++ Development
+
+**Building:**
+```bash
+# Build all C++ native libraries (Debug/Release)
+cmake --build build
+cmake --build build --config Release
+
+# Rebuild from scratch
+rm -rf build && cmake -B build && cmake --build build
+```
+
+**After C++ Changes:**
+1. Edit files in `src/GifBolt.Native/src/` or `src/GifBolt.Native/include/`
+2. Run `cmake --build build` (automatically uses CMakeLists.txt)
+3. C API exports updated → gifbolt_c.cpp/gifbolt_c.h reflect changes
+4. Copy new dylib to C# projects: `cp build/src/GifBolt.Native/libGifBolt.Native.dylib samples/GifBolt.AvaloniaApp/bin/Release/net6.0/`
+
+**Adding New Functions:**
+1. Implement in C++: `GifDecoder.cpp` + `GifDecoder.h`
+2. Export in C API: `gifbolt_c.h` (declare) + `gifbolt_c.cpp` (implement wrapper)
+3. Expose in C#: `Native.cs` (delegate + GetDelegate call) + `GifPlayer.cs` (public method)
+4. Always include XML docs for C++ public APIs (see Docs section)
+5. Compile: `cmake --build build`
+
+**Testing C++ Directly:**
+Create inline debug programs to test C++ logic without C# layer:
+```bash
+# Example: inspect frame delays directly from dylib
+clang++ -std=c++17 debug_gif_delays.cpp -o debug_gif_delays -ldl
+./debug_gif_delays /path/to/animation.gif
+```
+
+### C# Development
+
+**Building:**
+```bash
+# Build Core → Avalonia → Sample App (in dependency order)
+dotnet build src/GifBolt.Core/GifBolt.Core.csproj -c Release
+dotnet build src/GifBolt.Avalonia/GifBolt.Avalonia.csproj -c Release
+dotnet build samples/GifBolt.AvaloniaApp/GifBolt.AvaloniaApp.csproj -c Release
+
+# Build and run in one command
+dotnet build src/GifBolt.Avalonia/GifBolt.Avalonia.csproj -c Release && \
+  dotnet build samples/GifBolt.AvaloniaApp/GifBolt.AvaloniaApp.csproj -c Release && \
+  /Users/stan/Dev/GifBolt/samples/GifBolt.AvaloniaApp/bin/Release/net6.0/GifBolt.AvaloniaApp
+```
+
+**After C# Changes:**
+1. Edit `.cs` files (changes apply via hot-reload or rebuild)
+2. If P/Invoke signatures changed → update `Native.cs` delegate declarations
+3. Run `dotnet build` to verify no compilation errors
+4. All style/naming violations flagged by .editorconfig (FIX BEFORE COMMIT)
+
+**Adding New Native Methods:**
+1. Implement in C++ with docs
+2. Export via C API (`gifbolt_c.h` + `gifbolt_c.cpp`)
+3. Add delegate in `Native.cs`: `private delegate TReturnType MethodName(TParam params);`
+4. Load delegate: `private static readonly MethodName = ... GetDelegate<...>("gb_method_name");`
+5. Create public wrapper in `GifPlayer.cs` with XML docs
+6. Test by rebuilding and calling from C#
+
+### Running Tests
+
+**C++ Unit Tests (Catch2):**
+```bash
+# Run all C++ tests (from project root)
+cd /Users/stan/Dev/GifBolt && ctest
+
+# Run specific test file
+build/tests/GifBolt.Tests GifDecoderTests.cpp
+
+# Run with output
+ctest --verbose
+```
+
+**C# Unit Tests (xUnit/NUnit):**
+```bash
+# Find test projects
+find . -name "*.Tests.csproj"
+
+# Run tests via dotnet
+dotnet test src/GifBolt.Core.Tests/GifBolt.Core.Tests.csproj -c Release
+dotnet test --verbosity normal  # Show test names
+
+# Test with coverage
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+**Test Coverage:**
+- C++: Catch2 tests in `tests/` directory
+- C#: xUnit tests in `GifBolt.*.Tests` projects
+- Run before commit to ensure regressions are caught
+
+**Performance/Profiling Tests:**
+```bash
+# C++ benchmarks (scale, threading, rendering)
+build/tests/GifBolt.Tests ScalingFilterBenchmarks.cpp
+build/tests/GifBolt.Tests ThreadPoolBenchmarks.cpp
+build/tests/GifBolt.Tests GPUProfilingTests.cpp
+
+# Compare before/after optimization
+time ./debug_gif_delays /path/to/large.gif
+```
+
+---
+
 ## Related Files
 
 `.editorconfig`=C# style rules; `.clang-format`=C++ formatting; `.clang-tidy`=C++ static analysis; `CMakeLists.txt`=build config; `.pre-commit-config.yaml`=pre-commit validation
