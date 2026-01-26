@@ -68,6 +68,8 @@ namespace GifBolt.Internal
         private static GbDecoderStopPrefetchingDelegate? _gbDecoderStopPrefetching;
         private static GbDecoderSetCurrentFrameDelegate? _gbDecoderSetCurrentFrame;
         private static GbDecoderResetCanvasDelegate? _gbDecoderResetCanvas;
+        private static GbDecoderGetBackendDelegate? _gbDecoderGetBackend;
+        private static GbDecoderGetNativeTexturePtrDelegate? _gbDecoderGetNativeTexturePtr;
 
         // Static constructor to load DLL and resolve function pointers
         static Native()
@@ -108,6 +110,8 @@ namespace GifBolt.Internal
             _gbDecoderStopPrefetching = GetDelegate<GbDecoderStopPrefetchingDelegate>("gb_decoder_stop_prefetching");
             _gbDecoderSetCurrentFrame = GetDelegate<GbDecoderSetCurrentFrameDelegate>("gb_decoder_set_current_frame");
             _gbDecoderResetCanvas = GetDelegate<GbDecoderResetCanvasDelegate>("gb_decoder_reset_canvas");
+            _gbDecoderGetBackend = GetDelegate<GbDecoderGetBackendDelegate>("gb_decoder_get_backend");
+            _gbDecoderGetNativeTexturePtr = GetDelegate<GbDecoderGetNativeTexturePtrDelegate>("gb_decoder_get_native_texture_ptr");
             _gbVersionGetMajor?.Invoke();
 
         }
@@ -196,6 +200,12 @@ namespace GifBolt.Internal
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void GbDecoderResetCanvasDelegate(IntPtr decoder);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbDecoderGetBackendDelegate(IntPtr decoder);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr GbDecoderGetNativeTexturePtrDelegate(IntPtr decoder, int frameIndex);
 
 #if NET6_0_OR_GREATER
         /// <summary>
@@ -567,5 +577,22 @@ namespace GifBolt.Internal
         /// <param name="decoder">Pointer to the decoder.</param>
         internal static void gb_decoder_reset_canvas(IntPtr decoder)
              => _gbDecoderResetCanvas(decoder);
+
+        /// <summary>
+        /// Gets the rendering backend type.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <returns>Backend ID: 0=Dummy, 1=D3D11, 2=Metal; -1 on error.</returns>
+        internal static int gb_decoder_get_backend(IntPtr decoder)
+             => _gbDecoderGetBackend(decoder);
+
+        /// <summary>
+        /// Gets the native GPU texture pointer for zero-copy rendering.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <param name="frameIndex">The frame index to get the texture for.</param>
+        /// <returns>Native texture pointer (ID3D11Texture2D* or MTLTexture*), or IntPtr.Zero on error.</returns>
+        internal static IntPtr gb_decoder_get_native_texture_ptr(IntPtr decoder, int frameIndex)
+             => _gbDecoderGetNativeTexturePtr(decoder, frameIndex);
     }
 }
