@@ -32,6 +32,12 @@ namespace GifBolt.Avalonia
         private DateTime _frameStartTime;
         private bool _wasPlayingBeforeHidden;
         private ScalingFilter _scalingFilter = ScalingFilter.None;
+        private byte[]? _frameBuffer;
+
+        // FPS diagnostics
+        private DateTime _fpsStartTime;
+        private int _frameCount;
+        private DateTime _lastRenderTime;
 
         /// <summary>
         /// Gets the width of the GIF in pixels.
@@ -85,8 +91,9 @@ namespace GifBolt.Avalonia
             {
                 try
                 {
-                    // Initialize player property
+                    // Initialize player and set min frame delay BEFORE loading
                     this.Player = new GifPlayer();
+                    this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
 
                     if (!this.Player.Load(path))
                     {
@@ -165,17 +172,18 @@ namespace GifBolt.Avalonia
                         }
 
                         Dispatcher.UIThread.Post(() =>
-                    {
-                        this._writeableBitmap = wb;
+                        {
+                            this._writeableBitmap = wb;
                         this._image.Source = this._writeableBitmap;
                         this._image.InvalidateVisual();
 
                         this._animationTimer = new DispatcherTimer
                         {
-                            Interval = TimeSpan.FromMilliseconds(16),
+                            Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs),
                         };
                         this._animationTimer.Tick += this.OnRenderTick;
-                        onLoaded?.Invoke();
+
+                            onLoaded?.Invoke();
                         });
                     }
                 }
@@ -190,13 +198,19 @@ namespace GifBolt.Avalonia
         /// Sets the repeat behavior for the animation.
         /// </summary>
         /// <remarks>
-        /// Parses the repeat behavior string and updates the repeat count accordingly.
+        /// Parses the repeat behavior string and updates the repeat strategy and count accordingly.
         /// Valid formats: "Forever", "3x" (repeat N times), "0x" (use GIF metadata).
         /// </remarks>
         /// <param name="repeatBehavior">The repeat behavior string.</param>
         public override void SetRepeatBehavior(string repeatBehavior)
         {
-            this.RepeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this.Player?.IsLooping ?? true);
+            if (this.Player == null)
+            {
+                return;
+            }
+
+            this.RepeatStrategy = RepeatStrategyFactory.CreateStrategy(repeatBehavior);
+            this.RepeatCount = this.RepeatStrategy.GetRepeatCount(this.Player.IsLooping);
         }
 
         /// <summary>
@@ -236,6 +250,9 @@ namespace GifBolt.Avalonia
             this.Player?.Play();
             this.IsPlaying = true;
             this._frameStartTime = DateTime.UtcNow;
+            this._fpsStartTime = DateTime.UtcNow;
+            this._frameCount = 0;
+            this._lastRenderTime = DateTime.UtcNow;
 
             // Render the current frame immediately to avoid delay
             if (this._writeableBitmap != null && this.Player != null)
@@ -245,7 +262,6 @@ namespace GifBolt.Avalonia
 
             if (this._animationTimer != null)
             {
-                // Always use 16ms fixed interval - frame advancement is time-based, not timer-based
                 this._animationTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
                 this._animationTimer.Start();
             }
@@ -330,6 +346,7 @@ namespace GifBolt.Avalonia
                     {
                         Marshal.Copy(bgraPixels, 0, buffer.Address, bgraPixels.Length);
                     }
+
                     this._image.InvalidateVisual();
                 }
             }
@@ -369,7 +386,6 @@ namespace GifBolt.Avalonia
                 // Only advance frame if enough time has elapsed for the current frame
                 if (elapsedMs >= frameDelayMs)
                 {
-                    // Advance to the next frame using shared helper
                     var advanceResult = FrameAdvanceHelper.AdvanceFrame(
                         this.Player.CurrentFrame,
                         this.Player.FrameCount,
@@ -381,14 +397,33 @@ namespace GifBolt.Avalonia
                         return;
                     }
 
-                    // Update the current frame and repeat count
                     this.Player.CurrentFrame = advanceResult.NextFrame;
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameStartTime = DateTime.UtcNow;
-                }
 
-                // Always render on every tick for smooth visual feedback
-                this.RenderFrame(this.Player.CurrentFrame);
+                    // Render only when frame changes for better performance
+                    var renderStart = DateTime.UtcNow;
+                    this.RenderFrame(this.Player.CurrentFrame);
+                    var renderTime = (DateTime.UtcNow - renderStart).TotalMilliseconds;
+
+                    // FPS tracking
+                    this._frameCount++;
+                    var timeSinceLastRender = (DateTime.UtcNow - this._lastRenderTime).TotalMilliseconds;
+                    this._lastRenderTime = DateTime.UtcNow;
+
+                    var totalTime = (DateTime.UtcNow - this._fpsStartTime).TotalSeconds;
+                    if (totalTime > 1.0)
+                    {
+                        var fps = this._frameCount / totalTime;
+                        var fpsText = $"FPS: {fps:F1} | Render: {renderTime:F2}ms | Delay: {frameDelayMs}ms";
+
+                        // Update FPS on the Image control
+                        AnimationBehavior.SetFpsText(this._image, fpsText);
+
+                        this._fpsStartTime = DateTime.UtcNow;
+                        this._frameCount = 0;
+                    }
+                }
             }
             catch
             {
@@ -470,6 +505,7 @@ namespace GifBolt.Avalonia
 
             this._animationTimer?.Stop();
             this._animationTimer = null;
+
             base.Dispose();
         }
     }

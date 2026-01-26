@@ -39,6 +39,17 @@ class ITexture
     /// \param dataSize Size of the pixel data in bytes.
     /// \return true if the update succeeded; false otherwise.
     virtual bool Update(const void* data, size_t dataSize) = 0;
+
+    /// \brief Gets the native texture pointer for platform-specific interop.
+    /// \return Platform-specific texture pointer:
+    ///         - D3D11: ID3D11Texture2D*
+    ///         - Metal: MTLTexture* (__bridge void*)
+    ///         - Vulkan: VkImage (cast to void*)
+    ///         - Dummy: nullptr
+    /// \remarks Use GetBackend() to determine how to cast the returned pointer.
+    ///          This enables zero-copy interop with platform UI frameworks
+    ///          (WPF D3DImage, Avalonia GPU surfaces, etc.).
+    virtual void* GetNativeTexturePtr() = 0;
 };
 
 }  // namespace Renderer

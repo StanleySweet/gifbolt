@@ -34,15 +34,22 @@ namespace GifBolt
         protected int RepeatCount { get; set; }
 
         /// <summary>
+        /// Gets or sets the repeat strategy.
+        /// </summary>
+        protected IRepeatStrategy RepeatStrategy { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationControllerBase"/> class.
         /// </summary>
         /// <remarks>
         /// Derived classes are responsible for initializing the Player property.
+        /// Defaults to metadata-based repeat strategy.
         /// </remarks>
         protected GifAnimationControllerBase()
         {
             this.IsPlaying = false;
             this.RepeatCount = 1;
+            this.RepeatStrategy = MetadataRepeatStrategy.Instance;
         }
 
         /// <summary>
@@ -99,7 +106,8 @@ namespace GifBolt
                 return;
             }
 
-            this.RepeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this.Player.IsLooping);
+            this.RepeatStrategy = RepeatStrategyFactory.CreateStrategy(repeatBehavior);
+            this.RepeatCount = this.RepeatStrategy.GetRepeatCount(this.Player.IsLooping);
         }
 
         /// <summary>

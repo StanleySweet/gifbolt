@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "IDeviceCommandContext.h"
 #include "ScalingFilter.h"
 
 namespace GifBolt

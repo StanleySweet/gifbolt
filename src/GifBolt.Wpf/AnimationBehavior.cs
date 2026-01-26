@@ -44,6 +44,20 @@ namespace GifBolt.Wpf
                 new PropertyMetadata(null, OnRepeatBehaviorChanged));
 
         /// <summary>
+        /// Gets or sets the rendering mode for the animation.
+        /// </summary>
+        /// <remarks>
+        /// WriteableBitmap: Software rendering with CPU-to-GPU memory copies (default, compatible).
+        /// D3DImage: GPU-accelerated rendering with direct DirectX interop (Windows only, best performance).
+        /// </remarks>
+        public static readonly DependencyProperty RenderModeProperty =
+            DependencyProperty.RegisterAttached(
+                "RenderMode",
+                typeof(GifRenderMode),
+                typeof(AnimationBehavior),
+                new PropertyMetadata(GifRenderMode.WriteableBitmap, OnRenderModeChanged));
+
+        /// <summary>
         /// Gets or sets whether animation starts in design mode.
         /// </summary>
         public static readonly DependencyProperty AnimateInDesignModeProperty =
@@ -70,7 +84,7 @@ namespace GifBolt.Wpf
         private static readonly DependencyProperty _animationControllerProperty =
             DependencyProperty.RegisterAttached(
                 "AnimationController",
-                typeof(GifAnimationController),
+                typeof(GifAnimationControllerBase),
                 typeof(AnimationBehavior),
                 new PropertyMetadata(null));
 
@@ -132,6 +146,36 @@ namespace GifBolt.Wpf
             }
 
             image.SetValue(RepeatBehaviorProperty, value);
+        }
+
+        /// <summary>
+        /// Gets the value of the RenderMode attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <returns>The render mode value.</returns>
+        public static GifRenderMode GetRenderMode(Image image)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            return (GifRenderMode)image.GetValue(RenderModeProperty);
+        }
+
+        /// <summary>
+        /// Sets the value of the RenderMode attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <param name="value">The render mode to set.</param>
+        public static void SetRenderMode(Image image, GifRenderMode value)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            image.SetValue(RenderModeProperty, value);
         }
 
         /// <summary>
@@ -197,12 +241,12 @@ namespace GifBolt.Wpf
         /// <summary>
         /// Private Implementation.
         /// </summary>
-        private static GifAnimationController? GetAnimationController(Image image)
+        private static GifAnimationControllerBase? GetAnimationController(Image image)
         {
-            return (GifAnimationController?)image.GetValue(_animationControllerProperty);
+            return (GifAnimationControllerBase?)image.GetValue(_animationControllerProperty);
         }
 
-        private static void SetAnimationController(Image image, GifAnimationController? value)
+        private static void SetAnimationController(Image image, GifAnimationControllerBase? value)
         {
             image.SetValue(_animationControllerProperty, value);
         }
@@ -346,6 +390,25 @@ namespace GifBolt.Wpf
             if (controller is not null && e.NewValue is ScalingFilter filter)
             {
                 controller.SetScalingFilter(filter);
+            }
+        }
+
+        /// <summary>
+        /// Handles changes to the RenderMode property.
+        /// Reloads the source with the new rendering mode.
+        /// </summary>
+        private static void OnRenderModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is not Image image)
+            {
+                return;
+            }
+
+            // Reload source to apply new render mode
+            var sourceUri = GetSourceUri(image);
+            if (!string.IsNullOrWhiteSpace(sourceUri))
+            {
+                OnSourceUriChanged(image, new DependencyPropertyChangedEventArgs(SourceUriProperty, null, sourceUri));
             }
         }
 

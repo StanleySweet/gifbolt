@@ -5,6 +5,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using GifBolt;
 using GifBolt.Avalonia;
 
@@ -18,6 +19,8 @@ public partial class MainWindow : Window
 {
     private Image? _gifControl;
     private Image? _imageBehavior;
+    private global::Avalonia.Controls.TextBlock? _fpsDisplay;
+    private DispatcherTimer? _fpsTimer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -33,6 +36,15 @@ public partial class MainWindow : Window
         base.OnOpened(e);
         this._gifControl = this.FindControl<Image>("gifControl");
         this._imageBehavior = this.FindControl<Image>("imageBehaviorImage");
+        this._fpsDisplay = this.FindControl<global::Avalonia.Controls.TextBlock>("fpsDisplay");
+
+        // Setup FPS update timer
+        this._fpsTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
+        this._fpsTimer.Tick += (s, e) => this.UpdateFpsDisplay();
+        this._fpsTimer.Start();
     }
 
     private void OnWindowOpened(object? sender, EventArgs e)
@@ -40,15 +52,103 @@ public partial class MainWindow : Window
         // Update status
         this.UpdateStatus("GifBolt loaded - Metal backend active on macOS");
 
-        // Update backend info
-        var backendInfo = this.FindControl<global::Avalonia.Controls.TextBlock>("backendInfo");
-        if (backendInfo != null)
-        {
-            backendInfo.Text = "Backend: Metal (macOS GPU-accelerated)";
-        }
+        // Update backend info with native texture support
+        this.UpdateBackendInfo();
+        this.UpdateMainViewBackendInfo();
 
         // Update version info
         this.UpdateVersionInfo();
+    }
+
+    private void UpdateBackendInfo()
+    {
+        try
+        {
+            var backendInfo = this.FindControl<global::Avalonia.Controls.TextBlock>("backendInfo");
+            if (backendInfo != null)
+            {
+                // Create a temporary player to check backend
+                using var player = new GifBolt.GifPlayer();
+                var testGif = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+                if (player.Load(testGif))
+                {
+                    var backend = player.GetBackend();
+                    var backendName = backend switch
+                    {
+                        0 => "Dummy (Software)",
+                        1 => "DirectX 11 (Windows)",
+                        2 => "Metal (macOS)",
+                        _ => "Unknown"
+                    };
+
+                    // Check if native texture is available
+                    var texturePtr = player.GetNativeTexturePtr(0);
+                    var gpuStatus = texturePtr != IntPtr.Zero ? "✅ GPU textures available" : "❌ GPU textures unavailable";
+
+                    backendInfo.Text = $"Backend: {backendName} (ID: {backend})\n{gpuStatus}\nNative Texture Ptr: 0x{texturePtr:X}";
+                }
+                else
+                {
+                    backendInfo.Text = "Backend: Unable to detect (test file not loaded)";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            var backendInfo = this.FindControl<global::Avalonia.Controls.TextBlock>("backendInfo");
+            if (backendInfo != null)
+            {
+                backendInfo.Text = $"Backend detection failed: {ex.Message}";
+            }
+        }
+    }
+
+    private void UpdateMainViewBackendInfo()
+    {
+        try
+        {
+            var mainBackendInfo = this.FindControl<global::Avalonia.Controls.TextBlock>("mainBackendInfo");
+            if (mainBackendInfo != null)
+            {
+                using var player = new GifBolt.GifPlayer();
+                var testGif = "/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif";
+                if (player.Load(testGif))
+                {
+                    var backend = player.GetBackend();
+                    var backendName = backend switch
+                    {
+                        0 => "Dummy",
+                        1 => "DirectX 11",
+                        2 => "Metal",
+                        _ => "Unknown"
+                    };
+
+                    var texturePtr = player.GetNativeTexturePtr(0);
+                    var frameCount = player.FrameCount;
+
+                    if (texturePtr != IntPtr.Zero)
+                    {
+                        mainBackendInfo.Text = $"Backend: {backendName}\n✅ GPU Accelerated | {frameCount} frames\nNative Texture: 0x{texturePtr:X}";
+                    }
+                    else
+                    {
+                        mainBackendInfo.Text = $"Backend: {backendName}\n⚠️ Software Rendering | {frameCount} frames";
+                    }
+                }
+                else
+                {
+                    mainBackendInfo.Text = "Backend: Detection failed";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            var mainBackendInfo = this.FindControl<global::Avalonia.Controls.TextBlock>("mainBackendInfo");
+            if (mainBackendInfo != null)
+            {
+                mainBackendInfo.Text = $"Backend: Error - {ex.Message}";
+            }
+        }
     }
 
     private void UpdateVersionInfo()
@@ -124,6 +224,7 @@ public partial class MainWindow : Window
                 AnimationBehavior.SetSourceUri(this._imageBehavior, path);
             }
             this.UpdateStatus($"Loaded: {System.IO.Path.GetFileName(path)}");
+            this.UpdateMainViewBackendInfo();
         }
     }
 
@@ -142,6 +243,20 @@ public partial class MainWindow : Window
 
         var filterName = filterItem.Content?.ToString() ?? "Unknown";
         this.UpdateStatus($"Scaling filter: {filterName}");
+    }
+
+    private void UpdateFpsDisplay()
+    {
+        if (this._fpsDisplay == null || this._gifControl == null)
+        {
+            return;
+        }
+
+        var fpsText = AnimationBehavior.GetFpsText(this._gifControl);
+        if (!string.IsNullOrEmpty(fpsText))
+        {
+            this._fpsDisplay.Text = fpsText;
+        }
     }
 
     private void UpdateStatus(string message)

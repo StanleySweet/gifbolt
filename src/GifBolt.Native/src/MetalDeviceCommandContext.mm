@@ -85,6 +85,11 @@ class MetalTexture : public ITexture
         return _texture;
     }
 
+    void* GetNativeTexturePtr() override
+    {
+        return (__bridge void*)_texture;
+    }
+
    private:
     uint32_t _width;
     uint32_t _height;

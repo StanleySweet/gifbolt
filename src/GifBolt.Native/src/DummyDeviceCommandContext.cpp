@@ -49,6 +49,11 @@ class DummyTexture : public ITexture
         return true;
     }
 
+    void* GetNativeTexturePtr() override
+    {
+        return nullptr;  // Dummy backend has no native texture
+    }
+
    private:
     uint32_t m_Width;
     uint32_t m_Height;

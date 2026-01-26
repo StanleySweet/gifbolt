@@ -22,6 +22,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <thread>
+#include <unordered_map>
 
 namespace GifBolt
 {
@@ -96,6 +97,7 @@ class GifDecoder::Impl
     bool _looping = false;
     std::vector<uint8_t> _bgraPremultipliedCache;  ///< Cache for BGRA premultiplied pixels
     std::shared_ptr<Renderer::IDeviceCommandContext> _deviceContext;  ///< GPU context for scaling
+    std::unordered_map<uint32_t, std::shared_ptr<Renderer::ITexture>> _textureCache;  ///< GPU texture cache per frame
 
     // Background loading support
     GifFileType* _gif = nullptr;  ///< GIF file handle after slurp
@@ -149,10 +151,21 @@ class GifDecoder::Impl
     void StopPrefetching();                      ///< Stop background prefetch thread
     void PrefetchLoop();                         ///< Prefetch thread worker function
 
+    /// \brief Gets or creates a GPU texture for the specified frame.
+    /// \param frameIndex The frame index.
+    /// \return Shared pointer to the texture, or nullptr if unavailable.
+    std::shared_ptr<Renderer::ITexture> GetOrCreateTexture(uint32_t frameIndex);
+
     ~Impl()
     {
         // Stop prefetch thread first
         this->StopPrefetching();
+
+        // Clear texture cache before destroying device context
+        _textureCache.clear();
+
+        // Reset device context to release GPU resources
+        _deviceContext.reset();
 
         if (_backgroundLoader.joinable())
         {

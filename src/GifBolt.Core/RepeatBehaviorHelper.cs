@@ -5,13 +5,15 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
-using System;
-
 namespace GifBolt
 {
     /// <summary>
     /// Provides helper methods to compute GIF repeat behavior consistently across frameworks.
     /// </summary>
+    /// <remarks>
+    /// This class serves as a facade over the Strategy pattern implementation for backwards compatibility.
+    /// New code should use <see cref="RepeatStrategyFactory"/> and <see cref="IRepeatStrategy"/> directly.
+    /// </remarks>
     public static class RepeatBehaviorHelper
     {
         /// <summary>
@@ -25,26 +27,8 @@ namespace GifBolt
         /// </returns>
         public static int ComputeRepeatCount(string repeatBehavior, bool isLooping)
         {
-            if (string.IsNullOrWhiteSpace(repeatBehavior) || repeatBehavior == "0x")
-            {
-                return isLooping ? -1 : 1;
-            }
-
-            if (repeatBehavior.Equals("Forever", StringComparison.OrdinalIgnoreCase))
-            {
-                return -1;
-            }
-
-            if (repeatBehavior.EndsWith("x", StringComparison.OrdinalIgnoreCase))
-            {
-                var countStr = repeatBehavior.Substring(0, repeatBehavior.Length - 1);
-                if (int.TryParse(countStr, out int count) && count > 0)
-                {
-                    return count;
-                }
-            }
-
-            return isLooping ? -1 : 1;
+            IRepeatStrategy strategy = RepeatStrategyFactory.CreateStrategy(repeatBehavior);
+            return strategy.GetRepeatCount(isLooping);
         }
     }
 }

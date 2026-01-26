@@ -88,6 +88,11 @@ class D3D11Texture : public ITexture
         return _srv.Get();
     }
 
+    void* GetNativeTexturePtr() override
+    {
+        return _tex.Get();
+    }
+
    private:
     uint32_t _width;
     uint32_t _height;

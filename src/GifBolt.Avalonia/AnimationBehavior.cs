@@ -64,6 +64,14 @@ namespace GifBolt.Avalonia
                 "AnimationController",
                 defaultValue: null);
 
+        /// <summary>
+        /// FPS text for display/debugging.
+        /// </summary>
+        public static readonly AttachedProperty<string?> FpsTextProperty =
+            AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, string?>(
+                "FpsText",
+                defaultValue: "FPS: --");
+
         static AnimationBehavior()
         {
             SourceUriProperty.Changed.AddClassHandler<Image>(OnSourceUriChanged);
@@ -159,6 +167,36 @@ namespace GifBolt.Avalonia
             }
 
             image.SetValue(AnimateInDesignModeProperty, value);
+        }
+
+        /// <summary>
+        /// Gets the FPS text attached property value.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <returns>The FPS text.</returns>
+        public static string? GetFpsText(Image image)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            return image.GetValue(FpsTextProperty);
+        }
+
+        /// <summary>
+        /// Sets the FPS text attached property value.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <param name="value">The FPS text.</param>
+        public static void SetFpsText(Image image, string? value)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            image.SetValue(FpsTextProperty, value);
         }
 
         /// <summary>

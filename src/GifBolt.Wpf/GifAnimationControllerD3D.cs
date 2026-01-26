@@ -1,0 +1,489 @@
+// <copyright file="GifAnimationControllerD3D.cs" company="GifBolt Contributors">
+// Copyright (c) 2026 GifBolt Contributors. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+// </copyright>
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+
+using System;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Threading;
+
+namespace GifBolt.Wpf
+{
+    /// <summary>
+    /// GPU-accelerated GIF animation controller using D3DImage for direct DirectX interop.
+    /// </summary>
+    /// <remarks>
+    /// This controller provides maximum performance by eliminating CPU-to-GPU memory copies.
+    /// DirectX texture is rendered directly into WPF's composition pipeline via D3DImage.
+    /// Requires Windows Vista or later with DirectX 9Ex or DirectX 11 compatible hardware.
+    /// </remarks>
+    internal sealed class GifAnimationControllerD3D : GifAnimationControllerBase
+    {
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibrary(string dllToLoad);
+
+        static GifAnimationControllerD3D()
+        {
+            EnsureNativeLibraryLoaded();
+        }
+
+        /// <summary>
+        /// Ensures the native GifBolt library is loaded before P/Invoke calls.
+        /// </summary>
+        private static void EnsureNativeLibraryLoaded()
+        {
+            const string nativeLib = "GifBolt.Native";
+            string[] searchPaths = new[]
+            {
+                System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(typeof(GifAnimationControllerD3D).Assembly.Location) ?? string.Empty,
+                    nativeLib + ".dll"),
+                System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    nativeLib + ".dll"),
+                System.IO.Path.Combine(
+                    Environment.CurrentDirectory,
+                    nativeLib + ".dll"),
+                nativeLib + ".dll"
+            };
+
+            foreach (string dllPath in searchPaths)
+            {
+                if (string.IsNullOrEmpty(dllPath))
+                {
+                    continue;
+                }
+
+                if (System.IO.File.Exists(dllPath) || dllPath == nativeLib + ".dll")
+                {
+                    IntPtr result = LoadLibrary(dllPath);
+                    if (result != IntPtr.Zero)
+                    {
+                        return;
+                    }
+                }
+            }
+        }
+
+        private readonly Image _image;
+        private readonly string? _sourcePath;
+        private readonly byte[]? _sourceBytes;
+        private D3DImage? _d3dImage;
+        private DispatcherTimer? _renderTimer;
+        private bool _isDisposed;
+        private int _generationId;
+        private string? _pendingRepeatBehavior;
+        private DateTime _frameStartTime;
+        private IntPtr _d3d11Device;
+        private IntPtr _d3d11Texture;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GifAnimationControllerD3D"/> class.
+        /// </summary>
+        /// <param name="image">The Image control to animate.</param>
+        /// <param name="path">The file path to the GIF image.</param>
+        /// <param name="onLoaded">Callback invoked when loading completes successfully.</param>
+        /// <param name="onError">Callback invoked when loading fails.</param>
+        public GifAnimationControllerD3D(Image image, string path, Action? onLoaded = null, Action<Exception>? onError = null)
+        {
+            this._image = image;
+            this._sourcePath = path;
+            this._sourceBytes = null;
+            this._generationId = System.Environment.TickCount;
+
+            this.BeginLoad(onLoaded, onError);
+        }
+
+        /// <summary>
+        /// Initializes a new instance using in-memory GIF bytes.
+        /// </summary>
+        /// <param name="image">The Image control to animate.</param>
+        /// <param name="sourceBytes">The GIF data buffer.</param>
+        /// <param name="onLoaded">Callback invoked when loading completes successfully.</param>
+        /// <param name="onError">Callback invoked when loading fails.</param>
+        public GifAnimationControllerD3D(Image image, byte[] sourceBytes, Action? onLoaded = null, Action<Exception>? onError = null)
+        {
+            this._image = image;
+            this._sourceBytes = sourceBytes;
+            this._sourcePath = null;
+            this._generationId = System.Environment.TickCount;
+
+            this.BeginLoad(onLoaded, onError);
+        }
+
+        private void BeginLoad(Action? onLoaded, Action<Exception>? onError)
+        {
+            int capturedGenerationId = this._generationId;
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    if (this._isDisposed || this._generationId != capturedGenerationId)
+                    {
+                        return;
+                    }
+
+                    this.Player = new GifBolt.GifPlayer();
+
+                    bool loaded = this._sourceBytes != null
+                        ? this.Player.Load(this._sourceBytes)
+                        : this._sourcePath != null && this.Player.Load(this._sourcePath);
+
+                    if (!loaded || this.Player == null)
+                    {
+                        var error = this._sourceBytes != null
+                            ? new InvalidOperationException("Failed to load GIF from in-memory bytes.")
+                            : new InvalidOperationException($"Failed to load GIF from path: {this._sourcePath}. File may not exist or be corrupt.");
+
+                        this.Player?.Dispose();
+                        this.Player = null;
+
+                        if (!this._isDisposed && this._generationId == capturedGenerationId)
+                        {
+                            this._image.Dispatcher.BeginInvoke(() => onError?.Invoke(error));
+                        }
+
+                        return;
+                    }
+
+                    this._image.Dispatcher.BeginInvoke(() =>
+                    {
+                        if (this._isDisposed || this._generationId != capturedGenerationId)
+                        {
+                            return;
+                        }
+
+                        try
+                        {
+                            this._d3dImage = new D3DImage();
+                            this._d3dImage.IsFrontBufferAvailableChanged += this.OnIsFrontBufferAvailableChanged;
+
+                            this._image.Source = this._d3dImage;
+                            this._image.Stretch = Stretch.Fill;
+
+                            this._renderTimer = new DispatcherTimer(DispatcherPriority.Render);
+                            this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
+                            this._renderTimer.Tick += this.OnRenderTick;
+
+                            if (!string.IsNullOrWhiteSpace(this._pendingRepeatBehavior))
+                            {
+                                this.SetRepeatBehavior(this._pendingRepeatBehavior);
+                                this._pendingRepeatBehavior = null;
+                            }
+
+                            onLoaded?.Invoke();
+                        }
+                        catch (Exception ex)
+                        {
+                            if (!this._isDisposed && this._generationId == capturedGenerationId)
+                            {
+                                onError?.Invoke(ex);
+                            }
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    if (!this._isDisposed && this._generationId == capturedGenerationId)
+                    {
+                        this._image.Dispatcher.BeginInvoke(() => onError?.Invoke(ex));
+                    }
+                }
+            });
+        }
+
+        /// <summary>
+        /// Starts playback of the animation.
+        /// </summary>
+        public override void Play()
+        {
+            if (this._isDisposed)
+            {
+                return;
+            }
+
+            if (this.Player == null)
+            {
+                return;
+            }
+
+            this.Player.Play();
+            this.IsPlaying = true;
+            this._frameStartTime = DateTime.UtcNow;
+
+            if (this._d3dImage != null && !this._isDisposed)
+            {
+                this.RenderFrame(this.Player.CurrentFrame);
+            }
+
+            if (this._renderTimer != null && !this._isDisposed)
+            {
+                this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
+                this._renderTimer.Start();
+            }
+        }
+
+        /// <summary>
+        /// Pauses playback of the animation.
+        /// </summary>
+        public override void Pause()
+        {
+            if (this._isDisposed || this.Player == null)
+            {
+                return;
+            }
+
+            this.Player.Pause();
+            this.IsPlaying = false;
+            this._renderTimer?.Stop();
+        }
+
+        /// <summary>
+        /// Stops playback and resets to the first frame.
+        /// </summary>
+        public override void Stop()
+        {
+            if (this.Player == null)
+            {
+                return;
+            }
+
+            this.Player.Stop();
+            this.IsPlaying = false;
+            this._renderTimer?.Stop();
+        }
+
+        /// <summary>
+        /// Sets the repeat behavior for the animation.
+        /// </summary>
+        /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
+        public override void SetRepeatBehavior(string repeatBehavior)
+        {
+            if (this._isDisposed)
+            {
+                return;
+            }
+
+            if (this.Player == null)
+            {
+                this._pendingRepeatBehavior = repeatBehavior;
+                return;
+            }
+
+            this.RepeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this.Player.IsLooping);
+        }
+
+        /// <summary>
+        /// Sets the minimum frame delay in milliseconds.
+        /// </summary>
+        /// <param name="minDelayMs">The minimum frame delay.</param>
+        public void SetMinFrameDelayMs(int minDelayMs)
+        {
+            if (this.Player != null && minDelayMs > 0)
+            {
+                this.Player.SetMinFrameDelayMs(minDelayMs);
+            }
+        }
+
+        private void RenderFrame(int frameIndex)
+        {
+            if (this._isDisposed || this.Player == null || this._d3dImage == null)
+            {
+                return;
+            }
+
+            if (!this._d3dImage.IsFrontBufferAvailable)
+            {
+                return;
+            }
+
+            try
+            {
+                // Try to get native D3D11 texture pointer
+                IntPtr texturePtr = this.Player.GetNativeTexturePtr(frameIndex);
+
+                if (texturePtr != IntPtr.Zero)
+                {
+                    // GPU-accelerated path: Use D3D11 texture directly
+                    this._d3dImage.Lock();
+                    try
+                    {
+                        // Set D3D11 texture as back buffer
+                        // Note: D3DImage expects IDirect3DSurface9, but we can use SharedHandle
+                        // for D3D11 interop via D3D9Ex shared resources
+                        this._d3dImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, texturePtr);
+                        this._d3dImage.AddDirtyRect(new Int32Rect(0, 0, this._d3dImage.PixelWidth, this._d3dImage.PixelHeight));
+                    }
+                    finally
+                    {
+                        this._d3dImage.Unlock();
+                    }
+                }
+                else
+                {
+                    // Fallback to software rendering if native texture not available
+                    int displayWidth = (int)this._image.ActualWidth;
+                    int displayHeight = (int)this._image.ActualHeight;
+
+                    if (displayWidth < 10 || displayHeight < 10)
+                    {
+                        displayWidth = this.Player.Width;
+                        displayHeight = this.Player.Height;
+                    }
+
+                    if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                        frameIndex,
+                        displayWidth,
+                        displayHeight,
+                        out byte[] bgraPixels,
+                        out int outWidth,
+                        out int outHeight,
+                        filter: GifBolt.Internal.ScalingFilter.Lanczos))
+                    {
+                        if (bgraPixels.Length == 0 || this._isDisposed)
+                        {
+                            return;
+                        }
+
+                        this._d3dImage.Lock();
+                        try
+                        {
+                            IntPtr backBuffer = this._d3dImage.BackBuffer;
+                            if (backBuffer != IntPtr.Zero)
+                            {
+                                Marshal.Copy(bgraPixels, 0, backBuffer, Math.Min(bgraPixels.Length, outWidth * outHeight * 4));
+                                this._d3dImage.AddDirtyRect(new Int32Rect(0, 0, outWidth, outHeight));
+                            }
+                        }
+                        finally
+                        {
+                            this._d3dImage.Unlock();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Swallow render errors
+            }
+        }
+
+        private void OnRenderTick(object? sender, EventArgs e)
+        {
+            if (this._isDisposed || this.Player == null || !this.IsPlaying || this._d3dImage == null || this._renderTimer == null)
+            {
+                return;
+            }
+
+            try
+            {
+                int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
+                int frameDelayMs = Math.Max(rawFrameDelayMs, FrameTimingHelper.DefaultMinFrameDelayMs);
+                long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
+
+                if (elapsedMs >= frameDelayMs)
+                {
+                    var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+                        this.Player.CurrentFrame,
+                        this.Player.FrameCount,
+                        this.RepeatCount);
+
+                    if (advanceResult.IsComplete)
+                    {
+                        this.Stop();
+                        return;
+                    }
+
+                    this.Player.CurrentFrame = advanceResult.NextFrame;
+                    this.RepeatCount = advanceResult.UpdatedRepeatCount;
+                    this._frameStartTime = DateTime.UtcNow;
+                }
+
+                this.RenderFrame(this.Player.CurrentFrame);
+            }
+            catch
+            {
+                // Swallow render errors
+            }
+        }
+
+        private void OnIsFrontBufferAvailableChanged(object? sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (this._d3dImage != null && this._d3dImage.IsFrontBufferAvailable && this.IsPlaying)
+            {
+                this.RenderFrame(this.Player?.CurrentFrame ?? 0);
+            }
+        }
+
+        /// <summary>
+        /// Releases all resources held by the animation controller.
+        /// </summary>
+        public override void Dispose()
+        {
+            this._isDisposed = true;
+            this._generationId = int.MinValue;
+            this.IsPlaying = false;
+
+            if (this._renderTimer != null)
+            {
+                this._renderTimer.Stop();
+                this._renderTimer = null;
+            }
+
+            if (this._d3dImage != null)
+            {
+                this._d3dImage.IsFrontBufferAvailableChanged -= this.OnIsFrontBufferAvailableChanged;
+                this._d3dImage = null;
+            }
+
+            if (this.Player != null)
+            {
+                try
+                {
+                    this.Player.Stop();
+                }
+                catch
+                {
+                    // Swallow disposal errors
+                }
+            }
+
+            base.Dispose();
+
+            if (!this._image.Dispatcher.CheckAccess())
+            {
+                this._image.Dispatcher.BeginInvoke(() =>
+                {
+                    try
+                    {
+                        this._image.Source = null;
+                    }
+                    catch
+                    {
+                        // Swallow errors if image is already disposed
+                    }
+                });
+            }
+            else
+            {
+                try
+                {
+                    this._image.Source = null;
+                }
+                catch
+                {
+                    // Swallow errors if image is already disposed
+                }
+            }
+
+            GC.SuppressFinalize(this);
+        }
+    }
+}

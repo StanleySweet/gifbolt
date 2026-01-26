@@ -247,6 +247,8 @@ namespace GifBolt.Wpf
                                 this._pendingRepeatBehavior = null;
                             }
 
+                            // Start prefetching to decode frames in background
+
                             onLoaded?.Invoke();
                         }
                         catch (Exception ex)
@@ -346,7 +348,8 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            this.RepeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this.Player.IsLooping);
+            this.RepeatStrategy = RepeatStrategyFactory.CreateStrategy(repeatBehavior);
+            this.RepeatCount = this.RepeatStrategy.GetRepeatCount(this.Player.IsLooping);
         }
 
         /// <summary>

@@ -289,6 +289,8 @@ public sealed class GifPlayer : IDisposable
     }
 
     /// <summary>
+    /// Gets the rendering backend type.
+    /// <summary>
     /// Resets the canvas composition state for looping.
     /// </summary>
     /// <remarks>

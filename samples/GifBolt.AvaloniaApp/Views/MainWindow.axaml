@@ -38,10 +38,18 @@
                                 <GradientStop Color="#FF90CAF9" Offset="1"/>
                             </LinearGradientBrush>
                         </Border.Background>
-                        <Image x:Name="gifControl"
-                               gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
-                               gif:AnimationBehavior.RepeatBehavior="Forever"
-                               Stretch="Uniform"/>
+                        <Grid>
+                            <Image x:Name="gifControl"
+                                   gif:AnimationBehavior.SourceUri="/Users/stan/Dev/GifBolt/VUE_CAISSE_EXPRESS 897x504_01.gif"
+                                   gif:AnimationBehavior.RepeatBehavior="Forever"
+                                   Stretch="Uniform"/>
+                            <!-- FPS Overlay -->
+                            <Border Background="#CC000000" CornerRadius="5" Padding="8,4"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10">
+                                <TextBlock x:Name="fpsDisplay" Text="FPS: --"
+                                          Foreground="#00FF00" FontFamily="Consolas,Courier New" FontSize="14"/>
+                            </Border>
+                        </Grid>
                     </Border>
 
                     <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
@@ -58,6 +66,15 @@
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button Content="Load..." Click="OnLoadClick" Width="80"/>
                     </StackPanel>
+
+                    <!-- GPU Backend Info -->
+                    <Border BorderBrush="DarkGreen" BorderThickness="2" CornerRadius="5"
+                            Padding="10" Margin="0,15,0,0" Background="#22006400" MaxWidth="450" HorizontalAlignment="Left">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="🚀 GPU Rendering Active" FontWeight="Bold" Foreground="LightGreen"/>
+                            <TextBlock x:Name="mainBackendInfo" Text="Backend: Loading..." Foreground="#DDFFFFFF" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </TabItem>
 
@@ -112,11 +129,33 @@
                     <!-- Backend Information -->
                     <StackPanel Spacing="10">
                         <TextBlock Text="Backend Information" FontSize="16" FontWeight="Bold"/>
-                        <TextBlock x:Name="backendInfo" Text="Backend: Loading..." Margin="0,10,0,0"/>
+                        <TextBlock x:Name="backendInfo" Text="Backend: Loading..." Margin="0,10,0,0" TextWrapping="Wrap"/>
                         <TextBlock Text="Platform: macOS" />
-                        <TextBlock Text="Renderer: Metal (Apple GPU)" />
                         <TextBlock Text="Framework: Avalonia 11.3.11" />
                         <TextBlock Text="Target: .NET 6.0" />
+
+                        <!-- GPU Texture Interop Info -->
+                        <Border BorderBrush="DarkGreen" BorderThickness="2" CornerRadius="5"
+                                Padding="10" Margin="0,10,0,0" Background="#22006400">
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="🚀 Native GPU Texture Interop" FontWeight="Bold" Foreground="LightGreen"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#DDFFFFFF" FontSize="12">
+                                    GifBolt exposes native GPU texture pointers for zero-copy rendering:
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" FontSize="11" Margin="5,3,0,0">
+                                    • Windows: ID3D11Texture2D* (D3DImage compatible)
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" FontSize="11" Margin="5,0,0,0">
+                                    • macOS: MTLTexture* (Metal texture handle)
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" FontSize="11" Margin="5,0,0,3">
+                                    • Linux: Future Vulkan support planned
+                                </TextBlock>
+                                <TextBlock TextWrapping="Wrap" Foreground="#DDFFFF00" FontSize="11" Margin="0,5,0,0">
+                                    ⚡ APIs: GetNativeTexturePtr(), GetBackend()
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- Version Information -->

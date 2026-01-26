@@ -6,6 +6,7 @@
 
 #include "GifBoltRenderer.h"
 #include "GifDecoder.h"
+#include "ITexture.h"
 
 using namespace GifBolt;
 
