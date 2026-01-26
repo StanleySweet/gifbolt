@@ -72,11 +72,40 @@ namespace GifBolt.Avalonia
                 "FpsText",
                 defaultValue: "FPS: --");
 
+        /// <summary>
+        /// Gets or sets whether animation should start automatically.
+        /// Default is true for API compatibility with WPF XamlAnimatedGif.
+        /// </summary>
+        public static readonly AttachedProperty<bool> AutoStartProperty =
+            AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, bool>(
+                "AutoStart",
+                defaultValue: true);
+
+        /// <summary>
+        /// Gets or sets whether to cache decoded frames in memory.
+        /// Useful for animations that are played multiple times.
+        /// </summary>
+        public static readonly AttachedProperty<bool> CacheFramesInMemoryProperty =
+            AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, bool>(
+                "CacheFramesInMemory",
+                defaultValue: false);
+
+        /// <summary>
+        /// Gets or sets the source stream for animation.
+        /// Alternative to SourceUri for stream-based loading.
+        /// </summary>
+        public static readonly AttachedProperty<System.IO.Stream?> SourceStreamProperty =
+            AvaloniaProperty.RegisterAttached<AnimationBehavior, Image, System.IO.Stream?>(
+                "SourceStream",
+                defaultValue: null);
+
         static AnimationBehavior()
         {
             SourceUriProperty.Changed.AddClassHandler<Image>(OnSourceUriChanged);
+            SourceStreamProperty.Changed.AddClassHandler<Image>(OnSourceStreamChanged);
             RepeatBehaviorProperty.Changed.AddClassHandler<Image>(OnRepeatBehaviorChanged);
             ScalingFilterProperty.Changed.AddClassHandler<Image>(OnScalingFilterChanged);
+            AutoStartProperty.Changed.AddClassHandler<Image>(OnAutoStartChanged);
         }
 
         /// <summary>
@@ -229,11 +258,109 @@ namespace GifBolt.Avalonia
             image.SetValue(ScalingFilterProperty, value);
         }
 
+        /// <summary>
+        /// Gets the value of the AutoStart attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <returns>Whether animation starts automatically.</returns>
+        public static bool GetAutoStart(Image image)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            return image.GetValue(AutoStartProperty);
+        }
+
+        /// <summary>
+        /// Sets the value of the AutoStart attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <param name="value">Whether to start animation automatically.</param>
+        public static void SetAutoStart(Image image, bool value)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            image.SetValue(AutoStartProperty, value);
+        }
+
+        /// <summary>
+        /// Gets the value of the CacheFramesInMemory attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <returns>Whether frames are cached in memory.</returns>
+        public static bool GetCacheFramesInMemory(Image image)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            return image.GetValue(CacheFramesInMemoryProperty);
+        }
+
+        /// <summary>
+        /// Sets the value of the CacheFramesInMemory attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <param name="value">Whether to cache decoded frames.</param>
+        public static void SetCacheFramesInMemory(Image image, bool value)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            image.SetValue(CacheFramesInMemoryProperty, value);
+        }
+
+        /// <summary>
+        /// Gets the value of the SourceStream attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <returns>The source stream value.</returns>
+        public static System.IO.Stream? GetSourceStream(Image image)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            return image.GetValue(SourceStreamProperty);
+        }
+
+        /// <summary>
+        /// Sets the value of the SourceStream attached property.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <param name="value">The source stream to set.</param>
+        public static void SetSourceStream(Image image, System.IO.Stream? value)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            image.SetValue(SourceStreamProperty, value);
+        }
+
         // =============================================
         // Private Implementation
         // =============================================
 
-        private static GifAnimationController? GetAnimationController(Image image)
+        /// <summary>
+        /// Gets the animation controller currently managing the specified Image control.
+        /// </summary>
+        /// <remarks>
+        /// Returns null if no controller is currently attached or if the image has not been loaded with a GIF source.
+        /// </remarks>
+        /// <param name="image">The Image control to query.</param>
+        /// <returns>The GifAnimationController managing this image, or null if none is attached.</returns>
+        public static GifAnimationController? GetAnimationController(Image image)
         {
             return image.GetValue(_animationControllerProperty);
         }
@@ -284,6 +411,8 @@ namespace GifBolt.Avalonia
             // Create new animation controller
             var repeatBehavior = GetRepeatBehavior(image) ?? "Forever";
             var scalingFilter = GetScalingFilter(image);
+            var autoStart = GetAutoStart(image);
+            var cacheFrames = GetCacheFramesInMemory(image);
             var controller = new GifAnimationController(
                 image,
                 resolvedPath!,
@@ -305,20 +434,24 @@ namespace GifBolt.Avalonia
                         current.SetRepeatBehavior(repeatBehavior);
                     }
 
-                    // Auto-start (default for API compatibility)
-                    try
+                    // Auto-start if enabled
+                    if (autoStart)
                     {
-                        current.Play();
-                    }
-                    catch
-                    {
-                        // Suppress errors during autostart
+                        try
+                        {
+                            current.Play();
+                        }
+                        catch
+                        {
+                            // Suppress errors during autostart
+                        }
                     }
                 },
                 onError: (ex) =>
                 {
                     System.Diagnostics.Debug.WriteLine($"[GifBolt] Error loading GIF '{sourceUri}': {ex.Message}");
-                });
+                },
+                cacheFrames: cacheFrames);
 
             SetAnimationController(image, controller);
             image.Unloaded += OnImageUnloaded;
@@ -355,6 +488,159 @@ namespace GifBolt.Avalonia
             if (controller is not null && e.NewValue is ScalingFilter filter)
             {
                 controller.SetScalingFilter(filter);
+            }
+        }
+
+        /// <summary>
+        /// Handles changes to the SourceStream property.
+        /// </summary>
+        private static void OnSourceStreamChanged(Image image, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            // Dispose existing controller if any
+            var existingController = GetAnimationController(image);
+            if (existingController != null)
+            {
+                existingController.Stop();
+                SetAnimationController(image, null);
+                System.Threading.Tasks.Task.Run(() => existingController.Dispose());
+            }
+
+            // Null source = stop animation
+            if (e.NewValue == null)
+            {
+                return;
+            }
+
+            var sourceStream = e.NewValue as System.IO.Stream;
+            if (sourceStream == null)
+            {
+                return;
+            }
+
+            // Load from stream by writing to a temporary file
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    // Create a temporary file for the GIF
+                    string tempFile = System.IO.Path.Combine(
+                        System.IO.Path.GetTempPath(),
+                        $"gifbolt_{System.Guid.NewGuid().ToString().Substring(0, 8)}.gif");
+
+                    // Write stream to temp file
+                    sourceStream.Seek(0, System.IO.SeekOrigin.Begin);
+                    using (var fileStream = System.IO.File.Create(tempFile))
+                    {
+                        sourceStream.CopyTo(fileStream);
+                    }
+
+                    // Now load from the temp file
+                    var repeatBehavior = GetRepeatBehavior(image) ?? "Forever";
+                    var scalingFilter = GetScalingFilter(image);
+                    var autoStart = GetAutoStart(image);
+                    var cacheFrames = GetCacheFramesInMemory(image);
+
+                    var controller = new GifAnimationController(
+                        image,
+                        tempFile,
+                        onLoaded: () =>
+                        {
+                            // Verify controller is still current
+                            var current = GetAnimationController(image);
+                            if (current == null)
+                            {
+                                System.IO.File.Delete(tempFile);
+                                return;
+                            }
+
+                            current.SetScalingFilter(scalingFilter);
+                            if (!string.IsNullOrWhiteSpace(repeatBehavior))
+                            {
+                                current.SetRepeatBehavior(repeatBehavior);
+                            }
+
+                            if (autoStart)
+                            {
+                                try
+                                {
+                                    current.Play();
+                                }
+                                catch
+                                {
+                                    // Suppress errors
+                                }
+                            }
+
+                            // Clean up temp file after a delay (allow time for reading)
+                            System.Threading.Tasks.Task.Delay(5000).ContinueWith(_ =>
+                            {
+                                try
+                                {
+                                    if (System.IO.File.Exists(tempFile))
+                                    {
+                                        System.IO.File.Delete(tempFile);
+                                    }
+                                }
+                                catch
+                                {
+                                    // Ignore cleanup errors
+                                }
+                            });
+                        },
+                        onError: (ex) =>
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[GifBolt] Error loading GIF from stream: {ex.Message}");
+                            // Clean up temp file
+                            try
+                            {
+                                if (System.IO.File.Exists(tempFile))
+                                {
+                                    System.IO.File.Delete(tempFile);
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore cleanup errors
+                            }
+                        },
+                        cacheFrames: cacheFrames);
+
+                    SetAnimationController(image, controller);
+                    image.Unloaded += OnImageUnloaded;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[GifBolt] Error processing GIF stream: {ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Handles changes to the AutoStart property.
+        /// </summary>
+        private static void OnAutoStartChanged(Image image, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            var controller = GetAnimationController(image);
+            if (controller is not null && e.NewValue is bool autoStart)
+            {
+                if (autoStart)
+                {
+                    controller.Play();
+                }
+                else
+                {
+                    controller.Stop();
+                }
             }
         }
 
