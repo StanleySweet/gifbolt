@@ -243,6 +243,20 @@ public partial class MainWindow : Window
 
         var filterName = filterItem.Content?.ToString() ?? "Unknown";
         this.UpdateStatus($"Scaling filter: {filterName}");
+
+        // Apply the filter to the currently loaded animation
+        if (this._gifControl != null)
+        {
+            var controller = GifBolt.Avalonia.AnimationBehavior.GetAnimationController(this._gifControl);
+            if (controller != null)
+            {
+                // Convert filter name to ScalingFilter enum
+                if (Enum.TryParse<GifBolt.ScalingFilter>(filterName, out var filter))
+                {
+                    controller.SetScalingFilter(filter);
+                }
+            }
+        }
     }
 
     private void UpdateFpsDisplay()

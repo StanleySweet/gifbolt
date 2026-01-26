@@ -54,8 +54,9 @@
 
                     <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
                         <TextBlock Text="Scaling Filter:" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                        <ComboBox x:Name="filterComboBox" SelectedIndex="3" Width="120"
+                        <ComboBox x:Name="filterComboBox" SelectedIndex="0" Width="120"
                                   SelectionChanged="OnFilterChanged">
+                            <ComboBoxItem Content="None"/>
                             <ComboBoxItem Content="Nearest"/>
                             <ComboBoxItem Content="Bilinear"/>
                             <ComboBoxItem Content="Bicubic"/>
