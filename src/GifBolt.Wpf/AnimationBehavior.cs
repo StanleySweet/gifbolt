@@ -79,6 +79,16 @@ namespace GifBolt.Wpf
                 new PropertyMetadata(ScalingFilter.None, OnScalingFilterChanged));
 
         /// <summary>
+        /// FPS text for display/debugging.
+        /// </summary>
+        public static readonly DependencyProperty FpsTextProperty =
+            DependencyProperty.RegisterAttached(
+                "FpsText",
+                typeof(string),
+                typeof(AnimationBehavior),
+                new PropertyMetadata("FPS: --"));
+
+        /// <summary>
         /// Internal property to store the GifAnimationController instance.
         /// </summary>
         private static readonly DependencyProperty _animationControllerProperty =
@@ -239,6 +249,36 @@ namespace GifBolt.Wpf
         }
 
         /// <summary>
+        /// Gets the FPS text attached property value.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <returns>The FPS text.</returns>
+        public static string? GetFpsText(Image image)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            return (string?)image.GetValue(FpsTextProperty);
+        }
+
+        /// <summary>
+        /// Sets the FPS text attached property value.
+        /// </summary>
+        /// <param name="image">The Image control.</param>
+        /// <param name="value">The FPS text.</param>
+        public static void SetFpsText(Image image, string? value)
+        {
+            if (image == null)
+            {
+                throw new ArgumentNullException(nameof(image));
+            }
+
+            image.SetValue(FpsTextProperty, value);
+        }
+
+        /// <summary>
         /// Private Implementation.
         /// </summary>
         private static GifAnimationControllerBase? GetAnimationController(Image image)
@@ -294,11 +334,24 @@ namespace GifBolt.Wpf
             // Capture values for use in nested functions
             var repeatBehavior = GetRepeatBehavior(image) ?? "Forever";
             var scalingFilter = GetScalingFilter(image);
+            var renderMode = GetRenderMode(image);
 
-            // Create new animation controller
-            var controller = bytes != null
-                ? new GifAnimationController(image, bytes, onLoaded: OnControllerLoaded, onError: OnControllerError)
-                : new GifAnimationController(image, resolvedPath!, onLoaded: OnControllerLoaded, onError: OnControllerError);
+            // Create new animation controller based on render mode
+            GifAnimationControllerBase controller;
+            if (renderMode == GifRenderMode.D3DImage)
+            {
+                // GPU-accelerated mode using D3DImage
+                controller = bytes != null
+                    ? new GifAnimationControllerD3D(image, bytes, onLoaded: OnControllerLoaded, onError: OnControllerError)
+                    : new GifAnimationControllerD3D(image, resolvedPath!, onLoaded: OnControllerLoaded, onError: OnControllerError);
+            }
+            else
+            {
+                // Software rendering mode using WriteableBitmap
+                controller = bytes != null
+                    ? new GifAnimationController(image, bytes, onLoaded: OnControllerLoaded, onError: OnControllerError)
+                    : new GifAnimationController(image, resolvedPath!, onLoaded: OnControllerLoaded, onError: OnControllerError);
+            }
 
             void OnControllerLoaded()
             {

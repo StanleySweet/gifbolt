@@ -67,8 +67,23 @@ class GifDecoder
     /// \brief Initializes a new instance of the GifDecoder class.
     GifDecoder();
 
+    /// \brief Initializes a new instance with a specified backend.
+    /// \param backend The rendering backend to use (D3D9Ex, D3D11, Metal, Dummy).
+    /// \throws std::runtime_error if the specified backend is not available on this platform.
+    explicit GifDecoder(Renderer::Backend backend);
+
     /// \brief Destroys the GifDecoder and releases associated resources.
     ~GifDecoder();
+
+    /// \brief GifDecoder is non-copyable (move-only semantics).
+    GifDecoder(const GifDecoder&) = delete;
+    /// \brief GifDecoder is non-copyable (move-only semantics).
+    GifDecoder& operator=(const GifDecoder&) = delete;
+
+    /// \brief Support move construction.
+    GifDecoder(GifDecoder&&) = default;
+    /// \brief Support move assignment.
+    GifDecoder& operator=(GifDecoder&&) = default;
 
     /// \brief Loads a GIF image from a file path.
     /// \param filePath The file system path to the GIF image.

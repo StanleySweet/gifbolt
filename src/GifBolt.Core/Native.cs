@@ -6,6 +6,7 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace GifBolt
@@ -42,6 +43,7 @@ namespace GifBolt.Internal
     {
         private static IntPtr _hModule = IntPtr.Zero;
         private static GbDecoderCreateDelegate? _gbDecoderCreate;
+        private static GbDecoderCreateWithBackendDelegate? _gbDecoderCreateWithBackend;
         private static GbDecoderDestroyDelegate? _gbDecoderDestroy;
         private static GbDecoderLoadFromPathDelegate? _gbDecoderLoadFromPath;
         private static GbDecoderLoadFromMemoryDelegate? _gbDecoderLoadFromMemory;
@@ -70,6 +72,7 @@ namespace GifBolt.Internal
         private static GbDecoderResetCanvasDelegate? _gbDecoderResetCanvas;
         private static GbDecoderGetBackendDelegate? _gbDecoderGetBackend;
         private static GbDecoderGetNativeTexturePtrDelegate? _gbDecoderGetNativeTexturePtr;
+        private static GbDecoderGetLastErrorDelegate? _gbDecoderGetLastError;
 
         // Static constructor to load DLL and resolve function pointers
         static Native()
@@ -84,6 +87,7 @@ namespace GifBolt.Internal
 
             // Resolve all function pointers
             _gbDecoderCreate = GetDelegate<GbDecoderCreateDelegate>("gb_decoder_create");
+            _gbDecoderCreateWithBackend = GetDelegate<GbDecoderCreateWithBackendDelegate>("gb_decoder_create_with_backend");
             _gbDecoderDestroy = GetDelegate<GbDecoderDestroyDelegate>("gb_decoder_destroy");
             _gbDecoderLoadFromPath = GetDelegate<GbDecoderLoadFromPathDelegate>("gb_decoder_load_from_path");
             _gbDecoderLoadFromMemory = GetDelegate<GbDecoderLoadFromMemoryDelegate>("gb_decoder_load_from_memory");
@@ -112,6 +116,7 @@ namespace GifBolt.Internal
             _gbDecoderResetCanvas = GetDelegate<GbDecoderResetCanvasDelegate>("gb_decoder_reset_canvas");
             _gbDecoderGetBackend = GetDelegate<GbDecoderGetBackendDelegate>("gb_decoder_get_backend");
             _gbDecoderGetNativeTexturePtr = GetDelegate<GbDecoderGetNativeTexturePtrDelegate>("gb_decoder_get_native_texture_ptr");
+            _gbDecoderGetLastError = GetDelegate<GbDecoderGetLastErrorDelegate>("gb_decoder_get_last_error");
             _gbVersionGetMajor?.Invoke();
 
         }
@@ -119,6 +124,9 @@ namespace GifBolt.Internal
         // Delegate definitions matching native function signatures
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr GbDecoderCreateDelegate();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr GbDecoderCreateWithBackendDelegate(int backend);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void GbDecoderDestroyDelegate(IntPtr decoder);
@@ -207,6 +215,9 @@ namespace GifBolt.Internal
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr GbDecoderGetNativeTexturePtrDelegate(IntPtr decoder, int frameIndex);
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private delegate IntPtr GbDecoderGetLastErrorDelegate();
+
 #if NET6_0_OR_GREATER
         /// <summary>
         /// Cross-platform native library loading for .NET 6+.
@@ -294,18 +305,40 @@ namespace GifBolt.Internal
         {
             const string dllName = "GifBolt.Native";
 
+            // Determine processor architecture
+            string archFolder = Environment.Is64BitProcess ? "x64" : "x86";
+
             // Try multiple paths to find the native DLL
             string[] searchPaths = new[]
             {
+                // Current directory with architecture subfolder
+                System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(typeof(Native).Assembly.Location) ?? string.Empty,
+                    archFolder,
+                    dllName + ".dll"),
+                // Assembly directory (direct)
                 System.IO.Path.Combine(
                     System.IO.Path.GetDirectoryName(typeof(Native).Assembly.Location) ?? string.Empty,
                     dllName + ".dll"),
+                // App base directory with architecture subfolder
+                System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    archFolder,
+                    dllName + ".dll"),
+                // App base directory (direct)
                 System.IO.Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory,
                     dllName + ".dll"),
+                // Current working directory with architecture subfolder
+                System.IO.Path.Combine(
+                    Environment.CurrentDirectory,
+                    archFolder,
+                    dllName + ".dll"),
+                // Current working directory (direct)
                 System.IO.Path.Combine(
                     Environment.CurrentDirectory,
                     dllName + ".dll"),
+                // Just the DLL name (system PATH)
                 dllName + ".dll",
             };
 
@@ -326,12 +359,27 @@ namespace GifBolt.Internal
                         loaded = true;
                         break;
                     }
+                    else
+                    {
+                        // LoadLibrary failed - log the error
+                        int lastError = Marshal.GetLastWin32Error();
+                        System.Diagnostics.Debug.WriteLine(
+                            $"LoadLibrary failed for '{dllPath}': error {lastError} (0x{lastError:X8})");
+                    }
                 }
             }
 
             if (!loaded || _hModule == IntPtr.Zero)
             {
-                throw new DllNotFoundException($"Could not load {dllName}.dll from any search path.");
+                throw new DllNotFoundException(
+                    $"Could not load {dllName}.dll from any search path. Searched:\n" +
+                    string.Join("\n", searchPaths.Where(p => !string.IsNullOrEmpty(p))) +
+                    $"\n\nPossible causes:\n" +
+                    $"- DLL not found at expected location\n" +
+                    $"- Missing C++ runtime (vcruntime140.dll, msvcp140.dll)\n" +
+                    $"- Missing DirectX libraries\n" +
+                    $"- DLL is incompatible architecture\n" +
+                    $"\nProcess is 64-bit: {Environment.Is64BitProcess}");
             }
         }
 
@@ -366,6 +414,17 @@ namespace GifBolt.Internal
         /// </summary>
         /// <returns>Pointer to the newly created decoder.</returns>
         internal static IntPtr gb_decoder_create() => _gbDecoderCreate();
+
+        /// <summary>
+        /// Creates a new GifBolt decoder instance with a specified rendering backend.
+        /// </summary>
+        /// <param name="backend">The rendering backend to use (0=Dummy, 1=D3D11, 2=Metal, 3=D3D9Ex).</param>
+        /// <returns>Pointer to the newly created decoder, or IntPtr.Zero if the backend is unavailable.</returns>
+        /// <remarks>
+        /// Use this to create decoders with GPU acceleration on Windows (D3D11 or D3D9Ex).
+        /// Dummy backend is always available for fallback. Metal backend requires macOS/iOS.
+        /// </remarks>
+        internal static IntPtr gb_decoder_create_with_backend(int backend) => _gbDecoderCreateWithBackend(backend);
 
         /// <summary>
         /// Destroys a GifBolt decoder instance.
@@ -594,5 +653,15 @@ namespace GifBolt.Internal
         /// <returns>Native texture pointer (ID3D11Texture2D* or MTLTexture*), or IntPtr.Zero on error.</returns>
         internal static IntPtr gb_decoder_get_native_texture_ptr(IntPtr decoder, int frameIndex)
              => _gbDecoderGetNativeTexturePtr(decoder, frameIndex);
+
+        /// <summary>
+        /// Gets the last error message from a backend initialization failure.
+        /// </summary>
+        /// <returns>Error message string, or empty string if no error.</returns>
+        internal static string GB_decoder_get_last_error()
+        {
+            var ptr = _gbDecoderGetLastError?.Invoke() ?? IntPtr.Zero;
+            return ptr != IntPtr.Zero ? Marshal.PtrToStringAnsi(ptr) ?? string.Empty : string.Empty;
+        }
     }
 }

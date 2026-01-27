@@ -20,7 +20,26 @@ namespace GifBolt;
 /// </summary>
 public sealed class GifPlayer : IDisposable
 {
+    /// <summary>
+    /// Rendering backend identifiers for GPU acceleration.
+    /// </summary>
+    public enum Backend
+    {
+        /// <summary>Dummy/software-only backend (always available, no GPU acceleration).</summary>
+        Dummy = 0,
+
+        /// <summary>DirectX 11 backend (requires Windows Vista+ with D3D11 compatible hardware).</summary>
+        D3D11 = 1,
+
+        /// <summary>Metal backend (requires macOS/iOS with Metal support).</summary>
+        Metal = 2,
+
+        /// <summary>DirectX 9Ex backend (requires Windows with D3D9Ex support, optimized for WPF D3DImage).</summary>
+        D3D9Ex = 3,
+    }
+
     private DecoderHandle? _decoder;
+    private Backend _requestedBackend = Backend.Dummy;
 
     /// <summary>Gets or sets the percentage of frames to cache (0.0 to 1.0). Default is 0.25 (25%).</summary>
     /// <remarks>Applied when a GIF is loaded. Use SetMaxCachedFrames() to override with an absolute value.</remarks>
@@ -71,6 +90,38 @@ public sealed class GifPlayer : IDisposable
 
     /// <summary>Gets the height of the image in pixels.</summary>
     public int Height { get; private set; }
+
+    /// <summary>
+    /// Creates a new GifPlayer with a specified rendering backend.
+    /// </summary>
+    /// <param name="backend">The rendering backend to use for GPU acceleration.</param>
+    /// <returns>A new GifPlayer instance using the specified backend, or null if the backend is unavailable.</returns>
+    /// <remarks>
+    /// This factory method allows selecting a specific rendering backend (D3D11, D3D9Ex, Metal, or Dummy).
+    /// If the requested backend is unavailable on the platform, null is returned.
+    /// Use Backend.Dummy for guaranteed software-only rendering on any platform.
+    /// </remarks>
+    public static GifPlayer? CreateWithBackend(Backend backend)
+    {
+        var handle = Native.gb_decoder_create_with_backend((int)backend);
+        if (handle == IntPtr.Zero)
+        {
+            // Get the actual error message from native code
+            string errorMsg = Native.GB_decoder_get_last_error();
+            if (string.IsNullOrEmpty(errorMsg))
+            {
+                errorMsg = "Backend initialization failed (no error message available)";
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[GifBolt.Core] Backend {backend} failed: {errorMsg}");
+            return null;
+        }
+
+        var player = new GifPlayer();
+        player._requestedBackend = backend;
+        player.AssignDecoder(new DecoderHandle(handle));
+        return player;
+    }
 
     /// <summary>Loads a GIF from the specified file path.</summary>
     /// <param name="path">The file path to the GIF image.</param>
@@ -289,8 +340,6 @@ public sealed class GifPlayer : IDisposable
     }
 
     /// <summary>
-    /// Gets the rendering backend type.
-    /// <summary>
     /// Resets the canvas composition state for looping.
     /// </summary>
     /// <remarks>
@@ -354,15 +403,25 @@ public sealed class GifPlayer : IDisposable
 
     private bool LoadDecoder(Func<DecoderHandle, bool> loader, string debugContext)
     {
-        this.DisposeDecoder();
-        var handle = Native.gb_decoder_create();
-        if (handle == IntPtr.Zero)
+        // If decoder already exists (created with CreateWithBackend), reuse it
+        // Otherwise create a new decoder using the requested backend type
+        DecoderHandle tmp;
+        if (this._decoder != null)
         {
-            Debug.WriteLine($"GifPlayer: decoder create failed ({debugContext}).");
-            return false;
+            tmp = this._decoder;
+        }
+        else
+        {
+            this.DisposeDecoder();
+            var handle = Native.gb_decoder_create_with_backend((int)this._requestedBackend);
+            if (handle == IntPtr.Zero)
+            {
+                Debug.WriteLine($"GifPlayer: decoder create failed ({debugContext}).");
+                return false;
+            }
+            tmp = new DecoderHandle(handle);
         }
 
-        var tmp = new DecoderHandle(handle);
         bool ok;
         try
         {
@@ -371,18 +430,37 @@ public sealed class GifPlayer : IDisposable
         catch (Exception ex)
         {
             Debug.WriteLine($"GifPlayer: load threw ({debugContext}): {ex.Message}");
-            tmp.Dispose();
+            if (this._decoder == null)  // Only dispose if we created it
+            {
+                tmp.Dispose();
+            }
             return false;
         }
 
         if (!ok)
         {
             Debug.WriteLine($"GifPlayer: load failed ({debugContext}).");
-            tmp.Dispose();
+            if (this._decoder == null)  // Only dispose if we created it
+            {
+                tmp.Dispose();
+            }
             return false;
         }
 
-        this.AssignDecoder(tmp);
+        if (this._decoder == null)  // Only assign if we created it
+        {
+            this.AssignDecoder(tmp);
+        }
+        else
+        {
+            // Update dimensions for existing decoder
+            this.Width = Native.gb_decoder_get_width(this._decoder.DangerousGetHandle());
+            this.Height = Native.gb_decoder_get_height(this._decoder.DangerousGetHandle());
+            this.FrameCount = Native.gb_decoder_get_frame_count(this._decoder.DangerousGetHandle());
+            this.IsLooping = Native.gb_decoder_get_loop_count(this._decoder.DangerousGetHandle()) < 0;
+            this.CurrentFrame = 0;
+        }
+        
         return true;
     }
 

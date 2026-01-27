@@ -36,9 +36,19 @@
                                     <GradientStop Color="#FF90CAF9" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.Background>
-                            <Image x:Name="GifImageScaling"
-                                   gifbolt:AnimationBehavior.RepeatBehavior="Forever"
-                                   Stretch="Uniform"/>
+                            <Grid>
+                                <Image x:Name="GifImageScaling"
+                                       gifbolt:AnimationBehavior.RepeatBehavior="Forever"
+                                       gifbolt:AnimationBehavior.ScalingFilter="None"
+                                       gifbolt:AnimationBehavior.RenderMode="D3DImage"
+                                       Stretch="Uniform"/>
+                                <!-- FPS Overlay -->
+                                <Border Background="#CC000000" CornerRadius="5" Padding="8,4"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10">
+                                    <TextBlock x:Name="FpsDisplay" Text="FPS: --"
+                                              Foreground="#00FF00" FontFamily="Consolas,Courier New" FontSize="14"/>
+                                </Border>
+                            </Grid>
                         </Border>
 
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">

@@ -207,3 +207,9 @@ time ./debug_gif_delays /path/to/large.gif
 `.editorconfig`=C# style rules; `.clang-format`=C++ formatting; `.clang-tidy`=C++ static analysis; `CMakeLists.txt`=build config; `.pre-commit-config.yaml`=pre-commit validation
 
 Apply include-what-you-use; don't commit commented code-fix if possible; copyright headers important; WPF/Avalonia=same feature set; bundle as NuGet; C++ code=clang-tidy compliant
+
+To build for X64
+
+cmake -G "Visual Studio 18 2026" -A x64 -B build
+cmake --build build --config Release
+& "C:\Dev\Perso\gifbolt\deploy-dlls.ps1"

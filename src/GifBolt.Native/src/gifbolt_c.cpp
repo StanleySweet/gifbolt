@@ -4,11 +4,19 @@
 #include <cstdint>
 #include <new>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#include <thread>
 #include "GifBoltRenderer.h"
 #include "GifDecoder.h"
 #include "ITexture.h"
 
 using namespace GifBolt;
+
+// Thread-local storage for error messages
+thread_local char g_lastError[512] = {0};
 
 extern "C"
 {
@@ -60,6 +68,54 @@ extern "C"
         }
         catch (...)
         {
+            return nullptr;
+        }
+    }
+
+    GB_API gb_decoder_t gb_decoder_create_with_backend(int backend)
+    {
+        try
+        {
+            // Clear error message on successful attempt
+            g_lastError[0] = '\0';
+            
+#ifdef _WIN32
+            char dbgMsg[256];
+            sprintf_s(dbgMsg, sizeof(dbgMsg), "[gifbolt_c] Attempting to create decoder with backend=%d\n", backend);
+            OutputDebugStringA(dbgMsg);
+            
+            sprintf_s(dbgMsg, sizeof(dbgMsg), "[gifbolt_c::gb_decoder_create_with_backend] BEFORE new - backend=%d\n", backend);
+            OutputDebugStringA(dbgMsg);
+#endif
+            
+            auto* decoderPtr = new GifDecoder(static_cast<Renderer::Backend>(backend));
+            
+#ifdef _WIN32
+            sprintf_s(dbgMsg, sizeof(dbgMsg), "[gifbolt_c::gb_decoder_create_with_backend] AFTER new - decoder ptr=%p\n", decoderPtr);
+            OutputDebugStringA(dbgMsg);
+#endif
+            
+            return reinterpret_cast<gb_decoder_t>(decoderPtr);
+        }
+        catch (const std::exception& ex)
+        {
+#ifdef _WIN32
+            char dbgMsg[512];
+            sprintf_s(dbgMsg, sizeof(dbgMsg), "[gifbolt_c] Exception caught: %s\n", ex.what());
+            OutputDebugStringA(dbgMsg);
+#endif
+            
+            // Store error message in thread-local storage
+            strncpy_s(g_lastError, sizeof(g_lastError), ex.what(), sizeof(g_lastError) - 1);
+            g_lastError[sizeof(g_lastError) - 1] = '\0';
+            return nullptr;
+        }
+        catch (...)
+        {
+#ifdef _WIN32
+            OutputDebugStringA("[gifbolt_c] Unknown exception caught\n");
+#endif
+            strncpy_s(g_lastError, sizeof(g_lastError), "Unknown error", sizeof(g_lastError) - 1);
             return nullptr;
         }
     }
@@ -463,7 +519,19 @@ extern "C"
             return nullptr;
         }
         auto* dec = reinterpret_cast<GifDecoder*>(decoder);
+#ifdef _WIN32
+        char dbgMsg[256];
+        sprintf_s(dbgMsg, sizeof(dbgMsg), 
+            "[gb_decoder_get_native_texture_ptr] decoder handle=%p, dec ptr=%p, frameIndex=%d\n", 
+            decoder, dec, frameIndex);
+        OutputDebugStringA(dbgMsg);
+#endif
         return dec->GetNativeTexturePtr(frameIndex);
+    }
+
+    GB_API const char* gb_decoder_get_last_error(void)
+    {
+        return g_lastError;
     }
 
 }  // extern "C"

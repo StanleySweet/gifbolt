@@ -32,12 +32,27 @@ extern "C"
     /// \brief Opaque handle to a GIF decoder instance.
     typedef void* gb_decoder_t;
 
+    /// \enum gb_backend_e
+    /// \brief Rendering backend types.
+    typedef enum
+    {
+        GB_BACKEND_DUMMY = 0,    ///< Dummy/CPU-only backend
+        GB_BACKEND_D3D11 = 1,    ///< DirectX 11 backend
+        GB_BACKEND_METAL = 2,    ///< Metal backend (macOS/iOS)
+        GB_BACKEND_D3D9EX = 3    ///< DirectX 9Ex backend (WPF D3DImage)
+    } gb_backend_e;
+
     /// \defgroup Decoder GIF Decoder Functions
     /// @{
 
-    /// \brief Creates a new GIF decoder instance.
+    /// \brief Creates a new GIF decoder instance with default backend.
     /// \return A handle to the decoder, or NULL if creation fails.
     GB_API gb_decoder_t gb_decoder_create(void);
+
+    /// \brief Creates a new GIF decoder instance with a specified backend.
+    /// \param backend The backend to use (GB_BACKEND_DUMMY, GB_BACKEND_D3D11, GB_BACKEND_METAL, GB_BACKEND_D3D9EX).
+    /// \return A handle to the decoder, or NULL if creation fails or backend is unavailable.
+    GB_API gb_decoder_t gb_decoder_create_with_backend(int backend);
 
     /// \brief Destroys a GIF decoder instance and releases resources.
     /// \param decoder The decoder handle to destroy (can be NULL).
@@ -218,14 +233,22 @@ extern "C"
 
     /// \brief Gets the rendering backend type.
     /// \param decoder The decoder handle.
-    /// \return Backend ID: 0=Dummy, 1=D3D11, 2=Metal; -1 on error.
+    /// \return Backend ID: 0=Dummy, 1=D3D11, 2=Metal, 3=D3D9Ex; -1 on error.
     GB_API int gb_decoder_get_backend(gb_decoder_t decoder);
 
     /// \brief Gets the native GPU texture pointer for zero-copy rendering.
     /// \param decoder The decoder handle.
     /// \param frameIndex The frame index to get the texture for.
-    /// \return Native texture pointer (ID3D11Texture2D* or MTLTexture*), or NULL on error.
+    /// \return Native texture pointer based on active backend:
+    ///         - D3D9Ex: IDirect3DSurface9* (for WPF D3DImage)
+    ///         - D3D11: ID3D11Texture2D*
+    ///         - Metal: MTLTexture*
+    ///         - Dummy: nullptr
     GB_API void* gb_decoder_get_native_texture_ptr(gb_decoder_t decoder, int frameIndex);
+    
+    /// \brief Gets the last error message from a backend initialization failure.
+    /// \return Error message string, or empty string if no error. Valid until next decoder call.
+    GB_API const char* gb_decoder_get_last_error(void);
     /// @}
 
 #ifdef __cplusplus

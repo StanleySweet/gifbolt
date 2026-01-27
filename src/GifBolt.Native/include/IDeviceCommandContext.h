@@ -12,12 +12,13 @@ namespace Renderer
 {
 
 /// \enum Backend
-/// \brief Rendering backend type.
+/// \brief Rendering backend type (must match C# GifPlayer.Backend enum order).
 enum class Backend
 {
-    DUMMY,  ///< Dummy/testing backend for cross-platform development
-    D3D11,  ///< DirectX 11 backend (WPF-compatible)
-    Metal   ///< Apple Metal backend (macOS/iOS Avalonia-compatible)
+    DUMMY,   ///< Dummy/testing backend for cross-platform development
+    D3D11,   ///< DirectX 11 backend (WPF-compatible)
+    Metal,   ///< Apple Metal backend (macOS/iOS Avalonia-compatible)
+    D3D9Ex   ///< DirectX 9Ex backend with D3D11 interop (WPF D3DImage-compatible, zero-copy)
 };
 
 class ITexture;

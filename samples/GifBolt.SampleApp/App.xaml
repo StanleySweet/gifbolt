@@ -2,5 +2,5 @@
 <Application x:Class="GifBolt.SampleApp.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="AttachedPropertiesWindow.xaml">
+             StartupUri="MainWindow.xaml">
 </Application>

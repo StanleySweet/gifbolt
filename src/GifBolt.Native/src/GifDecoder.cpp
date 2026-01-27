@@ -3,16 +3,20 @@
 
 #include "GifDecoder.h"
 
+#include "DebugLog.h"
 #include "IDeviceCommandContext.h"
 #include "ITexture.h"
 #include "MemoryPool.h"
 #include "PixelConversion.h"
 #include "ThreadPool.h"
+#include "DummyDeviceCommandContext.h"
 #if defined(__APPLE__)
 #include "MetalDeviceCommandContext.h"
 #endif
 #ifdef _WIN32
 #include "D3D11DeviceCommandContext.h"
+#include "D3D9ExDeviceCommandContext.h"
+#include <windows.h>
 #endif
 #include <gif_lib.h>
 
@@ -502,6 +506,21 @@ GifFrame& GifDecoder::Impl::GetOrDecodeFrame(uint32_t frameIndex)
         this->_cachedFrameIndices.erase(this->_cachedFrameIndices.begin());
     }
 
+    // DEBUG: Check if frame has valid pixel data
+    size_t nonZeroCount = 0;
+    if (!newFrame.pixels.empty())
+    {
+        for (const auto& pixel : newFrame.pixels)
+        {
+            if (pixel != 0)
+            {
+                nonZeroCount++;
+            }
+        }
+    }
+    DebugLog("[GetOrDecodeFrame] Frame %u cached - pixels=%zu, non-zero=%zu, first pixel=0x%X\n",
+        frameIndex, newFrame.pixels.size(), nonZeroCount, newFrame.pixels.empty() ? 0 : newFrame.pixels[0]);
+
     return this->_frameCache.back();
 }
 
@@ -673,29 +692,47 @@ void GifDecoder::Impl::ComposeFrame(const GifFrame& frame, std::vector<uint32_t>
 
 GifDecoder::GifDecoder() : _pImpl(std::make_unique<Impl>())
 {
-    // Initialize GPU context for hardware-accelerated scaling
-#if defined(__APPLE__)
-    try
+    // No device context - CPU-only decoding
+    _pImpl->_deviceContext = nullptr;
+}
+
+GifDecoder::GifDecoder(Renderer::Backend backend) : _pImpl(std::make_unique<Impl>())
+{
+    // Create the device context based on the requested backend
+    // NOTE: Backend enum order must match C# GifPlayer.Backend: DUMMY=0, D3D11=1, Metal=2, D3D9Ex=3
+    switch (backend)
     {
-        _pImpl->_deviceContext = std::make_shared<Renderer::MetalDeviceCommandContext>();
-    }
-    catch (...)
-    {
-        // GPU context initialization failed, will use CPU fallback
-        _pImpl->_deviceContext = nullptr;
-    }
-    // Initialize GPU context for hardware-accelerated scaling
-#elif defined(WIN32)
-    try
-    {
-        _pImpl->_deviceContext = std::make_shared<Renderer::D3D11DeviceCommandContext>();
-    }
-    catch (...)
-    {
-        // GPU context initialization failed, will use CPU fallback
-        _pImpl->_deviceContext = nullptr;
-    }
+        case Renderer::Backend::DUMMY:
+            this->_pImpl->_deviceContext = std::make_shared<Renderer::DummyDeviceCommandContext>();
+            break;
+
+#ifdef _WIN32
+        case Renderer::Backend::D3D11:
+            this->_pImpl->_deviceContext = std::make_shared<Renderer::D3D11DeviceCommandContext>();
+            break;
+
+        case Renderer::Backend::D3D9Ex:
+        {
+            this->_pImpl->_deviceContext = std::make_shared<Renderer::D3D9ExDeviceCommandContext>();
+            DebugLog("[GifDecoder::ctor] D3D9Ex backend initialized - deviceContext=%p, use_count=%ld, this=%p, _pImpl=%p\n", 
+                this->_pImpl->_deviceContext.get(), this->_pImpl->_deviceContext.use_count(), this, this->_pImpl.get());
+            
+            // Verify it's still there immediately
+            DebugLog("[GifDecoder::ctor] After assignment, _deviceContext=%p\n", 
+                this->_pImpl->_deviceContext.get());
+            break;
+        }
 #endif
+
+#ifdef __APPLE__
+        case Renderer::Backend::Metal:
+            this->_pImpl->_deviceContext = std::make_shared<Renderer::MetalDeviceCommandContext>();
+            break;
+#endif
+
+        default:
+            throw std::runtime_error("Unsupported or unavailable backend for this platform");
+    }
 }
 
 GifDecoder::~GifDecoder() = default;
@@ -791,8 +828,11 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
     // Check if frame has pixel data
     if (frame.pixels.empty())
     {
+        DebugLog("[GetFramePixelsBGRA32Premultiplied] Frame %u has NO pixel data (pixels.size=%zu)\n", index, frame.pixels.size());
         return nullptr;
     }
+
+    DebugLog("[GetFramePixelsBGRA32Premultiplied] Frame %u: %zu pixels, converting to BGRA\n", index, frame.pixels.size());
 
     const size_t pixelCount = frame.pixels.size();
     const size_t byteCount = pixelCount * 4;
@@ -808,7 +848,12 @@ const uint8_t* GifDecoder::GetFramePixelsBGRA32Premultiplied(uint32_t index)
     Renderer::PixelFormats::ConvertRGBAToBGRAPremultiplied(
         sourceRGBA, _pImpl->_bgraPremultipliedCache.data(), pixelCount);
 
-    return _pImpl->_bgraPremultipliedCache.data();
+    // Log first pixel to verify conversion
+    const uint8_t* bgra = _pImpl->_bgraPremultipliedCache.data();
+    DebugLog("[GetFramePixelsBGRA32Premultiplied] Frame %u converted - first BGRA pixel: %02X %02X %02X %02X (B G R A)\n",
+        index, bgra[0], bgra[1], bgra[2], bgra[3]);
+
+    return bgra;
 }
 
 const uint8_t* GifDecoder::GetFramePixelsBGRA32PremultipliedScaled(
@@ -1178,33 +1223,63 @@ Renderer::Backend GifDecoder::GetBackend() const
 
 void* GifDecoder::GetNativeTexturePtr(int frameIndex)
 {
+    DebugLog("[GifDecoder] GetNativeTexturePtr: ENTRY - this=%p, _pImpl=%p\n", this, this->_pImpl.get());
+
     if (!this->_pImpl || frameIndex < 0 || static_cast<uint32_t>(frameIndex) >= this->_pImpl->_frameCount)
     {
+        DebugLog("[GifDecoder] GetNativeTexturePtr: Invalid params - pImpl=%p, frameIndex=%d, frameCount=%u\n",
+            this->_pImpl.get(), frameIndex, this->_pImpl ? this->_pImpl->_frameCount : 0);
         return nullptr;
+    }
+
+    // Check if we already have this texture cached
+    auto it = this->_pImpl->_textureCache.find(frameIndex);
+    if (it != this->_pImpl->_textureCache.end() && it->second)
+    {
+        void* ptr = it->second->GetNativeTexturePtr();
+        DebugLog("[GifDecoder] GetNativeTexturePtr: Frame %d found in cache, ptr=%p\n", frameIndex, ptr);
+        return ptr;
     }
 
     // Get the frame pixels to ensure it's cached
     const uint8_t* pixels = this->GetFramePixelsBGRA32Premultiplied(static_cast<uint32_t>(frameIndex));
     if (!pixels)
     {
+        DebugLog("[GifDecoder] GetNativeTexturePtr: GetFramePixelsBGRA32Premultiplied returned null\n");
         return nullptr;
     }
 
-    // Create or retrieve a texture for this frame
-    if (this->_pImpl->_deviceContext)
-    {
-        auto texture = this->_pImpl->_deviceContext->CreateTexture(
-            this->_pImpl->_width,
-            this->_pImpl->_height,
-            pixels,
-            this->_pImpl->_width * this->_pImpl->_height * 4);
+    DebugLog("[GifDecoder] GetNativeTexturePtr: Got pixels from BGRA cache - pixels=%p, first 4 bytes: %02X %02X %02X %02X\n", 
+        pixels, pixels[0], pixels[1], pixels[2], pixels[3]);
 
-        if (texture)
-        {
-            return texture->GetNativeTexturePtr();
-        }
+    // Create or retrieve a texture for this frame
+    if (!this->_pImpl->_deviceContext)
+    {
+        DebugLog("[GifDecoder] GetNativeTexturePtr: CRITICAL - _pImpl exists but _deviceContext is null (pImpl=%p)\n", this->_pImpl.get());
+        return nullptr;
     }
 
+    DebugLog("[GifDecoder] GetNativeTexturePtr: Creating texture for frame %d (%ux%u), deviceContext=%p\n",
+        frameIndex, this->_pImpl->_width, this->_pImpl->_height, this->_pImpl->_deviceContext.get());
+
+    auto texture = this->_pImpl->_deviceContext->CreateTexture(
+        this->_pImpl->_width,
+        this->_pImpl->_height,
+        pixels,
+        this->_pImpl->_width * this->_pImpl->_height * 4);
+
+    if (texture)
+    {
+        // Cache the texture so it stays alive
+        this->_pImpl->_textureCache[frameIndex] = texture;
+        void* ptr = texture->GetNativeTexturePtr();
+        DebugLog("[GifDecoder] GetNativeTexturePtr: Texture created, native ptr=%p\n", ptr);
+        return ptr;
+    }
+
+#ifdef _WIN32
+    OutputDebugStringA("[GifDecoder] GetNativeTexturePtr: CRITICAL - CreateTexture returned null\n");
+#endif
     return nullptr;
 }
 

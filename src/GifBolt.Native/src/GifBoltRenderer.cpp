@@ -15,15 +15,24 @@ namespace GifBolt
 class GifBoltRenderer::Impl
 {
    public:
-    Impl() : m_DeviceContext(std::make_shared<Renderer::DummyDeviceCommandContext>())
+    Impl() 
+        : m_DeviceContext(std::make_shared<Renderer::DummyDeviceCommandContext>()),
+          m_Backend(Renderer::Backend::DUMMY)
     {
     }
     explicit Impl(std::shared_ptr<Renderer::IDeviceCommandContext> context)
-        : m_DeviceContext(context)
+        : m_DeviceContext(context),
+          m_Backend(context ? context->GetBackend() : Renderer::Backend::DUMMY)
+    {
+    }
+    explicit Impl(Renderer::Backend backend)
+        : m_Backend(backend),
+          m_DeviceContext(nullptr)  // Will be created by decoder
     {
     }
 
     std::shared_ptr<Renderer::IDeviceCommandContext> m_DeviceContext;
+    Renderer::Backend m_Backend = Renderer::Backend::DUMMY;
     std::unique_ptr<GifDecoder> m_Decoder;
     std::shared_ptr<Renderer::ITexture> m_CurrentTexture;
 
@@ -45,13 +54,19 @@ GifBoltRenderer::GifBoltRenderer(std::shared_ptr<Renderer::IDeviceCommandContext
 {
 }
 
+GifBoltRenderer::GifBoltRenderer(Renderer::Backend backend)
+    : pImpl(std::make_unique<Impl>(backend))
+{
+}
+
 GifBoltRenderer::~GifBoltRenderer() = default;
 
 bool GifBoltRenderer::Initialize(uint32_t width, uint32_t height)
 {
     pImpl->m_Width = width;
     pImpl->m_Height = height;
-    pImpl->m_Decoder = std::make_unique<GifDecoder>();
+    // Pass the backend enum to decoder - it will instantiate the right device context
+    pImpl->m_Decoder = std::make_unique<GifDecoder>(pImpl->m_Backend);
     return true;
 }
 

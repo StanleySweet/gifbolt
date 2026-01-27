@@ -47,11 +47,16 @@ if (WIN32)
     target_sources(GifBolt.Native.Objects PRIVATE
         src/D3D11DeviceCommandContext.cpp
         include/D3D11DeviceCommandContext.h
+        src/D3D9ExDeviceCommandContext.cpp
+        include/D3D9ExDeviceCommandContext.h
+        src/D3D9ExTexture.cpp
+        include/D3D9ExTexture.h
     )
 
     # Link Direct3D libraries (FORCE compiler version)
     target_link_libraries(GifBolt.Native.Objects PRIVATE
         d3d11
+        d3d9
         dxgi
         d3dcompiler
         delayimp
@@ -59,6 +64,7 @@ if (WIN32)
 
     target_link_libraries(GifBolt.Native PRIVATE
         d3d11
+        d3d9
         dxgi
         d3dcompiler
     )

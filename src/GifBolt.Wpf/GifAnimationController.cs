@@ -80,6 +80,11 @@ namespace GifBolt.Wpf
         private bool _wasPlayingBeforeHidden;
         private ScalingFilter _scalingFilter = ScalingFilter.None;
 
+        // FPS diagnostics
+        private System.Diagnostics.Stopwatch? _fpsStopwatch;
+        private int _frameCount;
+        private long _lastRenderTimeMs;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
         /// Performs asynchronous loading to avoid blocking the UI thread.
@@ -286,6 +291,16 @@ namespace GifBolt.Wpf
             this.IsPlaying = true;
             this._frameStartTime = DateTime.UtcNow;
 
+            // Initialize FPS stopwatch
+            if (this._fpsStopwatch == null)
+            {
+                this._fpsStopwatch = new System.Diagnostics.Stopwatch();
+            }
+
+            this._fpsStopwatch.Restart();
+            this._frameCount = 0;
+            this._lastRenderTimeMs = 0;
+
             if (this._writeableBitmap != null && !this._isDisposed)
             {
                 this.RenderFrame(this.Player.CurrentFrame);
@@ -368,12 +383,78 @@ namespace GifBolt.Wpf
         /// Sets the scaling filter used when resizing frames.
         /// </summary>
         /// <param name="filter">The scaling filter (Nearest, Bilinear, Bicubic, Lanczos).</param>
-        public void SetScalingFilter(ScalingFilter filter)
+        /// <remarks>
+        /// When the filter changes, reinitializes the rendering pipeline and re-renders the current frame.
+        /// </remarks>
+        public override void SetScalingFilter(ScalingFilter filter)
         {
+            if (this._scalingFilter == filter)
+            {
+                return; // No change
+            }
+
+            // Pause during filter change to avoid race conditions with the animation timer
+            bool wasPlaying = this.IsPlaying;
+            if (wasPlaying)
+            {
+                this.Pause();
+            }
+
             this._scalingFilter = filter;
+
+            // If we have a valid player and bitmap, reinitialize for the new filter
+            if (this.Player != null && this._writeableBitmap != null && this._image != null)
+            {
+                try
+                {
+                    int nativeWidth = this.Player.Width;
+                    int nativeHeight = this.Player.Height;
+
+                    // Get the current display size
+                    int displayWidth = Math.Max(1, (int)this._image.ActualWidth);
+                    int displayHeight = Math.Max(1, (int)this._image.ActualHeight);
+
+                    if (displayWidth < 10 || displayHeight < 10)
+                    {
+                        displayWidth = nativeWidth;
+                        displayHeight = nativeHeight;
+                    }
+
+                    // Determine target bitmap dimensions based on filter
+                    int targetWidth = filter == ScalingFilter.None ? nativeWidth : displayWidth;
+                    int targetHeight = filter == ScalingFilter.None ? nativeHeight : displayHeight;
+
+                    // Recreate bitmap if dimensions changed
+                    if (this._writeableBitmap.PixelWidth != targetWidth ||
+                        this._writeableBitmap.PixelHeight != targetHeight)
+                    {
+                        this._writeableBitmap = new WriteableBitmap(
+                            targetWidth,
+                            targetHeight,
+                            96,
+                            96,
+                            PixelFormats.Bgra32,
+                            null);
+
+                        this._image.Source = this._writeableBitmap;
+                    }
+
+                    // Re-render the current frame with the new filter
+                    this.RenderFrame(this.Player.CurrentFrame);
+                }
+                catch
+                {
+                    // Suppress errors during filter change
+                }
+            }
+
+            // Resume playback if it was playing
+            if (wasPlaying)
+            {
+                this.Play();
+            }
         }
 
-        /// <summary>
         /// <summary>
         /// Renders a specific frame to the WriteableBitmap atomically.
         /// </summary>
@@ -484,8 +565,15 @@ namespace GifBolt.Wpf
                     {
                         this.Player.ResetCanvas();
                         this.Player.CurrentFrame = 0;
+
+                        var renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
                         this.RenderFrame(0);
+                        var renderTimeMs = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
+
                         this._frameStartTime = DateTime.UtcNow;
+
+                        // FPS tracking
+                        this.UpdateFpsTracking(rawFrameDelayMs, renderTimeMs);
                         return; // Exit early after rendering frame 0
                     }
 
@@ -495,12 +583,38 @@ namespace GifBolt.Wpf
                     this._frameStartTime = DateTime.UtcNow;
 
                     // Render only when frame actually changes
+                    var renderStart2 = System.Diagnostics.Stopwatch.GetTimestamp();
                     this.RenderFrame(this.Player.CurrentFrame);
+                    var renderTimeMs2 = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart2) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
+
+                    // FPS tracking
+                    this.UpdateFpsTracking(rawFrameDelayMs, renderTimeMs2);
                 }
             }
             catch
             {
                 // Swallow render errors
+            }
+        }
+
+        private void UpdateFpsTracking(int frameDelayMs, double renderTimeMs)
+        {
+            this._frameCount++;
+            this._lastRenderTimeMs = this._fpsStopwatch?.ElapsedMilliseconds ?? 0;
+
+            if (this._fpsStopwatch != null && this._fpsStopwatch.ElapsedMilliseconds > 1000)
+            {
+                var fps = this._frameCount * 1000.0 / this._fpsStopwatch.ElapsedMilliseconds;
+                var fpsText = $"FPS: {fps:F1} | Render: {renderTimeMs:F2}ms | Delay: {frameDelayMs}ms";
+
+                // Update FPS on the Image control
+                this._image.Dispatcher.BeginInvoke(() =>
+                {
+                    AnimationBehavior.SetFpsText(this._image, fpsText);
+                });
+
+                this._fpsStopwatch.Restart();
+                this._frameCount = 0;
             }
         }
 

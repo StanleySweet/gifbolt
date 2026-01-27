@@ -15,6 +15,8 @@ namespace GifBolt.SampleApp
     /// </summary>
     public sealed partial class MainWindow : Window
     {
+        private System.Windows.Threading.DispatcherTimer _fpsTimer;
+
         public MainWindow()
         {
             try
@@ -38,6 +40,14 @@ namespace GifBolt.SampleApp
 
             // Update version info
             this.UpdateVersionInfo();
+
+            // Setup FPS update timer
+            this._fpsTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(200)
+            };
+            this._fpsTimer.Tick += (s, args) => this.UpdateFpsDisplay();
+            this._fpsTimer.Start();
 
             // Load a default GIF if available
             string sampleGif = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "sample.gif");
@@ -93,25 +103,55 @@ namespace GifBolt.SampleApp
 
         private void OnLoadGif(object sender, RoutedEventArgs e)
         {
-            var dlg = new OpenFileDialog
+            try
             {
-                Filter = "GIF Files (*.gif)|*.gif|All Files (*.*)|*.*",
-                Title = "Select a GIF file"
-            };
-            if (dlg.ShowDialog() == true)
+                var dlg = new OpenFileDialog
+                {
+                    Filter = "GIF Files (*.gif)|*.gif|All Files (*.*)|*.*",
+                    Title = "Select a GIF file"
+                };
+                if (dlg.ShowDialog() == true)
+                {
+                    LogToFile($"User selected GIF: {dlg.FileName}");
+                    
+                    // Verify file exists and is readable
+                    if (!File.Exists(dlg.FileName))
+                    {
+                        LogToFile($"ERROR: File not found: {dlg.FileName}");
+                        this.UpdateStatus($"Error: File not found: {dlg.FileName}");
+                        return;
+                    }
+
+                    // Update both Image controls with AnimationBehavior.SourceUri
+                    if (this.GifImageScaling != null)
+                    {
+                        LogToFile($"Setting GifImageScaling source to: {dlg.FileName}");
+                        AnimationBehavior.SetSourceUri(this.GifImageScaling, dlg.FileName);
+                    }
+                    else
+                    {
+                        LogToFile("ERROR: GifImageScaling is null");
+                    }
+
+                    if (this.ImageBehaviorImage != null)
+                    {
+                        LogToFile($"Setting ImageBehaviorImage source to: {dlg.FileName}");
+                        AnimationBehavior.SetSourceUri(this.ImageBehaviorImage, dlg.FileName);
+                    }
+                    else
+                    {
+                        LogToFile("ERROR: ImageBehaviorImage is null");
+                    }
+
+                    this.UpdateStatus($"Loaded: {Path.GetFileName(dlg.FileName)}");
+                    LogToFile($"Successfully set GIF source");
+                }
+            }
+            catch (Exception ex)
             {
-                // Update both Image controls with AnimationBehavior.SourceUri
-                if (this.GifImageScaling != null)
-                {
-                    AnimationBehavior.SetSourceUri(this.GifImageScaling, dlg.FileName);
-                }
-
-                if (this.ImageBehaviorImage != null)
-                {
-                    AnimationBehavior.SetSourceUri(this.ImageBehaviorImage, dlg.FileName);
-                }
-
-                this.UpdateStatus($"Loaded: {Path.GetFileName(dlg.FileName)}");
+                LogToFile($"Exception in OnLoadGif: {ex}");
+                this.UpdateStatus($"Error: {ex.Message}");
+                MessageBox.Show($"Error loading GIF:\n{ex.Message}\n\nSee gifbolt_load.log for details", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -133,6 +173,20 @@ namespace GifBolt.SampleApp
             catch (Exception ex)
             {
                 this.UpdateStatus($"Error changing filter: {ex.Message}");
+            }
+        }
+
+        private void UpdateFpsDisplay()
+        {
+            if (this.FpsDisplay == null || this.GifImageScaling == null)
+            {
+                return;
+            }
+
+            var fpsText = AnimationBehavior.GetFpsText(this.GifImageScaling);
+            if (!string.IsNullOrEmpty(fpsText))
+            {
+                this.FpsDisplay.Text = fpsText;
             }
         }
 

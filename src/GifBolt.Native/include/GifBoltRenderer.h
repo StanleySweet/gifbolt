@@ -31,6 +31,11 @@ class GifBoltRenderer
     /// \param context The rendering device context to use.
     explicit GifBoltRenderer(std::shared_ptr<Renderer::IDeviceCommandContext> context);
 
+    /// \brief Initializes a new instance of GifBoltRenderer with a specified backend.
+    /// \param backend The rendering backend to use (D3D9Ex, D3D11, Metal, Dummy).
+    /// \throws std::runtime_error if the specified backend is not available on this platform.
+    explicit GifBoltRenderer(Renderer::Backend backend);
+
     /// \brief Destroys the GifBoltRenderer and releases associated resources.
     ~GifBoltRenderer();
 

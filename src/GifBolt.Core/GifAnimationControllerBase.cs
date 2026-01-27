@@ -111,6 +111,19 @@ namespace GifBolt
         }
 
         /// <summary>
+        /// Sets the scaling filter for image resizing operations.
+        /// </summary>
+        /// <param name="filter">The scaling filter to apply.</param>
+        /// <remarks>
+        /// This method should be overridden by derived classes that support scaling operations.
+        /// The base implementation does nothing.
+        /// </remarks>
+        public virtual void SetScalingFilter(ScalingFilter filter)
+        {
+            // Base implementation does nothing - override in derived classes if scaling is supported
+        }
+
+        /// <summary>
         /// Advances the animation to the next frame.
         /// </summary>
         protected void AdvanceFrame()

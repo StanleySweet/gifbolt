@@ -232,14 +232,13 @@ namespace GifBolt.Avalonia
         }
 
         /// <summary>
-        /// <summary>
         /// Sets the scaling filter used when resizing frames.
         /// </summary>
         /// <remarks>
         /// When the filter changes, reinitializes the rendering pipeline and re-renders the current frame.
         /// </remarks>
         /// <param name="filter">The scaling filter (Nearest, Bilinear, Bicubic, Lanczos).</param>
-        public void SetScalingFilter(ScalingFilter filter)
+        public override void SetScalingFilter(ScalingFilter filter)
         {
             if (this._scalingFilter == filter)
             {
