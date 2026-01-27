@@ -49,7 +49,6 @@ struct D3D9ExTexture::Impl
 
         if (FAILED(hr))
         {
-            DebugLog("[D3D9ExTexture] CreateTexture failed: 0x%08X\n", hr);
             throw std::runtime_error("Failed to create D3D9Ex texture");
         }
 
@@ -57,7 +56,6 @@ struct D3D9ExTexture::Impl
         hr = d3d9Texture->GetSurfaceLevel(0, &d3d9Surface);
         if (FAILED(hr))
         {
-            DebugLog("[D3D9ExTexture] GetSurfaceLevel failed: 0x%08X\n", hr);
             throw std::runtime_error("Failed to get surface from texture");
         }
 
@@ -66,7 +64,6 @@ struct D3D9ExTexture::Impl
                                                   D3DPOOL_SYSTEMMEM, &lockableSurface, nullptr);
         if (FAILED(hr))
         {
-            DebugLog("[D3D9ExTexture] CreateOffscreenPlainSurface failed: 0x%08X\n", hr);
             throw std::runtime_error("Failed to create lockable surface");
         }
 
@@ -76,25 +73,6 @@ struct D3D9ExTexture::Impl
         // Initialize with data if provided
         if (initialData && initialDataSize > 0)
         {
-            // Count non-zero bytes to verify data validity
-            size_t nonZeroBytes = 0;
-            const uint8_t* dataBytes = reinterpret_cast<const uint8_t*>(initialData);
-            for (size_t i = 0; i < initialDataSize && i < width * height * 4; ++i)
-            {
-                if (dataBytes[i] != 0)
-                {
-                    nonZeroBytes++;
-                }
-            }
-            
-            DebugLog("[D3D9ExTexture] Impl: Uploading %zu bytes to %ux%u surface, non-zero=%zu/%zu (%.1f%%)\n", 
-                initialDataSize, width, height, nonZeroBytes, initialDataSize, 
-                (nonZeroBytes * 100.0f) / initialDataSize);
-            
-            if (nonZeroBytes == 0)
-            {
-                DebugLog("[D3D9ExTexture] WARNING: All bytes are zero! Surface will be completely transparent\n");
-            }
             
             // initialData is already BGRA premultiplied from GetFramePixelsBGRA32Premultiplied
             // Just copy it directly to the lockable surface
@@ -106,7 +84,6 @@ struct D3D9ExTexture::Impl
             hr = lockableSurface->LockRect(&locked, nullptr, 0);
             if (SUCCEEDED(hr))
             {
-                DebugLog("[D3D9ExTexture] Locked surface at %p, pitch=%d\n", locked.pBits, locked.Pitch);
                 // Copy exact pixel data (row by row respecting pitch)
                 uint8_t* dest = reinterpret_cast<uint8_t*>(locked.pBits);
                 const uint8_t* src = stagingBuffer.get();
@@ -115,27 +92,10 @@ struct D3D9ExTexture::Impl
                     std::memcpy(dest + y * locked.Pitch, src + y * width * 4, width * 4);
                 }
                 lockableSurface->UnlockRect();
-                DebugLog("[D3D9ExTexture] Surface unlocked after upload\n");
 
                 // Copy from lockable CPU surface to GPU texture surface
                 hr = device->UpdateSurface(lockableSurface.Get(), nullptr, d3d9Surface.Get(), nullptr);
-                if (SUCCEEDED(hr))
-                {
-                    DebugLog("[D3D9ExTexture] UpdateSurface: Copied pixel data to GPU texture - SUCCESS\n");
-                }
-                else
-                {
-                    DebugLog("[D3D9ExTexture] UpdateSurface FAILED: 0x%08X\n", hr);
-                }
             }
-            else
-            {
-                DebugLog("[D3D9ExTexture] FAILED to lock CPU surface: 0x%08X\n", hr);
-            }
-        }
-        else
-        {
-            DebugLog("[D3D9ExTexture] Impl: No initial data (data=%p, size=%zu)\n", initialData, initialDataSize);
         }
     }
 
