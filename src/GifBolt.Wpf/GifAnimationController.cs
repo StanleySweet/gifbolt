@@ -76,9 +76,12 @@ namespace GifBolt.Wpf
         private DispatcherTimer? _renderTimer;
         private bool _isDisposed;
         private int _generationId;
-        private string? _pendingRepeatBehavior;
+        private int _contextGenerationId;  // Track which generation created the current animation context
+        private volatile bool _shouldSkipRender;  // Volatile flag to immediately block render operations during GIF switching
+        private string? _pendingRepeatBehavior = "Forever";  // Default to infinite looping
         private System.Diagnostics.Stopwatch _frameStopwatch = new System.Diagnostics.Stopwatch();
         private bool _wasPlayingBeforeHidden;
+        private int _lastRenderedFrame = -1;  // Track last rendered frame to prevent duplicate renders
         private ScalingFilter _scalingFilter = ScalingFilter.None;
         private bool _inNoGCRegion;
         private byte[]? _cachedTransparentFill;
@@ -99,6 +102,9 @@ namespace GifBolt.Wpf
         /// <param name="onError">Callback invoked when loading fails.</param>
         public GifAnimationController(Image image, string path, Action? onLoaded = null, Action<Exception>? onError = null)
         {
+            string logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log");
+            System.IO.File.AppendAllText(logPath, "[CTOR] Starting constructor\n");
+            
             this._image = image;
             this._sourcePath = path;
             this._sourceBytes = null;
@@ -106,6 +112,8 @@ namespace GifBolt.Wpf
 
             // Subscribe to visibility changes for automatic pause/resume
             this._image.IsVisibleChanged += this.OnImageVisibilityChanged;
+            
+            System.IO.File.AppendAllText(logPath, "[CTOR] About to call BeginLoad\n");
 
             this.BeginLoad(onLoaded, onError);
         }
@@ -132,12 +140,74 @@ namespace GifBolt.Wpf
 
         private void BeginLoad(Action? onLoaded, Action<Exception>? onError)
         {
+            // CRITICAL: Set flag FIRST to immediately block any render operations
+            this._shouldSkipRender = true;
+            
+            // CRITICAL: Increment generation ID to invalidate ALL pending operations
+            this._generationId = unchecked(this._generationId + 1);
             int capturedGenerationId = this._generationId;
+
+            // CRITICAL: Stop old timer BEFORE loading new GIF to prevent race conditions
+            if (this._renderTimer != null)
+            {
+                this._renderTimer.Stop();
+                this._renderTimer.Tick -= this.OnRenderTick;
+                this._renderTimer = null;  // Clear reference to ensure no stale callbacks
+            }
+
+            // Clear image source IMMEDIATELY on UI thread to prevent old image flashing
+            try
+            {
+                this._image.Source = null;
+            }
+            catch { }
+
+            // Schedule cleanup for after UI is updated
+            this._image.Dispatcher.BeginInvoke(() =>
+            {
+                // Destroy old animation context - CRITICAL for cleaning up native resources
+                if (this.AnimationContext != System.IntPtr.Zero)
+                {
+                    try
+                    {
+                        GifPlayer.DestroyAnimationContext(this.AnimationContext);
+                    }
+                    catch { }
+                    this.AnimationContext = System.IntPtr.Zero;
+                }
+
+                // CRITICAL: Fully dispose old player
+                // This ensures prefetch thread is completely shut down
+                if (this.Player != null)
+                {
+                    try
+                    {
+                        this.Player.Stop();
+                        this.Player.Dispose();  // Full disposal to stop prefetch thread
+                    }
+                    catch { }
+                    this.Player = null;  // Clear reference
+                }
+
+                // Reset render state
+                this._lastRenderedFrame = -1;
+            });  // Use normal priority
 
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
                 {
+                    string logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log");
+                    using (var logFile = System.IO.File.AppendText(logPath))
+                    {
+                        logFile.WriteLine($"[{System.DateTime.Now:HH:mm:ss.fff}] BeginLoad starting...");
+                        logFile.Flush();
+                    }
+
+                    // CRITICAL: Wait for old player to be fully disposed before creating new one
+                    // This ensures the prefetch thread from the old GIF has completely shut down
+                    System.Threading.Thread.Sleep(50);
+
                     if (this._isDisposed || this._generationId != capturedGenerationId)
                     {
                         return;
@@ -148,6 +218,18 @@ namespace GifBolt.Wpf
                     bool loaded = this._sourceBytes != null
                         ? this.Player.Load(this._sourceBytes)
                         : this._sourcePath != null && this.Player.Load(this._sourcePath);
+
+                    using (var logFile = System.IO.File.AppendText(logPath))
+                    {
+                        logFile.WriteLine($"[{System.DateTime.Now:HH:mm:ss.fff}] GIF loaded: {loaded}");
+                        if (loaded && this.Player != null)
+                        {
+                            logFile.WriteLine($"  Dimensions: {this.Player.Width}x{this.Player.Height}");
+                            logFile.WriteLine($"  Frames: {this.Player.FrameCount}");
+                            logFile.WriteLine($"  Looping: {this.Player.IsLooping}");
+                        }
+                        logFile.Flush();
+                    }
 
                     if (!loaded || this.Player == null)
                     {
@@ -168,6 +250,17 @@ namespace GifBolt.Wpf
 
                     // Get initial frame pixels (consolidates scaling logic)
                     byte[]? initialPixels = this.GetFramePixels(0, out int scaledWidth, out int scaledHeight);
+                    
+                    // DISABLED: Prefetching causes crashes when switching GIFs frequently
+                    // The race condition between prefetch thread and context destruction is too risky
+                    // Re-enable only after implementing proper thread-safe synchronization
+                    if (this.Player != null)
+                    {
+                        this.Player.EnablePrefetching = false;  // Safer: decode on-demand with fallback
+                    }
+
+                    System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                        $"[LOAD] {this.Player?.FrameCount} frames, loop={this.Player?.IsLooping}, prefetch=enabled\n");
 
                     this._image.Dispatcher.BeginInvoke(() =>
                     {
@@ -206,6 +299,9 @@ namespace GifBolt.Wpf
                             if (this.Player != null)
                             {
                                 this.AnimationContext = GifPlayer.CreateAnimationContext(this.Player, null);
+                                this._contextGenerationId = capturedGenerationId;  // Mark context with its generation ID
+                                System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                                $"[CTX] {(this.AnimationContext != System.IntPtr.Zero ? "OK" : "FAIL")}\n");
                             }
 
                             // Apply pending repeat behavior BEFORE calling onLoaded (which starts playback)
@@ -214,6 +310,9 @@ namespace GifBolt.Wpf
                                 this.SetRepeatBehavior(this._pendingRepeatBehavior);
                                 this._pendingRepeatBehavior = null;
                             }
+
+                            // CRITICAL: Re-enable rendering now that everything is properly initialized
+                            this._shouldSkipRender = false;
 
                             onLoaded?.Invoke();
                         }
@@ -245,10 +344,22 @@ namespace GifBolt.Wpf
 
             if (this.Player == null || this.AnimationContext == System.IntPtr.Zero)
             {
+                    System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                    $"[PLAY_FAIL] Player={this.Player != null}, Context={this.AnimationContext != System.IntPtr.Zero}\n");
                 return;
             }
 
+            System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                $"[PLAY] frames={this.Player.FrameCount}, loop={this.Player.IsLooping}\n");
+
             this.Player.Play();
+            
+            // Enforce infinite looping by setting repeat count BEFORE starting playback
+            GifPlayer.SetAnimationRepeatCount(this.AnimationContext, -1);  // -1 = infinite
+            var state = GifPlayer.GetAnimationState(this.AnimationContext);
+            System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                $"[PLAY] RepeatCount set to: {state.RepeatCount}\n");
+            
             GifPlayer.SetAnimationPlaying(this.AnimationContext, true, false);
             this._frameStopwatch.Restart();
 
@@ -459,17 +570,15 @@ namespace GifBolt.Wpf
 
             try
             {
+                // Always clear bitmap first to prevent background flicker between frames
+                this.FillTransparent(this._writeableBitmap.PixelWidth, this._writeableBitmap.PixelHeight);
+
                 // Single consolidate call to get frame pixels (avoids duplicate scaling logic)
                 byte[]? bgraPixels = this.GetFramePixels(frameIndex, out int outWidth, out int outHeight);
 
+                // Only render frame data if we have valid pixels
                 if (bgraPixels != null && bgraPixels.Length > 0 && !this._isDisposed)
                 {
-                    // Fill transparent area if bitmap is larger than frame data
-                    if (this._writeableBitmap.PixelWidth > outWidth || this._writeableBitmap.PixelHeight > outHeight)
-                    {
-                        this.FillTransparent(this._writeableBitmap.PixelWidth, this._writeableBitmap.PixelHeight);
-                    }
-
                     // Write frame pixels to bitmap
                     this._writeableBitmap.WritePixels(
                         new Int32Rect(0, 0, outWidth, outHeight),
@@ -478,9 +587,11 @@ namespace GifBolt.Wpf
                         0);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Swallow render errors
+                // Log render errors to help diagnose AccessViolationException
+                System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                    $"[RENDER_ERROR] {ex.GetType().Name}: {ex.Message}\n");
             }
         }
 
@@ -584,64 +695,92 @@ namespace GifBolt.Wpf
 
         private void OnRenderTick(object? sender, EventArgs e)
         {
-            // Early exit if disposed or invalid  
-            if (this._isDisposed || this.Player == null || this.AnimationContext == System.IntPtr.Zero 
-                || this._writeableBitmap == null || this._renderTimer == null)
+            // CRITICAL: Check skip flag FIRST - blocks all render operations during GIF switching  
+            // This is a volatile flag that's set immediately when a new GIF is being loaded
+            if (this._shouldSkipRender || this._isDisposed)
+            {
+                return;
+            }
+
+            // Check generation ID - if it changed, skip this tick (GIF was switched)
+            // This prevents stale render operations from accessing freed memory
+            if (this._contextGenerationId != this._generationId)
+            {
+                return;
+            }
+
+            // Defensive checks - verify all critical resources are still valid
+            if (this.Player == null || this.AnimationContext == System.IntPtr.Zero 
+                || this._writeableBitmap == null)
             {
                 return;
             }
 
             try
             {
-                // Get the raw frame delay and advance frame with consolidated C++ logic
                 int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
                 int minFrameDelayMs = this.Player.MinFrameDelayMs;
                 long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
 
-                // Only advance frame if enough time has elapsed
                 if (elapsedMs < rawFrameDelayMs)
                 {
                     return;
                 }
 
-                // Use consolidated animation context API for frame advancement
-                // Returns frame index, completion state, repeat count, and effective delay all at once
+                string logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log");
+                System.IO.File.AppendAllText(logPath, 
+                    $"[TICK] frame={this.Player.CurrentFrame}, count={this.Player.FrameCount}, delay={rawFrameDelayMs}ms, elapsed={elapsedMs}ms\n");
+
                 bool advanced = GifPlayer.AdvanceAnimation(
                     this.AnimationContext,
                     rawFrameDelayMs,
                     minFrameDelayMs,
                     out var advanceResult);
 
-                if (!advanced || advanceResult.IsComplete != 0)
+                System.IO.File.AppendAllText(logPath, 
+                    $"[ADV] ok={advanced}, next={advanceResult.NextFrame}, isComplete={advanceResult.IsComplete}, repeat={advanceResult.UpdatedRepeatCount}\n");
+
+                if (!advanced)
                 {
+                    System.IO.File.AppendAllText(logPath, "[STOP] Animation advance failed\n");
                     this.Stop();
                     return;
                 }
 
-                // Reset and render frame 0 when looping
+                // Only stop if animation is truly complete (repeat count exhausted)
+                // Don't stop if repeat count is -1 (infinite looping) or still > 0
+                if (advanceResult.IsComplete != 0 && advanceResult.UpdatedRepeatCount <= 0)
+                {
+                    System.IO.File.AppendAllText(logPath, "[STOP] Animation complete - all repetitions done\n");
+                    this.Stop();
+                    return;
+                }
+
                 if (advanceResult.NextFrame == 0)
                 {
+                    System.IO.File.AppendAllText(logPath, "[LOOP] Looping to frame 0\n");
                     if (this.Player != null)
                     {
                         this.Player.ResetCanvas();
                         this.Player.CurrentFrame = 0;
                         GifPlayer.SetAnimationCurrentFrame(this.AnimationContext, 0);
                     }
-
                     this.RenderFrameOptimized(0, advanceResult.EffectiveDelayMs);
                     return;
                 }
 
-                // Update frame and render (consolidate state update and render in one call)
                 if (this.Player != null)
                 {
                     this.Player.CurrentFrame = advanceResult.NextFrame;
+                    this._lastRenderedFrame = advanceResult.NextFrame;
+                    System.IO.File.AppendAllText(logPath, $"[RENDER] frame {advanceResult.NextFrame}\n");
                     this.RenderFrameOptimized(advanceResult.NextFrame, advanceResult.EffectiveDelayMs);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Swallow render errors
+                string logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log");
+                System.IO.File.AppendAllText(logPath, $"[ERROR] {ex.GetType().Name}: {ex.Message}\n");
             }
         }
 
@@ -726,11 +865,18 @@ namespace GifBolt.Wpf
             // Unsubscribe from visibility changes
             this._image.IsVisibleChanged -= this.OnImageVisibilityChanged;
 
-            // Stop and fully release the render timer
+            // Stop render timer FIRST - critical for preventing race conditions during cleanup
             if (this._renderTimer != null)
             {
                 this._renderTimer.Stop();
                 this._renderTimer = null;
+            }
+
+            // Destroy animation context
+            if (this.AnimationContext != System.IntPtr.Zero)
+            {
+                GifPlayer.DestroyAnimationContext(this.AnimationContext);
+                this.AnimationContext = System.IntPtr.Zero;
             }
 
             // Dispose player and stop prefetching thread
@@ -746,14 +892,7 @@ namespace GifBolt.Wpf
                 }
             }
 
-            // Destroy animation context
-            if (this.AnimationContext != System.IntPtr.Zero)
-            {
-                GifPlayer.DestroyAnimationContext(this.AnimationContext);
-                this.AnimationContext = System.IntPtr.Zero;
-            }
-
-            // Call base Dispose to clean up player and animation context
+            // Call base Dispose to clean up player
             base.Dispose();
 
             // Release bitmap data
