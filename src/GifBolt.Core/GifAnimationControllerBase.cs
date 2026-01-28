@@ -11,7 +11,8 @@ namespace GifBolt
 {
     /// <summary>
     /// Base class for platform-specific GIF animation controllers.
-    /// Provides common animation logic that is independent of the UI framework.
+    /// Provides minimal UI-framework-independent animation logic.
+    /// Frame advancement and repeat count management has been moved to C++ for better performance.
     /// </summary>
     public abstract class GifAnimationControllerBase : IDisposable
     {
@@ -24,26 +25,20 @@ namespace GifBolt
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether animation is playing.
+        /// Gets or sets the native animation context handle.
+        /// Encapsulates frame advancement, repeat count, and playback state management.
         /// </summary>
-        protected bool IsPlaying { get; set; }
-
-        /// <summary>
-        /// Gets or sets the repeat count.
-        /// </summary>
-        protected int RepeatCount { get; set; }
+        protected System.IntPtr AnimationContext { get; set; } = System.IntPtr.Zero;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationControllerBase"/> class.
         /// </summary>
         /// <remarks>
-        /// Derived classes are responsible for initializing the Player property.
-        /// Repeat count defaults to 1 (metadata-based behavior).
+        /// Derived classes are responsible for initializing the Player property
+        /// and creating the animation context after loading the GIF.
         /// </remarks>
         protected GifAnimationControllerBase()
         {
-            this.IsPlaying = false;
-            this.RepeatCount = 1;
         }
 
         /// <summary>
@@ -51,13 +46,13 @@ namespace GifBolt
         /// </summary>
         public virtual void Play()
         {
-            if (this.Player == null)
+            if (this.Player == null || this.AnimationContext == System.IntPtr.Zero)
             {
                 return;
             }
 
             this.Player.Play();
-            this.IsPlaying = true;
+            GifPlayer.SetAnimationPlaying(this.AnimationContext, true, false);
         }
 
         /// <summary>
@@ -65,13 +60,13 @@ namespace GifBolt
         /// </summary>
         public virtual void Pause()
         {
-            if (this.Player == null)
+            if (this.Player == null || this.AnimationContext == System.IntPtr.Zero)
             {
                 return;
             }
 
             this.Player.Pause();
-            this.IsPlaying = false;
+            GifPlayer.SetAnimationPlaying(this.AnimationContext, false, false);
         }
 
         /// <summary>
@@ -79,13 +74,13 @@ namespace GifBolt
         /// </summary>
         public virtual void Stop()
         {
-            if (this.Player == null)
+            if (this.Player == null || this.AnimationContext == System.IntPtr.Zero)
             {
                 return;
             }
 
             this.Player.Stop();
-            this.IsPlaying = false;
+            GifPlayer.SetAnimationPlaying(this.AnimationContext, false, true);
         }
 
         /// <summary>
@@ -94,12 +89,14 @@ namespace GifBolt
         /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
         public virtual void SetRepeatBehavior(string repeatBehavior)
         {
-            if (string.IsNullOrWhiteSpace(repeatBehavior) || this.Player == null)
+            if (string.IsNullOrWhiteSpace(repeatBehavior) || this.Player == null 
+                || this.AnimationContext == System.IntPtr.Zero)
             {
                 return;
             }
 
-            this.RepeatCount = this.Player.ComputeRepeatCount(repeatBehavior);
+            int repeatCount = this.Player.ComputeRepeatCount(repeatBehavior);
+            GifPlayer.SetAnimationRepeatCount(this.AnimationContext, repeatCount);
         }
 
         /// <summary>
@@ -116,28 +113,18 @@ namespace GifBolt
         }
 
         /// <summary>
-        /// Advances the animation to the next frame.
+        /// Gets the current repeat count from the animation context.
         /// </summary>
-        protected void AdvanceFrame()
+        /// <returns>The current repeat count (-1=infinite, 0=complete, >0=remaining).</returns>
+        protected int GetRepeatCount()
         {
-            if (this.Player == null)
+            if (this.AnimationContext == System.IntPtr.Zero)
             {
-                return;
+                return 1;
             }
 
-            var advanceResult = GifPlayer.AdvanceFrame(
-                this.Player.CurrentFrame,
-                this.Player.FrameCount,
-                this.RepeatCount);
-
-            if (advanceResult.IsComplete != 0)
-            {
-                this.Stop();
-                return;
-            }
-
-            this.Player.CurrentFrame = advanceResult.NextFrame;
-            this.RepeatCount = advanceResult.UpdatedRepeatCount;
+            var state = GifPlayer.GetAnimationState(this.AnimationContext);
+            return state.RepeatCount;
         }
 
         /// <summary>
@@ -145,6 +132,12 @@ namespace GifBolt
         /// </summary>
         public virtual void Dispose()
         {
+            if (this.AnimationContext != System.IntPtr.Zero)
+            {
+                GifPlayer.DestroyAnimationContext(this.AnimationContext);
+                this.AnimationContext = System.IntPtr.Zero;
+            }
+
             this.Player?.Dispose();
         }
     }

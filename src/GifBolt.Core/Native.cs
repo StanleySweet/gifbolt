@@ -98,6 +98,44 @@ namespace GifBolt
         /// <summary>Lanczos resampling - highest quality, slowest.</summary>
         Lanczos = 3,
     }
+
+    /// <summary>
+    /// Animation state snapshot structure.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AnimationState
+    {
+        /// <summary>Gets the currently displayed frame index (0-based).</summary>
+        public int CurrentFrame;
+
+        /// <summary>Gets the repeat count (-1=infinite, 0=complete, >0=remaining).</summary>
+        public int RepeatCount;
+
+        /// <summary>Gets 1 if animation is playing, 0 if paused/stopped.</summary>
+        public int IsPlaying;
+
+        /// <summary>Gets 1 if animation loops, 0 for single playback.</summary>
+        public int IsLooping;
+    }
+
+    /// <summary>
+    /// Result of animation context advance operation.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AnimationAdvanceResult
+    {
+        /// <summary>Gets the next frame index.</summary>
+        public int NextFrame;
+
+        /// <summary>Gets 1 if animation is complete, 0 otherwise.</summary>
+        public int IsComplete;
+
+        /// <summary>Gets the updated repeat count.</summary>
+        public int UpdatedRepeatCount;
+
+        /// <summary>Gets the effective frame delay in milliseconds.</summary>
+        public int EffectiveDelayMs;
+    }
 }
 
 namespace GifBolt.Internal
@@ -158,6 +196,15 @@ namespace GifBolt.Internal
         private static GbDecoderAdvanceFrameTimedDelegate? _gbDecoderAdvanceFrameTimed;
         private static GbDecoderComputeRepeatCountDelegate? _gbDecoderComputeRepeatCount;
         private static GbDecoderCalculateAdaptiveCacheSizeDelegate? _gbDecoderCalculateAdaptiveCacheSize;
+        private static GbAnimationContextCreateDelegate? _gbAnimationContextCreate;
+        private static GbAnimationContextDestroyDelegate? _gbAnimationContextDestroy;
+        private static GbAnimationContextGetStateDelegate? _gbAnimationContextGetState;
+        private static GbAnimationContextSetPlayingDelegate? _gbAnimationContextSetPlaying;
+        private static GbAnimationContextAdvanceDelegate? _gbAnimationContextAdvance;
+        private static GbAnimationContextSetRepeatCountDelegate? _gbAnimationContextSetRepeatCount;
+        private static GbAnimationContextGetRepeatCountDelegate? _gbAnimationContextGetRepeatCount;
+        private static GbAnimationContextGetCurrentFrameDelegate? _gbAnimationContextGetCurrentFrame;
+        private static GbAnimationContextSetCurrentFrameDelegate? _gbAnimationContextSetCurrentFrame;
 
         // Static constructor to load DLL and resolve function pointers
         static Native()
@@ -220,6 +267,15 @@ namespace GifBolt.Internal
             _gbDecoderAdvanceFrameTimed = GetDelegate<GbDecoderAdvanceFrameTimedDelegate>("gb_decoder_advance_frame_timed");
             _gbDecoderComputeRepeatCount = GetDelegate<GbDecoderComputeRepeatCountDelegate>("gb_decoder_compute_repeat_count");
             _gbDecoderCalculateAdaptiveCacheSize = GetDelegate<GbDecoderCalculateAdaptiveCacheSizeDelegate>("gb_decoder_calculate_adaptive_cache_size");
+            _gbAnimationContextCreate = GetDelegate<GbAnimationContextCreateDelegate>("gb_animation_context_create");
+            _gbAnimationContextDestroy = GetDelegate<GbAnimationContextDestroyDelegate>("gb_animation_context_destroy");
+            _gbAnimationContextGetState = GetDelegate<GbAnimationContextGetStateDelegate>("gb_animation_context_get_state");
+            _gbAnimationContextSetPlaying = GetDelegate<GbAnimationContextSetPlayingDelegate>("gb_animation_context_set_playing");
+            _gbAnimationContextAdvance = GetDelegate<GbAnimationContextAdvanceDelegate>("gb_animation_context_advance");
+            _gbAnimationContextSetRepeatCount = GetDelegate<GbAnimationContextSetRepeatCountDelegate>("gb_animation_context_set_repeat_count");
+            _gbAnimationContextGetRepeatCount = GetDelegate<GbAnimationContextGetRepeatCountDelegate>("gb_animation_context_get_repeat_count");
+            _gbAnimationContextGetCurrentFrame = GetDelegate<GbAnimationContextGetCurrentFrameDelegate>("gb_animation_context_get_current_frame");
+            _gbAnimationContextSetCurrentFrame = GetDelegate<GbAnimationContextSetCurrentFrameDelegate>("gb_animation_context_set_current_frame");
             _gbVersionGetMajor?.Invoke();
 
         }
@@ -424,6 +480,71 @@ namespace GifBolt.Internal
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate uint GbDecoderCalculateAdaptiveCacheSizeDelegate(int frameCount, float cachePercentage, uint minCachedFrames, uint maxCachedFrames);
+
+        /// <summary>
+        /// Animation state snapshot structure.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct AnimationState
+        {
+            /// <summary>Gets the currently displayed frame index (0-based).</summary>
+            public int CurrentFrame;
+
+            /// <summary>Gets the repeat count (-1=infinite, 0=complete, >0=remaining).</summary>
+            public int RepeatCount;
+
+            /// <summary>Gets 1 if animation is playing, 0 if paused/stopped.</summary>
+            public int IsPlaying;
+
+            /// <summary>Gets 1 if animation loops, 0 for single playback.</summary>
+            public int IsLooping;
+        }
+
+        /// <summary>
+        /// Result of animation context advance operation.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct AnimationAdvanceResult
+        {
+            /// <summary>Gets the next frame index.</summary>
+            public int NextFrame;
+
+            /// <summary>Gets 1 if animation is complete, 0 otherwise.</summary>
+            public int IsComplete;
+
+            /// <summary>Gets the updated repeat count.</summary>
+            public int UpdatedRepeatCount;
+
+            /// <summary>Gets the effective frame delay in milliseconds.</summary>
+            public int EffectiveDelayMs;
+        }
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr GbAnimationContextCreateDelegate(int frameCount, int loopCount, IntPtr repeatBehavior);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GbAnimationContextDestroyDelegate(IntPtr context);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate GifBolt.AnimationState GbAnimationContextGetStateDelegate(IntPtr context);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GbAnimationContextSetPlayingDelegate(IntPtr context, int isPlaying, int doReset);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbAnimationContextAdvanceDelegate(IntPtr context, int rawFrameDelayMs, int minFrameDelayMs, out GifBolt.AnimationAdvanceResult result);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GbAnimationContextSetRepeatCountDelegate(IntPtr context, int repeatCount);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbAnimationContextGetRepeatCountDelegate(IntPtr context);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbAnimationContextGetCurrentFrameDelegate(IntPtr context);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GbAnimationContextSetCurrentFrameDelegate(IntPtr context, int frameIndex);
 
 #if NET6_0_OR_GREATER
         /// <summary>
@@ -1066,6 +1187,118 @@ namespace GifBolt.Internal
         internal static void gb_pixel_buffer_release(IntPtr buffer)
         {
             _gbPixelBufferRelease?.Invoke(buffer);
+        }
+
+        /// <summary>
+        /// Creates a new animation context for managing playback state.
+        /// </summary>
+        /// <param name="frameCount">The total number of frames in the GIF.</param>
+        /// <param name="loopCount">The loop count from GIF metadata (-1=infinite, 0=no loop, >0=specific count).</param>
+        /// <param name="repeatBehavior">Optional repeat behavior override (null uses loopCount).</param>
+        /// <returns>A handle to the animation context, or IntPtr.Zero on error.</returns>
+        internal static IntPtr gb_animation_context_create(int frameCount, int loopCount, string? repeatBehavior)
+        {
+            IntPtr behaviorPtr = IntPtr.Zero;
+            if (!string.IsNullOrEmpty(repeatBehavior))
+            {
+                behaviorPtr = Marshal.StringToHGlobalAnsi(repeatBehavior);
+            }
+
+            try
+            {
+                return _gbAnimationContextCreate?.Invoke(frameCount, loopCount, behaviorPtr) ?? IntPtr.Zero;
+            }
+            finally
+            {
+                if (behaviorPtr != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(behaviorPtr);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Destroys an animation context and releases resources.
+        /// </summary>
+        /// <param name="context">The animation context handle to destroy.</param>
+        internal static void gb_animation_context_destroy(IntPtr context)
+        {
+            _gbAnimationContextDestroy?.Invoke(context);
+        }
+
+        /// <summary>
+        /// Gets the current animation state.
+        /// </summary>
+        /// <param name="context">The animation context handle.</param>
+        /// <returns>An AnimationState struct containing the current state.</returns>
+        internal static GifBolt.AnimationState gb_animation_context_get_state(IntPtr context)
+        {
+            return _gbAnimationContextGetState?.Invoke(context) ?? default;
+        }
+
+        /// <summary>
+        /// Sets the playback state.
+        /// </summary>
+        /// <param name="context">The animation context handle.</param>
+        /// <param name="isPlaying">1 to start playing, 0 to pause/stop.</param>
+        /// <param name="doReset">1 to reset to frame 0, 0 to maintain current position.</param>
+        internal static void gb_animation_context_set_playing(IntPtr context, int isPlaying, int doReset)
+        {
+            _gbAnimationContextSetPlaying?.Invoke(context, isPlaying, doReset);
+        }
+
+        /// <summary>
+        /// Advances to the next frame with consolidated state management.
+        /// </summary>
+        /// <param name="context">The animation context handle.</param>
+        /// <param name="rawFrameDelayMs">The raw frame delay from GIF metadata (in milliseconds).</param>
+        /// <param name="minFrameDelayMs">The minimum frame delay threshold (in milliseconds).</param>
+        /// <param name="result">Receives the updated animation state and timing info.</param>
+        /// <returns>1 if frame advanced successfully, 0 on error or completion.</returns>
+        internal static int gb_animation_context_advance(IntPtr context, int rawFrameDelayMs, int minFrameDelayMs, out GifBolt.AnimationAdvanceResult result)
+        {
+            result = default;
+            return _gbAnimationContextAdvance?.Invoke(context, rawFrameDelayMs, minFrameDelayMs, out result) ?? 0;
+        }
+
+        /// <summary>
+        /// Sets a custom repeat count for the animation.
+        /// </summary>
+        /// <param name="context">The animation context handle.</param>
+        /// <param name="repeatCount">-1 for infinite, 0 to stop, >0 for specific repeat count.</param>
+        internal static void gb_animation_context_set_repeat_count(IntPtr context, int repeatCount)
+        {
+            _gbAnimationContextSetRepeatCount?.Invoke(context, repeatCount);
+        }
+
+        /// <summary>
+        /// Gets the current repeat count.
+        /// </summary>
+        /// <param name="context">The animation context handle.</param>
+        /// <returns>The current repeat count (-1=infinite, 0=stop, >0=remaining).</returns>
+        internal static int gb_animation_context_get_repeat_count(IntPtr context)
+        {
+            return _gbAnimationContextGetRepeatCount?.Invoke(context) ?? 1;
+        }
+
+        /// <summary>
+        /// Gets the current frame index.
+        /// </summary>
+        /// <param name="context">The animation context handle.</param>
+        /// <returns>The current frame index (0-based).</returns>
+        internal static int gb_animation_context_get_current_frame(IntPtr context)
+        {
+            return _gbAnimationContextGetCurrentFrame?.Invoke(context) ?? 0;
+        }
+
+        /// <summary>
+        /// Sets the current frame index.
+        /// </summary>
+        /// <param name="context">The animation context handle.</param>
+        /// <param name="frameIndex">The frame index to set (0-based).</param>
+        internal static void gb_animation_context_set_current_frame(IntPtr context, int frameIndex)
+        {
+            _gbAnimationContextSetCurrentFrame?.Invoke(context, frameIndex);
         }
     }
 

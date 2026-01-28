@@ -237,7 +237,7 @@ namespace GifBolt.Wpf
             }
 
             this.Player.Play();
-            this.IsPlaying = true;
+            GifPlayer.SetAnimationPlaying(this.AnimationContext, true, false);
             this._frameStopwatch.Restart();
 
             // Initialize FPS tracking
@@ -286,7 +286,7 @@ namespace GifBolt.Wpf
             }
 
             this.Player.Pause();
-            this.IsPlaying = false;
+            GifPlayer.SetAnimationPlaying(this.AnimationContext, false, false);
             this._renderTimer?.Stop();
             if (this._inNoGCRegion)
             {
@@ -306,7 +306,7 @@ namespace GifBolt.Wpf
             }
 
             this.Player.Stop();
-            this.IsPlaying = false;
+            GifPlayer.SetAnimationPlaying(this.AnimationContext, false, true);
             this._renderTimer?.Stop();
             if (this._inNoGCRegion)
             {
@@ -332,7 +332,8 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            this.RepeatCount = this.Player.ComputeRepeatCount(repeatBehavior);
+            int repeatCount = this.Player.ComputeRepeatCount(repeatBehavior);
+            GifPlayer.SetAnimationRepeatCount(this.AnimationContext, repeatCount);
         }
 
         /// <summary>
@@ -414,7 +415,7 @@ namespace GifBolt.Wpf
 
         private void OnRenderTick(object? sender, EventArgs e)
         {
-            if (this._isDisposed || this.Player == null || !this.IsPlaying || this._d3dImage == null || this._renderTimer == null)
+            if (this._isDisposed || this.Player == null || this.AnimationContext == System.IntPtr.Zero || this._d3dImage == null || this._renderTimer == null)
             {
                 return;
             }
@@ -450,7 +451,7 @@ namespace GifBolt.Wpf
 
         private void OnIsFrontBufferAvailableChanged(object? sender, DependencyPropertyChangedEventArgs e)
         {
-            if (this._d3dImage != null && this._d3dImage.IsFrontBufferAvailable && this.IsPlaying)
+            if (this._d3dImage != null && this._d3dImage.IsFrontBufferAvailable && this.AnimationContext != System.IntPtr.Zero)
             {
                 this.RenderFrame();
             }
@@ -484,7 +485,6 @@ namespace GifBolt.Wpf
         {
             this._isDisposed = true;
             this._generationId = int.MinValue;
-            this.IsPlaying = false;
 
             // Exit NoGCRegion if active
             if (this._inNoGCRegion)
@@ -515,6 +515,13 @@ namespace GifBolt.Wpf
                 {
                     // Swallow disposal errors
                 }
+            }
+
+            // Destroy animation context
+            if (this.AnimationContext != System.IntPtr.Zero)
+            {
+                GifPlayer.DestroyAnimationContext(this.AnimationContext);
+                this.AnimationContext = System.IntPtr.Zero;
             }
 
             base.Dispose();

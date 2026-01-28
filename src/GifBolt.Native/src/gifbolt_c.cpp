@@ -19,6 +19,134 @@ using namespace GifBolt;
 // Thread-local storage for error messages
 thread_local char g_lastError[512] = {0};
 
+/// \class AnimationContext
+/// \brief Manages animation state for playback control and frame advancement.
+/// Encapsulates frame index, repeat count, and playback state to reduce
+/// P/Invoke overhead and simplify C# animation controllers.
+class AnimationContext
+{
+   public:
+    /// \brief Initializes a new animation context with GIF metadata.
+    /// \param frameCount Total number of frames in the GIF.
+    /// \param loopCount Loop count from GIF metadata (-1=infinite, 0=no loop, >0=specific count).
+    /// \param repeatBehavior Optional repeat behavior override (nullptr uses loopCount).
+    AnimationContext(int frameCount, int loopCount, const char* repeatBehavior)
+        : m_frameCount(frameCount), m_currentFrame(0), m_isPlaying(0), m_isLooping(0)
+    {
+        // Compute repeat count from behavior string or metadata
+        m_repeatCount = gb_decoder_compute_repeat_count(repeatBehavior, loopCount != 0 ? 1 : 0);
+        m_isLooping = (loopCount != 0) ? 1 : 0;
+    }
+
+    /// \brief Gets the current animation state.
+    gb_animation_state_s GetState() const
+    {
+        return {m_currentFrame, m_repeatCount, m_isPlaying, m_isLooping};
+    }
+
+    /// \brief Sets the playback state.
+    void SetPlaying(int isPlaying, int doReset)
+    {
+        m_isPlaying = isPlaying;
+        if (doReset != 0)
+        {
+            m_currentFrame = 0;
+            // Reset repeat count based on looping behavior
+            m_repeatCount = m_isLooping ? -1 : 1;
+        }
+    }
+
+    /// \brief Gets the current frame index.
+    int GetCurrentFrame() const
+    {
+        return m_currentFrame;
+    }
+
+    /// \brief Sets the current frame index.
+    void SetCurrentFrame(int frameIndex)
+    {
+        m_currentFrame = frameIndex;
+    }
+
+    /// \brief Gets the current repeat count.
+    int GetRepeatCount() const
+    {
+        return m_repeatCount;
+    }
+
+    /// \brief Sets the repeat count.
+    void SetRepeatCount(int repeatCount)
+    {
+        m_repeatCount = repeatCount;
+    }
+
+    /// \brief Advances to the next frame with consolidated state management.
+    /// \param rawFrameDelayMs Raw frame delay from GIF metadata.
+    /// \param minFrameDelayMs Minimum frame delay threshold.
+    /// \param[out] result Updated animation state and timing info.
+    /// \return 1 if frame advanced, 0 on error or completion.
+    int Advance(int rawFrameDelayMs, int minFrameDelayMs, gb_animation_advance_result_s* result)
+    {
+        if (result == nullptr || m_frameCount < 1)
+        {
+            return 0;
+        }
+
+        // Compute effective frame delay
+        result->effectiveDelayMs = rawFrameDelayMs < minFrameDelayMs ? minFrameDelayMs : rawFrameDelayMs;
+
+        // Perform frame advancement
+        int nextFrame = m_currentFrame + 1;
+
+        // Check if we've reached the end of the frame sequence
+        if (nextFrame >= m_frameCount)
+        {
+            // Determine if we should loop
+            if (m_repeatCount == -1)
+            {
+                // Infinite loop
+                result->nextFrame = 0;
+                result->isComplete = 0;
+                result->updatedRepeatCount = -1;
+            }
+            else if (m_repeatCount > 0)
+            {
+                // Finite repeats remaining
+                result->nextFrame = 0;
+                result->isComplete = 0;
+                result->updatedRepeatCount = m_repeatCount - 1;
+            }
+            else
+            {
+                // No more repeats; animation is complete
+                result->nextFrame = m_currentFrame;
+                result->isComplete = 1;
+                result->updatedRepeatCount = 0;
+            }
+        }
+        else
+        {
+            // Normal frame advance within the sequence
+            result->nextFrame = nextFrame;
+            result->isComplete = 0;
+            result->updatedRepeatCount = m_repeatCount;
+        }
+
+        // Update internal state
+        m_currentFrame = result->nextFrame;
+        m_repeatCount = result->updatedRepeatCount;
+
+        return 1;
+    }
+
+   private:
+    int m_frameCount;        ///< Total frames in the GIF
+    int m_currentFrame;      ///< Currently displayed frame (0-based)
+    int m_repeatCount;       ///< Repeat count (-1=infinite, 0=complete, >0=remaining)
+    int m_isPlaying;         ///< 1 if playing, 0 if paused/stopped
+    int m_isLooping;         ///< 1 if GIF loops, 0 for single playback
+};
+
 extern "C"
 {
     GB_API void gb_decoder_set_min_frame_delay_ms(gb_decoder_t decoder, int minDelayMs)
@@ -79,33 +207,11 @@ extern "C"
         {
             // Clear error message on successful attempt
             g_lastError[0] = '\0';
-            
-#ifdef _WIN32
-            char dbgMsg[256];
-            sprintf_s(dbgMsg, sizeof(dbgMsg), "[gifbolt_c] Attempting to create decoder with backend=%d\n", backend);
-            OutputDebugStringA(dbgMsg);
-            
-            sprintf_s(dbgMsg, sizeof(dbgMsg), "[gifbolt_c::gb_decoder_create_with_backend] BEFORE new - backend=%d\n", backend);
-            OutputDebugStringA(dbgMsg);
-#endif
-            
             auto* decoderPtr = new GifDecoder(static_cast<Renderer::Backend>(backend));
-            
-#ifdef _WIN32
-            sprintf_s(dbgMsg, sizeof(dbgMsg), "[gifbolt_c::gb_decoder_create_with_backend] AFTER new - decoder ptr=%p\n", decoderPtr);
-            OutputDebugStringA(dbgMsg);
-#endif
-            
             return reinterpret_cast<gb_decoder_t>(decoderPtr);
         }
         catch (const std::exception& ex)
         {
-#ifdef _WIN32
-            char dbgMsg[512];
-            sprintf_s(dbgMsg, sizeof(dbgMsg), "[gifbolt_c] Exception caught: %s\n", ex.what());
-            OutputDebugStringA(dbgMsg);
-#endif
-            
             // Store error message in thread-local storage
             strncpy_s(g_lastError, sizeof(g_lastError), ex.what(), sizeof(g_lastError) - 1);
             g_lastError[sizeof(g_lastError) - 1] = '\0';
@@ -113,9 +219,6 @@ extern "C"
         }
         catch (...)
         {
-#ifdef _WIN32
-            OutputDebugStringA("[gifbolt_c] Unknown exception caught\n");
-#endif
             strncpy_s(g_lastError, sizeof(g_lastError), "Unknown error", sizeof(g_lastError) - 1);
             return nullptr;
         }
@@ -990,5 +1093,101 @@ extern "C"
 
         return cacheSize;
     }
+
+    /// \defgroup AnimationContext Animation State Management Functions
+    /// @{
+
+    GB_API gb_animation_context_t gb_animation_context_create(int frameCount, int loopCount,
+                                                              const char* repeatBehavior)
+    {
+        try
+        {
+            return reinterpret_cast<gb_animation_context_t>(
+                new AnimationContext(frameCount, loopCount, repeatBehavior));
+        }
+        catch (...)
+        {
+            return nullptr;
+        }
+    }
+
+    GB_API void gb_animation_context_destroy(gb_animation_context_t context)
+    {
+        if (context == nullptr)
+        {
+            return;
+        }
+        delete reinterpret_cast<AnimationContext*>(context);
+    }
+
+    GB_API gb_animation_state_s gb_animation_context_get_state(gb_animation_context_t context)
+    {
+        if (context == nullptr)
+        {
+            return {0, 1, 0, 0};
+        }
+        return reinterpret_cast<AnimationContext*>(context)->GetState();
+    }
+
+    GB_API void gb_animation_context_set_playing(gb_animation_context_t context, int isPlaying,
+                                                 int doReset)
+    {
+        if (context == nullptr)
+        {
+            return;
+        }
+        reinterpret_cast<AnimationContext*>(context)->SetPlaying(isPlaying, doReset);
+    }
+
+    GB_API int gb_animation_context_advance(gb_animation_context_t context, int rawFrameDelayMs,
+                                           int minFrameDelayMs,
+                                           gb_animation_advance_result_s* result)
+    {
+        if (context == nullptr || result == nullptr)
+        {
+            return 0;
+        }
+        return reinterpret_cast<AnimationContext*>(context)->Advance(rawFrameDelayMs, minFrameDelayMs,
+                                                                      result);
+    }
+
+    GB_API void gb_animation_context_set_repeat_count(gb_animation_context_t context,
+                                                      int repeatCount)
+    {
+        if (context == nullptr)
+        {
+            return;
+        }
+        reinterpret_cast<AnimationContext*>(context)->SetRepeatCount(repeatCount);
+    }
+
+    GB_API int gb_animation_context_get_repeat_count(gb_animation_context_t context)
+    {
+        if (context == nullptr)
+        {
+            return 1;
+        }
+        return reinterpret_cast<AnimationContext*>(context)->GetRepeatCount();
+    }
+
+    GB_API int gb_animation_context_get_current_frame(gb_animation_context_t context)
+    {
+        if (context == nullptr)
+        {
+            return 0;
+        }
+        return reinterpret_cast<AnimationContext*>(context)->GetCurrentFrame();
+    }
+
+    GB_API void gb_animation_context_set_current_frame(gb_animation_context_t context, int frameIndex)
+    {
+        if (context == nullptr)
+        {
+            return;
+        }
+        reinterpret_cast<AnimationContext*>(context)->SetCurrentFrame(frameIndex);
+    }
+
+    /// @}
 
 }  // extern "C"

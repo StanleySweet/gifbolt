@@ -124,6 +124,16 @@ public sealed class GifPlayer : IDisposable
         }
     }
 
+    /// <summary>Gets the native decoder handle for low-level P/Invoke operations.</summary>
+    /// <remarks>
+    /// Returns System.IntPtr.Zero if no GIF is loaded. This is useful for direct
+    /// access to native decoder functions to reduce marshalling overhead.
+    /// </remarks>
+    public System.IntPtr NativeDecoderHandle
+    {
+        get => this._decoder?.DangerousGetHandle() ?? System.IntPtr.Zero;
+    }
+
     /// <summary>
     /// Advances to the next frame in a GIF animation.
     /// Implementation delegates to C++ for performance.
@@ -607,6 +617,119 @@ public sealed class GifPlayer : IDisposable
     public int ComputeRepeatCount(string repeatBehavior)
     {
         return Native.gb_decoder_compute_repeat_count(repeatBehavior, this.IsLooping ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Creates a new animation context for managing playback state.
+    /// </summary>
+    /// <param name="player">The GIF player instance (used to get frame count and loop count).</param>
+    /// <param name="repeatBehavior">Optional repeat behavior override (null uses metadata).</param>
+    /// <returns>A handle to the animation context, or System.IntPtr.Zero on error.</returns>
+    public static System.IntPtr CreateAnimationContext(GifPlayer? player, string? repeatBehavior = null)
+    {
+        if (player == null || player.FrameCount < 1)
+        {
+            return System.IntPtr.Zero;
+        }
+
+        int loopCount = player.IsLooping ? -1 : 1;
+        return Native.gb_animation_context_create(player.FrameCount, loopCount, repeatBehavior);
+    }
+
+    /// <summary>
+    /// Destroys an animation context and releases resources.
+    /// </summary>
+    /// <param name="context">The animation context handle to destroy.</param>
+    public static void DestroyAnimationContext(System.IntPtr context)
+    {
+        if (context != System.IntPtr.Zero)
+        {
+            Native.gb_animation_context_destroy(context);
+        }
+    }
+
+    /// <summary>
+    /// Gets the current animation state.
+    /// </summary>
+    /// <param name="context">The animation context handle.</param>
+    /// <returns>An AnimationState struct containing the current state.</returns>
+    public static GifBolt.AnimationState GetAnimationState(System.IntPtr context)
+    {
+        return Native.gb_animation_context_get_state(context);
+    }
+
+    /// <summary>
+    /// Sets the playback state.
+    /// </summary>
+    /// <param name="context">The animation context handle.</param>
+    /// <param name="isPlaying">true to start playing, false to pause/stop.</param>
+    /// <param name="doReset">true to reset to frame 0, false to maintain current position.</param>
+    public static void SetAnimationPlaying(System.IntPtr context, bool isPlaying, bool doReset = false)
+    {
+        if (context != System.IntPtr.Zero)
+        {
+            Native.gb_animation_context_set_playing(context, isPlaying ? 1 : 0, doReset ? 1 : 0);
+        }
+    }
+
+    /// <summary>
+    /// Advances to the next frame with consolidated state management.
+    /// </summary>
+    /// <param name="context">The animation context handle.</param>
+    /// <param name="rawFrameDelayMs">The raw frame delay from GIF metadata (in milliseconds).</param>
+    /// <param name="minFrameDelayMs">The minimum frame delay threshold (in milliseconds).</param>
+    /// <param name="result">Receives the updated animation state and timing info.</param>
+    /// <returns>true if frame advanced successfully, false on error or completion.</returns>
+    public static bool AdvanceAnimation(System.IntPtr context, int rawFrameDelayMs, int minFrameDelayMs, out GifBolt.AnimationAdvanceResult result)
+    {
+        result = default;
+        if (context == System.IntPtr.Zero)
+        {
+            return false;
+        }
+
+        return Native.gb_animation_context_advance(context, rawFrameDelayMs, minFrameDelayMs, out result) != 0;
+    }
+
+    /// <summary>
+    /// Sets a custom repeat count for the animation.
+    /// </summary>
+    /// <param name="context">The animation context handle.</param>
+    /// <param name="repeatCount">-1 for infinite, 0 to stop, >0 for specific repeat count.</param>
+    public static void SetAnimationRepeatCount(System.IntPtr context, int repeatCount)
+    {
+        if (context != System.IntPtr.Zero)
+        {
+            Native.gb_animation_context_set_repeat_count(context, repeatCount);
+        }
+    }
+
+    /// <summary>
+    /// Gets the current frame index from the animation context.
+    /// </summary>
+    /// <param name="context">The animation context handle.</param>
+    /// <returns>The current frame index (0-based).</returns>
+    public static int GetAnimationCurrentFrame(System.IntPtr context)
+    {
+        if (context == System.IntPtr.Zero)
+        {
+            return 0;
+        }
+
+        return Native.gb_animation_context_get_current_frame(context);
+    }
+
+    /// <summary>
+    /// Sets the current frame index in the animation context.
+    /// </summary>
+    /// <param name="context">The animation context handle.</param>
+    /// <param name="frameIndex">The frame index to set (0-based).</param>
+    public static void SetAnimationCurrentFrame(System.IntPtr context, int frameIndex)
+    {
+        if (context != System.IntPtr.Zero)
+        {
+            Native.gb_animation_context_set_current_frame(context, frameIndex);
+        }
     }
 
     /// <summary>Releases the unmanaged resources associated with the player.</summary>

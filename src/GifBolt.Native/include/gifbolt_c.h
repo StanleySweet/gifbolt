@@ -458,6 +458,93 @@ extern "C"
         unsigned int maxCachedFrames);
     /// @}
 
+    /// \defgroup AnimationContext Animation State Management
+    /// @{
+
+    /// \typedef gb_animation_context_t
+    /// \brief Opaque handle to an animation state context.
+    typedef void* gb_animation_context_t;
+
+    /// \struct gb_animation_state_s
+    /// \brief Animation state snapshot used by animation context.
+    /// \remarks Contains the essential state needed for frame advancement and playback control.
+    typedef struct
+    {
+        int currentFrame;       ///< Currently displayed frame index (0-based).
+        int repeatCount;        ///< Repeat count management (-1=infinite, 0=complete, >0=remaining).
+        int isPlaying;          ///< 1 if animation is playing, 0 if paused/stopped.
+        int isLooping;          ///< 1 if animation loops, 0 for single playback.
+    } gb_animation_state_s;
+
+    /// \brief Creates a new animation context for managing playback state.
+    /// \param frameCount The total number of frames in the GIF.
+    /// \param loopCount The loop count from GIF metadata (-1=infinite, 0=no loop, >0=specific count).
+    /// \param repeatBehavior Optional repeat behavior override (NULL uses loopCount).
+    /// \return A handle to the animation context, or NULL on error.
+    /// \remarks The context encapsulates frame advancement, repeat counting, and playback state
+    ///          management, reducing the need for separate state variables in C#.
+    GB_API gb_animation_context_t gb_animation_context_create(
+        int frameCount, int loopCount, const char* repeatBehavior);
+
+    /// \brief Destroys an animation context and releases resources.
+    /// \param context The animation context handle to destroy (can be NULL).
+    GB_API void gb_animation_context_destroy(gb_animation_context_t context);
+
+    /// \brief Gets the current animation state.
+    /// \param context The animation context handle.
+    /// \return A gb_animation_state_s containing the current state.
+    /// \remarks This is a snapshot of the state at the time of the call.
+    GB_API gb_animation_state_s gb_animation_context_get_state(gb_animation_context_t context);
+
+    /// \brief Sets the playback state.
+    /// \param context The animation context handle.
+    /// \param isPlaying 1 to start playing, 0 to pause/stop.
+    /// \param doReset 1 to reset to frame 0, 0 to maintain current position.
+    GB_API void gb_animation_context_set_playing(gb_animation_context_t context, int isPlaying,
+                                                 int doReset);
+
+    /// \brief Advances to the next frame with consolidated state management.
+    /// \param context The animation context handle.
+    /// \param rawFrameDelayMs The raw frame delay from GIF metadata (in milliseconds).
+    /// \param minFrameDelayMs The minimum frame delay threshold (in milliseconds).
+    /// \param[out] result Receives the updated animation state and timing info.
+    /// \return 1 if frame advanced successfully, 0 on error or completion.
+    /// \remarks This replaces the separate AdvanceFrame/AdvanceFrameTimed calls,
+    ///          consolidating frame advancement and state management into a single operation.
+    typedef struct
+    {
+        int nextFrame;          ///< The next frame index.
+        int isComplete;         ///< 1 if animation has completed, 0 otherwise.
+        int updatedRepeatCount; ///< The updated repeat count.
+        int effectiveDelayMs;   ///< The effective frame delay in milliseconds.
+    } gb_animation_advance_result_s;
+
+    GB_API int gb_animation_context_advance(gb_animation_context_t context, int rawFrameDelayMs,
+                                           int minFrameDelayMs,
+                                           gb_animation_advance_result_s* result);
+
+    /// \brief Sets a custom repeat count for the animation.
+    /// \param context The animation context handle.
+    /// \param repeatCount -1 for infinite, 0 to stop, >0 for specific repeat count.
+    GB_API void gb_animation_context_set_repeat_count(gb_animation_context_t context, int repeatCount);
+
+    /// \brief Gets the current repeat count.
+    /// \param context The animation context handle.
+    /// \return The current repeat count (-1=infinite, 0=stop, >0=remaining).
+    GB_API int gb_animation_context_get_repeat_count(gb_animation_context_t context);
+
+    /// \brief Gets the current frame index.
+    /// \param context The animation context handle.
+    /// \return The current frame index (0-based).
+    GB_API int gb_animation_context_get_current_frame(gb_animation_context_t context);
+
+    /// \brief Sets the current frame index.
+    /// \param context The animation context handle.
+    /// \param frameIndex The frame index to set (0-based).
+    GB_API void gb_animation_context_set_current_frame(gb_animation_context_t context, int frameIndex);
+
+    /// @}
+
 #ifdef __cplusplus
 }
 #endif
