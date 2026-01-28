@@ -31,6 +31,8 @@ namespace GifBolt.Avalonia
         private bool _wasPlayingBeforeHidden;
         private ScalingFilter _scalingFilter = ScalingFilter.None;
         private byte[]? _frameBuffer;
+        private bool _isPlaying;  // Track playback state
+        private int _repeatCount;  // Track repeat count
 
         // FPS diagnostics
         private Stopwatch? _fpsStopwatch;
@@ -51,6 +53,15 @@ namespace GifBolt.Avalonia
         /// Gets the total number of frames in the GIF.
         /// </summary>
         public int FrameCount => this.Player?.FrameCount ?? 0;
+
+        /// <summary>
+        /// Gets or sets the repeat count for the animation.
+        /// </summary>
+        public int RepeatCount
+        {
+            get => this._repeatCount;
+            set => this._repeatCount = value;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
@@ -92,7 +103,7 @@ namespace GifBolt.Avalonia
                 {
                     // Initialize player and set min frame delay BEFORE loading
                     this.Player = new GifPlayer();
-                    this.Player.SetMinFrameDelayMs(GifPlayer.DefaultMinFrameDelayMs);
+                    this.Player.MinFrameDelayMs = GifPlayer.DefaultMinFrameDelayMs;
 
                     if (!this.Player.Load(path))
                     {
@@ -116,10 +127,11 @@ namespace GifBolt.Avalonia
                             PixelFormat.Bgra8888,
                             AlphaFormat.Premul);
 
-                        if (this.Player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) &&
-                            bgraPixels.Length > 0)
+                        if (this.Player.TryGetFramePixelsBgra32PremultipliedBuffer(0, out var pixelBuffer) &&
+                            pixelBuffer.IsValid && pixelBuffer.SizeInBytes > 0)
                         {
-                            initialPixels = bgraPixels;
+                            initialPixels = pixelBuffer.ToArray();
+                            pixelBuffer.Dispose();
                         }
                     }
                     else
@@ -135,15 +147,15 @@ namespace GifBolt.Avalonia
                         }
 
                         // Get scaled frame 0 pixels on background thread
-                        if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                        if (this.Player.TryGetFramePixelsBgra32PremultipliedScaledBuffer(
                             0,
                             displayWidth,
                             displayHeight,
-                            out byte[] bgraPixels,
+                            out var scaledPixelBuffer,
                             out int outWidth,
                             out int outHeight,
                             filter: this._scalingFilter) &&
-                            bgraPixels.Length > 0)
+                            scaledPixelBuffer.IsValid && scaledPixelBuffer.SizeInBytes > 0)
                         {
                             wb = new WriteableBitmap(
                                 new PixelSize(outWidth, outHeight),
@@ -151,7 +163,8 @@ namespace GifBolt.Avalonia
                                 PixelFormat.Bgra8888,
                                 AlphaFormat.Premul);
 
-                            initialPixels = bgraPixels;
+                            initialPixels = scaledPixelBuffer.ToArray();
+                            scaledPixelBuffer.Dispose();
                         }
                         else
                         {
@@ -221,9 +234,9 @@ namespace GifBolt.Avalonia
         /// <param name="minDelayMs">The minimum frame delay in milliseconds.</param>
         public void SetMinFrameDelayMs(int minDelayMs)
         {
-            if (this.Player != null)
+            if (this.Player != null && minDelayMs > 0)
             {
-                this.Player.SetMinFrameDelayMs(minDelayMs);
+                this.Player.MinFrameDelayMs = minDelayMs;
             }
         }
 
@@ -242,7 +255,7 @@ namespace GifBolt.Avalonia
             }
 
             // Pause during filter change to avoid race conditions with the animation timer
-            bool wasPlaying = this.IsPlaying;
+            bool wasPlaying = this._isPlaying;
             if (wasPlaying)
             {
                 this.Pause();
@@ -315,7 +328,7 @@ namespace GifBolt.Avalonia
             }
 
             this.Player.Play();
-            this.IsPlaying = true;
+            this._isPlaying = true;
 
             // Start high-precision frame timer
             if (this._frameTimer == null)
@@ -356,7 +369,7 @@ namespace GifBolt.Avalonia
         public override void Pause()
         {
             this.Player?.Pause();
-            this.IsPlaying = false;
+            this._isPlaying = false;
             this._animationTimer?.Stop();
             this._frameTimer?.Stop();
         }
@@ -370,7 +383,7 @@ namespace GifBolt.Avalonia
         public override void Stop()
         {
             this.Player?.Stop();
-            this.IsPlaying = false;
+            this._isPlaying = false;
             this._animationTimer?.Stop();
         }
 
@@ -398,7 +411,18 @@ namespace GifBolt.Avalonia
                 if (this._scalingFilter == ScalingFilter.None)
                 {
                     // Use native resolution without scaling
-                    success = this.Player.TryGetFramePixelsBgra32Premultiplied(frameIndex, out bgraPixels);
+                    if (this.Player.TryGetFramePixelsBgra32PremultipliedBuffer(frameIndex, out var pixelBuffer) &&
+                        pixelBuffer.IsValid && pixelBuffer.SizeInBytes > 0)
+                    {
+                        bgraPixels = pixelBuffer.ToArray();
+                        pixelBuffer.Dispose();
+                        success = true;
+                    }
+                    else
+                    {
+                        bgraPixels = Array.Empty<byte>();
+                        success = false;
+                    }
                 }
                 else
                 {
@@ -406,14 +430,25 @@ namespace GifBolt.Avalonia
                     int displayWidth = this._writeableBitmap.PixelSize.Width;
                     int displayHeight = this._writeableBitmap.PixelSize.Height;
 
-                    success = this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                    if (this.Player.TryGetFramePixelsBgra32PremultipliedScaledBuffer(
                         frameIndex,
                         displayWidth,
                         displayHeight,
-                        out bgraPixels,
+                        out var scaledPixelBuffer,
                         out int outWidth,
                         out int outHeight,
-                        filter: this._scalingFilter);
+                        filter: this._scalingFilter) &&
+                        scaledPixelBuffer.IsValid && scaledPixelBuffer.SizeInBytes > 0)
+                    {
+                        bgraPixels = scaledPixelBuffer.ToArray();
+                        scaledPixelBuffer.Dispose();
+                        success = true;
+                    }
+                    else
+                    {
+                        bgraPixels = Array.Empty<byte>();
+                        success = false;
+                    }
                 }
 
                 if (success)
@@ -446,7 +481,7 @@ namespace GifBolt.Avalonia
         /// </remarks>
         private void OnRenderTick(object? sender, EventArgs e)
         {
-            if (this.Player == null || !this.IsPlaying || this._writeableBitmap == null || this._animationTimer == null || this._frameTimer == null)
+            if (this.Player == null || !this._isPlaying || this._writeableBitmap == null || this._animationTimer == null || this._frameTimer == null)
             {
                 return;
             }
@@ -461,22 +496,20 @@ namespace GifBolt.Avalonia
                     frameDelayMs = GifPlayer.DefaultMinFrameDelayMs;
                 }
 
-                int minFrameDelayMs = this.Player.GetMinFrameDelayMs();
+                int minFrameDelayMs = this.Player.MinFrameDelayMs;
                 long elapsedMs = this._frameTimer.ElapsedMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame
                 if (elapsedMs >= frameDelayMs)
                 {
-                    // Consolidated frame advancement with timing: handles frame advancement,
-                    // effective delay computation, and repeat count management in a single C++ call
-                    var advanceResult = GifPlayer.AdvanceFrameTimed(
-                        this.Player.CurrentFrame,
-                        this.Player.FrameCount,
-                        this.RepeatCount,
+                    // Advance to the next frame
+                    bool advanced = GifPlayer.AdvanceAnimation(
+                        this.AnimationContext,
                         frameDelayMs,
-                        minFrameDelayMs);
+                        minFrameDelayMs,
+                        out var advanceResult);
 
-                    if (advanceResult.IsComplete != 0)
+                    if (!advanced || (advanceResult.IsComplete != 0 && advanceResult.UpdatedRepeatCount <= 0))
                     {
                         this.Stop();
                         return;
@@ -489,7 +522,7 @@ namespace GifBolt.Avalonia
                     }
 
                     this.Player.CurrentFrame = advanceResult.NextFrame;
-                    this.RepeatCount = advanceResult.UpdatedRepeatCount;
+                    this._repeatCount = advanceResult.UpdatedRepeatCount;
                     this._frameTimer.Restart();
 
                     // Render only when frame changes for better performance
@@ -529,7 +562,7 @@ namespace GifBolt.Avalonia
         private void OnImageAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
         {
             // Check if we should resume playback
-            if (this._wasPlayingBeforeHidden && !this.IsPlaying)
+            if (this._wasPlayingBeforeHidden && !this._isPlaying)
             {
                 this._wasPlayingBeforeHidden = false;
                 this.Play();
@@ -537,7 +570,7 @@ namespace GifBolt.Avalonia
             }
 
             // Also check visibility in case it wasn't already triggered
-            if (this._image.IsVisible && this._wasPlayingBeforeHidden && !this.IsPlaying)
+            if (this._image.IsVisible && this._wasPlayingBeforeHidden && !this._isPlaying)
             {
                 this._wasPlayingBeforeHidden = false;
                 this.Play();
@@ -552,7 +585,7 @@ namespace GifBolt.Avalonia
         /// <param name="e">Event arguments.</param>
         private void OnImageDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
         {
-            if (this.IsPlaying)
+            if (this._isPlaying)
             {
                 this._wasPlayingBeforeHidden = true;
                 this.Pause();
@@ -574,7 +607,7 @@ namespace GifBolt.Avalonia
 
             bool isVisible = this._image.IsVisible;
 
-            if (!isVisible && this.IsPlaying)
+            if (!isVisible && this._isPlaying)
             {
                 // Image became hidden while playing - pause and remember state
                 this._wasPlayingBeforeHidden = true;
