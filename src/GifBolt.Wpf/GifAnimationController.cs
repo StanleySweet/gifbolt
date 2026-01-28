@@ -12,6 +12,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using GifBolt;
 
 namespace GifBolt.Wpf
 {
@@ -177,11 +178,11 @@ namespace GifBolt.Wpf
                         scaledWidth = this.Player.Width;
                         scaledHeight = this.Player.Height;
 
-                        if (this.Player.TryGetFramePixelsBgra32Premultiplied(0, out byte[] bgraPixels) &&
-                            bgraPixels.Length > 0)
+                        if (this.Player.TryGetFramePixelsBgra32PremultipliedBuffer(0, out var pixelBuffer) &&
+                            pixelBuffer.IsValid && pixelBuffer.SizeInBytes > 0)
                         {
-                            initialPixels = new byte[bgraPixels.Length];
-                            System.Buffer.BlockCopy(bgraPixels, 0, initialPixels, 0, bgraPixels.Length);
+                            initialPixels = pixelBuffer.ToArray();
+                            pixelBuffer.Dispose();
                         }
                     }
                     else
@@ -199,18 +200,18 @@ namespace GifBolt.Wpf
                         scaledWidth = displayWidth;
                         scaledHeight = displayHeight;
 
-                        if (this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                        if (this.Player.TryGetFramePixelsBgra32PremultipliedScaledBuffer(
                             0,
                             displayWidth,
                             displayHeight,
-                            out byte[] bgraPixels,
+                            out var scaledPixelBuffer,
                             out int outWidth,
                             out int outHeight,
                             filter: this._scalingFilter) &&
-                            bgraPixels.Length > 0)
+                            scaledPixelBuffer.IsValid && scaledPixelBuffer.SizeInBytes > 0)
                         {
-                            initialPixels = new byte[bgraPixels.Length];
-                            System.Buffer.BlockCopy(bgraPixels, 0, initialPixels, 0, bgraPixels.Length);
+                            initialPixels = scaledPixelBuffer.ToArray();
+                            scaledPixelBuffer.Dispose();
                             scaledWidth = outWidth;
                             scaledHeight = outHeight;
                         }
@@ -508,7 +509,7 @@ namespace GifBolt.Wpf
 
             try
             {
-                byte[] bgraPixels;
+                byte[]? bgraPixels = null;
                 int outWidth;
                 int outHeight;
                 bool success;
@@ -517,7 +518,18 @@ namespace GifBolt.Wpf
                 if (this._scalingFilter == ScalingFilter.None)
                 {
                     // Use native resolution without scaling
-                    success = this.Player.TryGetFramePixelsBgra32Premultiplied(frameIndex, out bgraPixels);
+                    if (this.Player.TryGetFramePixelsBgra32PremultipliedBuffer(frameIndex, out var pixelBuffer) &&
+                        pixelBuffer.IsValid && pixelBuffer.SizeInBytes > 0)
+                    {
+                        bgraPixels = pixelBuffer.ToArray();
+                        pixelBuffer.Dispose();
+                        success = true;
+                    }
+                    else
+                    {
+                        success = false;
+                    }
+
                     // For unscaled frames, use the actual GIF dimensions (not bitmap size)
                     outWidth = this.Player.Width;
                     outHeight = this.Player.Height;
@@ -528,17 +540,27 @@ namespace GifBolt.Wpf
                     int displayWidth = this._writeableBitmap.PixelWidth;
                     int displayHeight = this._writeableBitmap.PixelHeight;
 
-                    success = this.Player.TryGetFramePixelsBgra32PremultipliedScaled(
+                    if (this.Player.TryGetFramePixelsBgra32PremultipliedScaledBuffer(
                         frameIndex,
                         displayWidth,
                         displayHeight,
-                        out bgraPixels,
+                        out var scaledPixelBuffer,
                         out outWidth,
                         out outHeight,
-                        filter: this._scalingFilter);
+                        filter: this._scalingFilter) &&
+                        scaledPixelBuffer.IsValid && scaledPixelBuffer.SizeInBytes > 0)
+                    {
+                        bgraPixels = scaledPixelBuffer.ToArray();
+                        scaledPixelBuffer.Dispose();
+                        success = true;
+                    }
+                    else
+                    {
+                        success = false;
+                    }
                 }
 
-                if (success && bgraPixels.Length > 0 && !this._isDisposed)
+                if (success && bgraPixels != null && bgraPixels.Length > 0 && !this._isDisposed)
                 {
                     // If bitmap is larger than frame, fill it with transparent first
                     if (this._writeableBitmap.PixelWidth > outWidth || this._writeableBitmap.PixelHeight > outHeight)

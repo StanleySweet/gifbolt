@@ -134,38 +134,7 @@ public sealed class GifPlayer : IDisposable
         get => this._decoder?.DangerousGetHandle() ?? System.IntPtr.Zero;
     }
 
-    /// <summary>
-    /// Advances to the next frame in a GIF animation.
-    /// Implementation delegates to C++ for performance.
-    /// </summary>
-    /// <param name="currentFrame">The current frame index (0-based).</param>
-    /// <param name="frameCount">The total number of frames in the GIF.</param>
-    /// <param name="repeatCount">The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).</param>
-    /// <returns>A <see cref="FrameAdvanceResult"/> containing the next frame and updated state.</returns>
-    /// <exception cref="ArgumentException">Thrown if frameCount is less than 1.</exception>
-    public static FrameAdvanceResult AdvanceFrame(int currentFrame, int frameCount, int repeatCount)
-    {
-        if (frameCount < 1)
-        {
-            throw new ArgumentException("frameCount must be at least 1", nameof(frameCount));
-        }
 
-        // Call C++ implementation for platform-agnostic frame advancement
-        var nativeResult = Native.gb_decoder_advance_frame(currentFrame, frameCount, repeatCount);
-        return new FrameAdvanceResult(nativeResult.NextFrame, nativeResult.IsComplete != 0, nativeResult.UpdatedRepeatCount);
-    }
-
-    /// <summary>
-    /// Calculates the effective frame delay, applying a minimum threshold.
-    /// Implementation delegates to C++ for consistency.
-    /// </summary>
-    /// <param name="frameDelayMs">The frame delay from GIF metadata (in milliseconds).</param>
-    /// <param name="minDelayMs">The minimum frame delay to enforce (in milliseconds).</param>
-    /// <returns>The effective frame delay in milliseconds.</returns>
-    public static int GetEffectiveFrameDelay(int frameDelayMs, int minDelayMs = 0)
-    {
-        return Native.gb_decoder_get_effective_frame_delay(frameDelayMs, minDelayMs);
-    }
 
     /// <summary>
     /// Performs consolidated frame advancement with timing and repeat count management.
@@ -290,92 +259,7 @@ public sealed class GifPlayer : IDisposable
         this.CurrentFrame = 0;
     }
 
-    /// <summary>Gets the RGBA32 pixel data for the specified frame.</summary>
-    /// <param name="frameIndex">The index of the frame.</param>
-    /// <param name="pixels">The output buffer containing RGBA32 pixel data.</param>
-    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
-    public bool TryGetFramePixelsRgba32(int frameIndex, out byte[] pixels)
-    {
-        pixels = Array.Empty<byte>();
-        if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
-        {
-            return false;
-        }
-
-        int byteCount;
-        var ptr = Native.gb_decoder_get_frame_pixels_rgba32(this._decoder.DangerousGetHandle(), frameIndex, out byteCount);
-        if (ptr == IntPtr.Zero || byteCount <= 0)
-        {
-            return false;
-        }
-
-        pixels = new byte[byteCount];
-        System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, byteCount);
-        return true;
-    }
-
-    /// <summary>Gets the BGRA32 pixel data with premultiplied alpha for the specified frame.</summary>
-    /// <param name="frameIndex">The index of the frame.</param>
-    /// <param name="pixels">The output buffer containing BGRA32 premultiplied pixel data.</param>
-    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
-    /// <remarks>This method is optimized for Avalonia and other frameworks requiring premultiplied alpha.</remarks>
-    public bool TryGetFramePixelsBgra32Premultiplied(int frameIndex, out byte[] pixels)
-    {
-        pixels = Array.Empty<byte>();
-        if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
-        {
-            return false;
-        }
-
-        int byteCount;
-        var ptr = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied(this._decoder.DangerousGetHandle(), frameIndex, out byteCount);
-        if (ptr == IntPtr.Zero || byteCount <= 0)
-        {
-            return false;
-        }
-
-        pixels = new byte[byteCount];
-        System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, byteCount);
-        return true;
-    }
-
-    /// <summary>Gets the BGRA32 pixel data with premultiplied alpha for the specified frame, scaled to target dimensions using GPU.</summary>
-    /// <param name="frameIndex">The index of the frame.</param>
-    /// <param name="targetWidth">The desired output width in pixels.</param>
-    /// <param name="targetHeight">The desired output height in pixels.</param>
-    /// <param name="pixels">The output buffer containing BGRA32 premultiplied scaled pixel data.</param>
-    /// <param name="outWidth">The actual output width in pixels.</param>
-    /// <param name="outHeight">The actual output height in pixels.</param>
-    /// <param name="filter">The scaling filter to use (Nearest, Bilinear, Bicubic, Lanczos).</param>
-    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
-    /// <remarks>This method uses GPU acceleration for high-quality bilinear scaling.</remarks>
-    public bool TryGetFramePixelsBgra32PremultipliedScaled(int frameIndex, int targetWidth, int targetHeight,
-                                                            out byte[] pixels, out int outWidth, out int outHeight,
-                                                            ScalingFilter filter = ScalingFilter.Bilinear)
-    {
-        pixels = Array.Empty<byte>();
-        outWidth = 0;
-        outHeight = 0;
-        if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
-        {
-            return false;
-        }
-
-        int byteCount;
-        var ptr = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled(
-            this._decoder.DangerousGetHandle(), frameIndex, targetWidth, targetHeight,
-            out outWidth, out outHeight, out byteCount, (int)filter);
-        if (ptr == IntPtr.Zero || byteCount <= 0)
-        {
-            return false;
-        }
-
-        pixels = new byte[byteCount];
-        System.Runtime.InteropServices.Marshal.Copy(ptr, pixels, 0, byteCount);
-        return true;
-    }
-
-    /// <summary>Gets the RGBA32 pixel data as a reference-counted buffer (zero-copy access).</summary>
+    /// <summary>Gets the RGBA32 pixel data for the specified frame as a reference-counted buffer (zero-copy access).</summary>
     /// <param name="frameIndex">The index of the frame.</param>
     /// <param name="pixelBuffer">The output pixel buffer. Must be disposed when finished.</param>
     /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>

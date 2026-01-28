@@ -191,8 +191,6 @@ namespace GifBolt.Internal
         private static GbDecoderAdvanceAndUpdateGpuTextureDelegate? _gbDecoderAdvanceAndUpdateGpuTexture;
         private static GbDecoderGetCurrentGpuTexturePtrDelegate? _gbDecoderGetCurrentGpuTexturePtr;
         private static GbDecoderGetLastErrorDelegate? _gbDecoderGetLastError;
-        private static GbDecoderGetEffectiveFrameDelayDelegate? _gbDecoderGetEffectiveFrameDelay;
-        private static GbDecoderAdvanceFrameDelegate? _gbDecoderAdvanceFrame;
         private static GbDecoderAdvanceFrameTimedDelegate? _gbDecoderAdvanceFrameTimed;
         private static GbDecoderComputeRepeatCountDelegate? _gbDecoderComputeRepeatCount;
         private static GbDecoderCalculateAdaptiveCacheSizeDelegate? _gbDecoderCalculateAdaptiveCacheSize;
@@ -262,8 +260,6 @@ namespace GifBolt.Internal
             _gbDecoderAdvanceAndUpdateGpuTexture = GetDelegate<GbDecoderAdvanceAndUpdateGpuTextureDelegate>("gb_decoder_advance_and_update_gpu_texture");
             _gbDecoderGetCurrentGpuTexturePtr = GetDelegate<GbDecoderGetCurrentGpuTexturePtrDelegate>("gb_decoder_get_current_gpu_texture_ptr");
             _gbDecoderGetLastError = GetDelegate<GbDecoderGetLastErrorDelegate>("gb_decoder_get_last_error");
-            _gbDecoderGetEffectiveFrameDelay = GetDelegate<GbDecoderGetEffectiveFrameDelayDelegate>("gb_decoder_get_effective_frame_delay");
-            _gbDecoderAdvanceFrame = GetDelegate<GbDecoderAdvanceFrameDelegate>("gb_decoder_advance_frame");
             _gbDecoderAdvanceFrameTimed = GetDelegate<GbDecoderAdvanceFrameTimedDelegate>("gb_decoder_advance_frame_timed");
             _gbDecoderComputeRepeatCount = GetDelegate<GbDecoderComputeRepeatCountDelegate>("gb_decoder_compute_repeat_count");
             _gbDecoderCalculateAdaptiveCacheSize = GetDelegate<GbDecoderCalculateAdaptiveCacheSizeDelegate>("gb_decoder_calculate_adaptive_cache_size");
@@ -415,9 +411,6 @@ namespace GifBolt.Internal
         [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private delegate IntPtr GbDecoderGetLastErrorDelegate();
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate int GbDecoderGetEffectiveFrameDelayDelegate(int frameDelayMs, int minDelayMs);
-
         [StructLayout(LayoutKind.Sequential)]
         public struct VersionInfo
         {
@@ -467,10 +460,6 @@ namespace GifBolt.Internal
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate DecoderMetadata GbDecoderGetMetadataDelegate(IntPtr decoder);
-
-
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate FrameAdvanceResult GbDecoderAdvanceFrameDelegate(int currentFrame, int frameCount, int repeatCount);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate FrameAdvanceTimedResult GbDecoderAdvanceFrameTimedDelegate(int currentFrame, int frameCount, int repeatCount, int rawFrameDelayMs, int minFrameDelayMs);
@@ -1042,25 +1031,6 @@ namespace GifBolt.Internal
             var ptr = _gbDecoderGetLastError?.Invoke() ?? IntPtr.Zero;
             return ptr != IntPtr.Zero ? Marshal.PtrToStringAnsi(ptr) ?? string.Empty : string.Empty;
         }
-
-        /// <summary>
-        /// Computes the effective frame delay, applying a minimum threshold (in C++).
-        /// </summary>
-        /// <param name="frameDelayMs">The frame delay from GIF metadata (in milliseconds).</param>
-        /// <param name="minDelayMs">The minimum frame delay to enforce (in milliseconds).</param>
-        /// <returns>The effective frame delay in milliseconds.</returns>
-        internal static int gb_decoder_get_effective_frame_delay(int frameDelayMs, int minDelayMs)
-             => _gbDecoderGetEffectiveFrameDelay?.Invoke(frameDelayMs, minDelayMs) ?? frameDelayMs;
-
-        /// <summary>
-        /// Advances to the next frame in a GIF animation (in C++).
-        /// </summary>
-        /// <param name="currentFrame">The current frame index (0-based).</param>
-        /// <param name="frameCount">The total number of frames in the GIF.</param>
-        /// <param name="repeatCount">The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).</param>
-        /// <returns>A FrameAdvanceResult containing the next frame and updated state.</returns>
-        internal static FrameAdvanceResult gb_decoder_advance_frame(int currentFrame, int frameCount, int repeatCount)
-             => _gbDecoderAdvanceFrame?.Invoke(currentFrame, frameCount, repeatCount) ?? default;
 
         /// <summary>
         /// Performs consolidated frame advancement with timing and repeat count management (in C++).
