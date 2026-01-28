@@ -246,7 +246,7 @@ namespace GifBolt.Wpf
                             this._image.Source = this._writeableBitmap;
 
                             this._renderTimer = new DispatcherTimer(DispatcherPriority.Render);
-                            this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
+                            this._renderTimer.Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs);
                             this._renderTimer.Tick += this.OnRenderTick;
 
                             // Apply pending repeat behavior BEFORE calling onLoaded (which starts playback)
@@ -333,7 +333,7 @@ namespace GifBolt.Wpf
             {
                 // Use a fixed, fast timer (16ms = 60 FPS) for smooth rendering
                 // Frame advancement is calculated based on actual elapsed time, not timer interval
-                this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
+                this._renderTimer.Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs);
                 this._renderTimer.Start();
             }
         }
@@ -396,8 +396,7 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            this.RepeatStrategy = RepeatStrategyFactory.CreateStrategy(repeatBehavior);
-            this.RepeatCount = this.RepeatStrategy.GetRepeatCount(this.Player.IsLooping);
+            this.RepeatCount = this.Player.ComputeRepeatCount(repeatBehavior);
         }
 
         /// <summary>
@@ -584,18 +583,22 @@ namespace GifBolt.Wpf
             {
                 // Get the frame delay for the current frame and clamp to minimum
                 int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
+                int minFrameDelayMs = this.Player.GetMinFrameDelayMs();
                 long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame (multiplied by debug factor)
                 if (elapsedMs >= rawFrameDelayMs)
                 {
-                    // Advance to next frame and reset the frame start time
-                    var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+                    // Consolidated frame advancement with timing: handles frame advancement,
+                    // effective delay computation, and repeat count management in a single C++ call
+                    var advanceResult = GifPlayer.AdvanceFrameTimed(
                         this.Player.CurrentFrame,
                         this.Player.FrameCount,
-                        this.RepeatCount);
+                        this.RepeatCount,
+                        rawFrameDelayMs,
+                        minFrameDelayMs);
 
-                    if (advanceResult.IsComplete)
+                    if (advanceResult.IsComplete != 0)
                     {
                         this.Stop();
                         return;
@@ -613,8 +616,8 @@ namespace GifBolt.Wpf
 
                         this._frameStopwatch.Restart();
 
-                        // FPS tracking
-                        this.UpdateFpsTracking(rawFrameDelayMs, renderTimeMs);
+                        // FPS tracking - use effective delay
+                        this.UpdateFpsTracking(advanceResult.EffectiveDelayMs, renderTimeMs);
                         return; // Exit early after rendering frame 0
                     }
 
@@ -628,8 +631,8 @@ namespace GifBolt.Wpf
                     this.RenderFrame(this.Player.CurrentFrame);
                     var renderTimeMs2 = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart2) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
 
-                    // FPS tracking
-                    this.UpdateFpsTracking(rawFrameDelayMs, renderTimeMs2);
+                    // FPS tracking - use effective delay
+                    this.UpdateFpsTracking(advanceResult.EffectiveDelayMs, renderTimeMs2);
                 }
             }
             catch

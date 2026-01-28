@@ -6,7 +6,6 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 using System;
-using System.Runtime.InteropServices;
 using GifBolt.Internal;
 
 namespace GifBolt;
@@ -20,21 +19,21 @@ namespace GifBolt;
 /// </remarks>
 public static class NativeVersion
 {
-    private static readonly Lazy<Version> _cachedVersion = new Lazy<Version>(() =>
-    {
-        int major = Native.gb_version_get_major();
-        int minor = Native.gb_version_get_minor();
-        int patch = Native.gb_version_get_patch();
-        return new Version(major, minor, patch);
-    });
-
     /// <summary>
     /// Gets the semantic version of the native library.
     /// </summary>
     /// <remarks>
-    /// This property is thread-safe and cached after the first access.
+    /// This property queries the Native library on each call, but the overhead is minimal
+    /// as the native function simply returns constants defined at compile-time.
     /// </remarks>
-    public static Version Version => _cachedVersion.Value;
+    public static Version Version
+    {
+        get
+        {
+            var info = Native.gb_version_get_info();
+            return new Version(info.Major, info.Minor, info.Patch);
+        }
+    }
 
     /// <summary>
     /// Gets the version string of the native library (e.g., "1.0.0").
@@ -43,29 +42,25 @@ public static class NativeVersion
     {
         get
         {
-            IntPtr ptr = Native.gb_version_get_string();
-            if (ptr == IntPtr.Zero)
-            {
-                return "0.0.0";
-            }
-            return Marshal.PtrToStringAnsi(ptr) ?? "0.0.0";
+            var info = Native.gb_version_get_info();
+            return info.VersionString ?? "0.0.0";
         }
     }
 
     /// <summary>
     /// Gets the major version number.
     /// </summary>
-    public static int Major => Native.gb_version_get_major();
+    public static int Major => Native.gb_version_get_info().Major;
 
     /// <summary>
     /// Gets the minor version number.
     /// </summary>
-    public static int Minor => Native.gb_version_get_minor();
+    public static int Minor => Native.gb_version_get_info().Minor;
 
     /// <summary>
     /// Gets the patch version number.
     /// </summary>
-    public static int Patch => Native.gb_version_get_patch();
+    public static int Patch => Native.gb_version_get_info().Patch;
 
     /// <summary>
     /// Checks if the native library version meets the minimum required version.

@@ -191,7 +191,7 @@ namespace GifBolt.Wpf
                             this._image.Stretch = Stretch.Fill;
 
                             this._renderTimer = new DispatcherTimer(DispatcherPriority.Render);
-                            this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
+                            this._renderTimer.Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs);
                             this._renderTimer.Tick += this.OnRenderTick;
 
                             if (!string.IsNullOrWhiteSpace(this._pendingRepeatBehavior))
@@ -270,7 +270,7 @@ namespace GifBolt.Wpf
 
             if (this._renderTimer != null && !this._isDisposed)
             {
-                this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
+                this._renderTimer.Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs);
                 this._renderTimer.Start();
             }
         }
@@ -332,7 +332,7 @@ namespace GifBolt.Wpf
                 return;
             }
 
-            this.RepeatCount = RepeatBehaviorHelper.ComputeRepeatCount(repeatBehavior, this.Player.IsLooping);
+            this.RepeatCount = this.Player.ComputeRepeatCount(repeatBehavior);
         }
 
         /// <summary>
@@ -422,7 +422,7 @@ namespace GifBolt.Wpf
             try
             {
                 // Use minimum frame delay for timing (C++ handles actual frame delays and advancement)
-                int frameDelayMs = FrameTimingHelper.DefaultMinFrameDelayMs;
+                int frameDelayMs = GifPlayer.DefaultMinFrameDelayMs;
                 long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
 
                 // Check if enough time has passed to show the next frame

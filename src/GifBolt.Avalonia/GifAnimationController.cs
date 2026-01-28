@@ -5,16 +5,13 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
-using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using GifBolt;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace GifBolt.Avalonia
 {
@@ -95,7 +92,7 @@ namespace GifBolt.Avalonia
                 {
                     // Initialize player and set min frame delay BEFORE loading
                     this.Player = new GifPlayer();
-                    this.Player.SetMinFrameDelayMs(FrameTimingHelper.DefaultMinFrameDelayMs);
+                    this.Player.SetMinFrameDelayMs(GifPlayer.DefaultMinFrameDelayMs);
 
                     if (!this.Player.Load(path))
                     {
@@ -176,14 +173,14 @@ namespace GifBolt.Avalonia
                         Dispatcher.UIThread.Post(() =>
                         {
                             this._writeableBitmap = wb;
-                        this._image.Source = this._writeableBitmap;
-                        this._image.InvalidateVisual();
+                            this._image.Source = this._writeableBitmap;
+                            this._image.InvalidateVisual();
 
-                        this._animationTimer = new DispatcherTimer
-                        {
-                            Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs),
-                        };
-                        this._animationTimer.Tick += this.OnRenderTick;
+                            this._animationTimer = new DispatcherTimer
+                            {
+                                Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs),
+                            };
+                            this._animationTimer.Tick += this.OnRenderTick;
 
                             onLoaded?.Invoke();
                         });
@@ -211,8 +208,7 @@ namespace GifBolt.Avalonia
                 return;
             }
 
-            this.RepeatStrategy = RepeatStrategyFactory.CreateStrategy(repeatBehavior);
-            this.RepeatCount = this.RepeatStrategy.GetRepeatCount(this.Player.IsLooping);
+            this.RepeatCount = this.Player.ComputeRepeatCount(repeatBehavior);
         }
 
         /// <summary>
@@ -346,7 +342,7 @@ namespace GifBolt.Avalonia
             {
                 // Use a fixed, fast timer for smooth rendering
                 // Frame advancement is calculated based on actual elapsed time, not timer interval
-                this._animationTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
+                this._animationTimer.Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs);
                 this._animationTimer.Start();
             }
         }
@@ -457,26 +453,30 @@ namespace GifBolt.Avalonia
 
             try
             {
-                // Get the frame delay for the current frame (use as-is, don't clamp)
-                // GIFs are encoded with specific frame delays for a reason
+                // Get the frame delay for the current frame
                 int frameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
                 if (frameDelayMs <= 0)
                 {
                     // Safety: if delay is 0 or negative, use the configured default
-                    frameDelayMs = FrameTimingHelper.DefaultMinFrameDelayMs;
+                    frameDelayMs = GifPlayer.DefaultMinFrameDelayMs;
                 }
 
+                int minFrameDelayMs = this.Player.GetMinFrameDelayMs();
                 long elapsedMs = this._frameTimer.ElapsedMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame
                 if (elapsedMs >= frameDelayMs)
                 {
-                    var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+                    // Consolidated frame advancement with timing: handles frame advancement,
+                    // effective delay computation, and repeat count management in a single C++ call
+                    var advanceResult = GifPlayer.AdvanceFrameTimed(
                         this.Player.CurrentFrame,
                         this.Player.FrameCount,
-                        this.RepeatCount);
+                        this.RepeatCount,
+                        frameDelayMs,
+                        minFrameDelayMs);
 
-                    if (advanceResult.IsComplete)
+                    if (advanceResult.IsComplete != 0)
                     {
                         this.Stop();
                         return;
@@ -504,7 +504,7 @@ namespace GifBolt.Avalonia
                     if (this._fpsStopwatch != null && this._fpsStopwatch.ElapsedMilliseconds > 1000)
                     {
                         var fps = this._frameCount * 1000.0 / this._fpsStopwatch.ElapsedMilliseconds;
-                        var fpsText = $"FPS: {fps:F1} | Render: {renderTimeMs:F2}ms | Delay: {frameDelayMs}ms";
+                        var fpsText = $"FPS: {fps:F1} | Render: {renderTimeMs:F2}ms | Delay: {advanceResult.EffectiveDelayMs}ms";
 
                         // Update FPS on the Image control
                         AnimationBehavior.SetFpsText(this._image, fpsText);

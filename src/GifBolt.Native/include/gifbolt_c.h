@@ -307,6 +307,25 @@ extern "C"
     /// \remarks Use 0 for minDelayMs to get the raw delay without threshold enforcement.
     GB_API int gb_decoder_get_effective_frame_delay(int frameDelayMs, int minDelayMs);
 
+    /// \struct gb_decoder_metadata_s
+    /// \brief Consolidated GIF metadata.
+    /// \remarks More efficient than making separate calls to get width, height, frame count, and loop count.
+    typedef struct
+    {
+        int width;        ///< Image width in pixels.
+        int height;       ///< Image height in pixels.
+        int frameCount;   ///< Total number of frames.
+        int loopCount;    ///< Loop count (-1=infinite, >=0=specific count).
+    } gb_decoder_metadata_s;
+
+    /// \brief Gets consolidated GIF metadata in a single call.
+    /// \param decoder The decoder handle.
+    /// \return A gb_decoder_metadata_s struct containing all metadata.
+    /// \remarks This is more efficient than making separate calls to
+    ///          gb_decoder_get_width, gb_decoder_get_height,
+    ///          gb_decoder_get_frame_count, and gb_decoder_get_loop_count.
+    GB_API gb_decoder_metadata_s gb_decoder_get_metadata(gb_decoder_t decoder);
+
     /// \struct gb_frame_advance_result_s
     /// \brief Result of a frame advance operation.
     typedef struct
@@ -316,14 +335,40 @@ extern "C"
         int updatedRepeatCount; ///< The updated repeat count (-1=infinite, 0=stop, >0=remaining repeats).
     } gb_frame_advance_result_s;
 
+    /// \struct gb_frame_advance_timed_result_s
+    /// \brief Consolidated result of a timed frame advance operation.
+    /// \remarks Combines frame advancement, timing, and repeat count management in a single operation.
+    typedef struct
+    {
+        int nextFrame;          ///< The next frame index after advancement.
+        int isComplete;         ///< 1 if animation has completed, 0 otherwise.
+        int updatedRepeatCount; ///< The updated repeat count (-1=infinite, 0=stop, >0=remaining repeats).
+        int effectiveDelayMs;   ///< The effective frame delay in milliseconds (after minimum threshold applied).
+    } gb_frame_advance_timed_result_s;
+
     /// \brief Advances to the next frame in a GIF animation.
     /// \param currentFrame The current frame index (0-based).
     /// \param frameCount The total number of frames in the GIF.
     /// \param repeatCount The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).
     /// \return A gb_frame_advance_result_s containing the next frame and updated state.
     /// \remarks frameCount must be >= 1. Otherwise, returns with isComplete=1.
+    /// \deprecated Use gb_decoder_advance_frame_timed() for consolidated frame advancement.
     GB_API gb_frame_advance_result_s gb_decoder_advance_frame(
         int currentFrame, int frameCount, int repeatCount);
+
+    /// \brief Performs consolidated frame advancement with timing and repeat count management.
+    /// \param currentFrame The current frame index (0-based).
+    /// \param frameCount The total number of frames in the GIF.
+    /// \param repeatCount The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).
+    /// \param rawFrameDelayMs The raw frame delay from GIF metadata (in milliseconds).
+    /// \param minFrameDelayMs The minimum frame delay threshold (in milliseconds).
+    /// \return A gb_frame_advance_timed_result_s containing the next frame, timing info, and updated state.
+    /// \remarks This function consolidates frame advancement, delay computation, and repeat count
+    ///          management into a single operation, reducing the overhead of multiple P/Invoke calls.
+    ///          Equivalent to calling gb_decoder_advance_frame(), gb_decoder_get_effective_frame_delay(),
+    ///          and managing repeat counts manually, but in one efficient call.
+    GB_API gb_frame_advance_timed_result_s gb_decoder_advance_frame_timed(
+        int currentFrame, int frameCount, int repeatCount, int rawFrameDelayMs, int minFrameDelayMs);
 
     /// \brief Computes the repeat count from a repeat behavior string.
     /// \param repeatBehavior The repeat behavior string (e.g., "Forever", "3x", "0x", or NULL).

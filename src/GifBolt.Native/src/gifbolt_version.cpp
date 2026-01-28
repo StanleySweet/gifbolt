@@ -5,6 +5,16 @@
 
 extern "C"
 {
+    gb_version_info_s gb_version_get_info(void) noexcept
+    {
+        return gb_version_info_s{
+            GIFBOLT_VERSION_MAJOR,
+            GIFBOLT_VERSION_MINOR,
+            GIFBOLT_VERSION_PATCH,
+            GIFBOLT_VERSION_STRING
+        };
+    }
+
     int gb_version_get_major(void) noexcept
     {
         return GIFBOLT_VERSION_MAJOR;

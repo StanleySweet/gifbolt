@@ -61,6 +61,30 @@ extern "C"
 #define GB_NOEXCEPT
 #endif
 
+    /// \struct gb_version_info_s
+    /// \brief Consolidated semantic version information.
+    typedef struct
+    {
+        /// \brief Major version number (incompatible API changes).
+        int major;
+        
+        /// \brief Minor version number (backwards-compatible functionality added).
+        int minor;
+        
+        /// \brief Patch version number (backwards-compatible bug fixes).
+        int patch;
+        
+        /// \brief Pointer to null-terminated version string (e.g., "1.0.0").
+        /// Must not be freed. Valid for program lifetime.
+        const char* version_string;
+    } gb_version_info_s;
+
+    /// \brief Gets complete version information in a single call.
+    /// \return A version info struct containing all version details.
+    /// \remarks This is more efficient than making separate calls to
+    ///          gb_version_get_major, gb_version_get_minor, and gb_version_get_patch.
+    GB_API gb_version_info_s gb_version_get_info(void) GB_NOEXCEPT;
+
     /// \brief Gets the major version number at runtime.
     /// \return The major version number.
     GB_API int gb_version_get_major(void) GB_NOEXCEPT;

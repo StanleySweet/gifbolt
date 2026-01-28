@@ -11,6 +11,73 @@ using System.Runtime.InteropServices;
 
 namespace GifBolt
 {
+
+    /// <summary>
+    /// Struct returned by frame advance function.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FrameAdvanceResult
+    {
+        /// <summary>Gets the next frame index.</summary>
+        public int NextFrame;
+
+        /// <summary>Gets 1 if animation is complete, 0 otherwise.</summary>
+        public int IsComplete;
+
+        /// <summary>Gets the updated repeat count.</summary>
+        public int UpdatedRepeatCount;
+
+        public FrameAdvanceResult()
+        {
+            this.NextFrame = 0;
+            this.IsComplete = 0;
+            this.UpdatedRepeatCount = 0;
+        }
+
+        public FrameAdvanceResult(int nextFrame, bool isComplete, int updatedRepeatCount)
+        {
+            this.NextFrame = nextFrame;
+            this.IsComplete = isComplete ? 1 : 0;
+            this.UpdatedRepeatCount = updatedRepeatCount;
+        }
+    }
+
+    /// <summary>
+    /// Consolidated result of a timed frame advance operation.
+    /// Combines frame advancement, timing, and repeat count management in a single operation.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FrameAdvanceTimedResult
+    {
+        /// <summary>Gets the next frame index after advancement.</summary>
+        public int NextFrame;
+
+        /// <summary>Gets 1 if animation is complete, 0 otherwise.</summary>
+        public int IsComplete;
+
+        /// <summary>Gets the updated repeat count (-1=infinite, 0=stop, >0=remaining repeats).</summary>
+        public int UpdatedRepeatCount;
+
+        /// <summary>Gets the effective frame delay in milliseconds (after minimum threshold applied).</summary>
+        public int EffectiveDelayMs;
+
+        public FrameAdvanceTimedResult()
+        {
+            this.NextFrame = 0;
+            this.IsComplete = 0;
+            this.UpdatedRepeatCount = 0;
+            this.EffectiveDelayMs = 0;
+        }
+
+        public FrameAdvanceTimedResult(int nextFrame, bool isComplete, int updatedRepeatCount, int effectiveDelayMs)
+        {
+            this.NextFrame = nextFrame;
+            this.IsComplete = isComplete ? 1 : 0;
+            this.UpdatedRepeatCount = updatedRepeatCount;
+            this.EffectiveDelayMs = effectiveDelayMs;
+        }
+    }
+
     /// <summary>
     /// Image scaling filter types for resizing operations.
     /// </summary>
@@ -67,6 +134,8 @@ namespace GifBolt.Internal
         private static GbVersionGetStringDelegate? _gbVersionGetString;
         private static GbVersionGetIntDelegate? _gbVersionGetInt;
         private static GbVersionCheckDelegate? _gbVersionCheck;
+        private static GbVersionGetInfoDelegate? _gbVersionGetInfo;
+        private static GbDecoderGetMetadataDelegate? _gbDecoderGetMetadata;
         private static GbDecoderStartPrefetchingDelegate? _gbDecoderStartPrefetching;
         private static GbDecoderStopPrefetchingDelegate? _gbDecoderStopPrefetching;
         private static GbDecoderSetCurrentFrameDelegate? _gbDecoderSetCurrentFrame;
@@ -79,6 +148,7 @@ namespace GifBolt.Internal
         private static GbDecoderGetLastErrorDelegate? _gbDecoderGetLastError;
         private static GbDecoderGetEffectiveFrameDelayDelegate? _gbDecoderGetEffectiveFrameDelay;
         private static GbDecoderAdvanceFrameDelegate? _gbDecoderAdvanceFrame;
+        private static GbDecoderAdvanceFrameTimedDelegate? _gbDecoderAdvanceFrameTimed;
         private static GbDecoderComputeRepeatCountDelegate? _gbDecoderComputeRepeatCount;
         private static GbDecoderCalculateAdaptiveCacheSizeDelegate? _gbDecoderCalculateAdaptiveCacheSize;
 
@@ -103,6 +173,7 @@ namespace GifBolt.Internal
             _gbDecoderGetWidth = GetDelegate<GbDecoderGetWidthDelegate>("gb_decoder_get_width");
             _gbDecoderGetHeight = GetDelegate<GbDecoderGetHeightDelegate>("gb_decoder_get_height");
             _gbDecoderGetLoopCount = GetDelegate<GbDecoderGetLoopCountDelegate>("gb_decoder_get_loop_count");
+            _gbDecoderGetMetadata = GetDelegate<GbDecoderGetMetadataDelegate>("gb_decoder_get_metadata");
             _gbDecoderGetFrameDelayMs = GetDelegate<GbDecoderGetFrameDelayMsDelegate>("gb_decoder_get_frame_delay_ms");
             _gbDecoderGetFramePixelsRgba32 = GetDelegate<GbDecoderGetFramePixelsRgba32Delegate>("gb_decoder_get_frame_pixels_rgba32");
             _gbDecoderGetFramePixelsBgra32Premultiplied = GetDelegate<GbDecoderGetFramePixelsBgra32PremultipliedDelegate>("gb_decoder_get_frame_pixels_bgra32_premultiplied");
@@ -119,6 +190,7 @@ namespace GifBolt.Internal
             _gbVersionGetString = GetDelegate<GbVersionGetStringDelegate>("gb_version_get_string");
             _gbVersionGetInt = GetDelegate<GbVersionGetIntDelegate>("gb_version_get_int");
             _gbVersionCheck = GetDelegate<GbVersionCheckDelegate>("gb_version_check");
+            _gbVersionGetInfo = GetDelegate<GbVersionGetInfoDelegate>("gb_version_get_info");
             _gbDecoderStartPrefetching = GetDelegate<GbDecoderStartPrefetchingDelegate>("gb_decoder_start_prefetching");
             _gbDecoderStopPrefetching = GetDelegate<GbDecoderStopPrefetchingDelegate>("gb_decoder_stop_prefetching");
             _gbDecoderSetCurrentFrame = GetDelegate<GbDecoderSetCurrentFrameDelegate>("gb_decoder_set_current_frame");
@@ -131,6 +203,7 @@ namespace GifBolt.Internal
             _gbDecoderGetLastError = GetDelegate<GbDecoderGetLastErrorDelegate>("gb_decoder_get_last_error");
             _gbDecoderGetEffectiveFrameDelay = GetDelegate<GbDecoderGetEffectiveFrameDelayDelegate>("gb_decoder_get_effective_frame_delay");
             _gbDecoderAdvanceFrame = GetDelegate<GbDecoderAdvanceFrameDelegate>("gb_decoder_advance_frame");
+            _gbDecoderAdvanceFrameTimed = GetDelegate<GbDecoderAdvanceFrameTimedDelegate>("gb_decoder_advance_frame_timed");
             _gbDecoderComputeRepeatCount = GetDelegate<GbDecoderComputeRepeatCountDelegate>("gb_decoder_compute_repeat_count");
             _gbDecoderCalculateAdaptiveCacheSize = GetDelegate<GbDecoderCalculateAdaptiveCacheSizeDelegate>("gb_decoder_calculate_adaptive_cache_size");
             _gbVersionGetMajor?.Invoke();
@@ -249,27 +322,59 @@ namespace GifBolt.Internal
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int GbDecoderGetEffectiveFrameDelayDelegate(int frameDelayMs, int minDelayMs);
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct VersionInfo
+        {
+            /// <summary>Gets the major version number.</summary>
+            public int Major;
+
+            /// <summary>Gets the minor version number.</summary>
+            public int Minor;
+
+            /// <summary>Gets the patch version number.</summary>
+            public int Patch;
+
+            /// <summary>Gets the version string (e.g., "1.0.0").</summary>
+            /// <remarks>
+            /// Constructed from major.minor.patch by the wrapper method.
+            /// </remarks>
+            public string VersionString => $"{this.Major}.{this.Minor}.{this.Patch}";
+        }
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate VersionInfo GbVersionGetInfoDelegate();
+
         /// <summary>
-        /// Struct returned by frame advance function.
+        /// Struct containing consolidated GIF metadata.
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct FrameAdvanceResult
+        public struct DecoderMetadata
         {
-            /// <summary>Gets the next frame index.</summary>
-            public int NextFrame;
+            /// <summary>Gets the image width in pixels.</summary>
+            public int Width;
 
-            /// <summary>Gets 1 if animation is complete, 0 otherwise.</summary>
-            public int IsComplete;
+            /// <summary>Gets the image height in pixels.</summary>
+            public int Height;
 
-            /// <summary>Gets the updated repeat count.</summary>
-            public int UpdatedRepeatCount;
+            /// <summary>Gets the total number of frames.</summary>
+            public int FrameCount;
+
+            /// <summary>Gets the loop count (-1=infinite, >=0=specific count).</summary>
+            public int LoopCount;
         }
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate DecoderMetadata GbDecoderGetMetadataDelegate(IntPtr decoder);
+
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate FrameAdvanceResult GbDecoderAdvanceFrameDelegate(int currentFrame, int frameCount, int repeatCount);
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate FrameAdvanceTimedResult GbDecoderAdvanceFrameTimedDelegate(int currentFrame, int frameCount, int repeatCount, int rawFrameDelayMs, int minFrameDelayMs);
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        private delegate int GbDecoderComputeRepeatCountDelegate(string? repeatBehavior, int isLooping);
+        private delegate int GbDecoderComputeRepeatCountDelegate(string repeatBehavior, int isLooping);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate uint GbDecoderCalculateAdaptiveCacheSizeDelegate(int frameCount, float cachePercentage, uint minCachedFrames, uint maxCachedFrames);
@@ -496,15 +601,15 @@ namespace GifBolt.Internal
         /// <returns>Status code (0 = success, non-zero = error).</returns>
         internal static int gb_decoder_load_from_path(IntPtr decoder, string path) => _gbDecoderLoadFromPath(decoder, path);
 
-           /// <summary>
-           /// Loads a GIF from an in-memory buffer into the decoder.
-           /// </summary>
-           /// <param name="decoder">Pointer to the decoder.</param>
-           /// <param name="buffer">Pointer to the GIF data buffer.</param>
-           /// <param name="length">Length of the buffer in bytes.</param>
-           /// <returns>Status code (0 = success, non-zero = error).</returns>
-           internal static int gb_decoder_load_from_memory(IntPtr decoder, IntPtr buffer, int length)
-               => _gbDecoderLoadFromMemory(decoder, buffer, length);
+        /// <summary>
+        /// Loads a GIF from an in-memory buffer into the decoder.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <param name="buffer">Pointer to the GIF data buffer.</param>
+        /// <param name="length">Length of the buffer in bytes.</param>
+        /// <returns>Status code (0 = success, non-zero = error).</returns>
+        internal static int gb_decoder_load_from_memory(IntPtr decoder, IntPtr buffer, int length)
+            => _gbDecoderLoadFromMemory(decoder, buffer, length);
 
         /// <summary>
         /// Gets the number of frames in the loaded GIF.
@@ -533,6 +638,14 @@ namespace GifBolt.Internal
         /// <param name="decoder">Pointer to the decoder.</param>
         /// <returns>Number of times the GIF should loop (0 = infinite).</returns>
         internal static int gb_decoder_get_loop_count(IntPtr decoder) => _gbDecoderGetLoopCount(decoder);
+
+        /// <summary>
+        /// Gets consolidated GIF metadata (width, height, frame count, loop count) in a single call.
+        /// More efficient than making separate calls to get individual metadata values.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <returns>A DecoderMetadata struct containing all metadata.</returns>
+        internal static DecoderMetadata gb_decoder_get_metadata(IntPtr decoder) => _gbDecoderGetMetadata?.Invoke(decoder) ?? default;
 
         /// <summary>
         /// Gets the delay of a specific frame in milliseconds.
@@ -630,6 +743,17 @@ namespace GifBolt.Internal
             out int byteCount,
             int filterType)
              => _gbDecoderGetFramePixelsBgra32PremultipliedScaled(decoder, index, targetWidth, targetHeight, out outWidth, out outHeight, out byteCount, filterType);
+
+        /// <summary>
+        /// Gets complete version information in a single call.
+        /// More efficient than making separate calls to get major, minor, and patch.
+        /// </summary>
+        /// <returns>A VersionInfo struct containing version details.</returns>
+        internal static VersionInfo gb_version_get_info()
+        {
+            var result = _gbVersionGetInfo?.Invoke() ?? default;
+            return result;
+        }
 
         /// <summary>
         /// Gets the major version of GifBolt.
@@ -772,13 +896,29 @@ namespace GifBolt.Internal
              => _gbDecoderAdvanceFrame?.Invoke(currentFrame, frameCount, repeatCount) ?? default;
 
         /// <summary>
+        /// Performs consolidated frame advancement with timing and repeat count management (in C++).
+        /// </summary>
+        /// <param name="currentFrame">The current frame index (0-based).</param>
+        /// <param name="frameCount">The total number of frames in the GIF.</param>
+        /// <param name="repeatCount">The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).</param>
+        /// <param name="rawFrameDelayMs">The raw frame delay from GIF metadata (in milliseconds).</param>
+        /// <param name="minFrameDelayMs">The minimum frame delay threshold (in milliseconds).</param>
+        /// <returns>A FrameAdvanceTimedResult containing the next frame, timing info, and updated state.</returns>
+        /// <remarks>
+        /// This function consolidates frame advancement, delay computation, and repeat count
+        /// management into a single operation, reducing the overhead of multiple P/Invoke calls.
+        /// </remarks>
+        internal static FrameAdvanceTimedResult gb_decoder_advance_frame_timed(int currentFrame, int frameCount, int repeatCount, int rawFrameDelayMs, int minFrameDelayMs)
+             => _gbDecoderAdvanceFrameTimed?.Invoke(currentFrame, frameCount, repeatCount, rawFrameDelayMs, minFrameDelayMs) ?? default;
+
+        /// <summary>
         /// Computes the repeat count from a repeat behavior string (in C++).
         /// </summary>
         /// <param name="repeatBehavior">The repeat behavior string (e.g., "Forever", "3x", "0x", or null).</param>
         /// <param name="isLooping">Whether the GIF metadata indicates infinite looping.</param>
         /// <returns>-1 for infinite repeat, positive integer for finite repeats.</returns>
         internal static int gb_decoder_compute_repeat_count(string? repeatBehavior, int isLooping)
-             => _gbDecoderComputeRepeatCount?.Invoke(repeatBehavior, isLooping) ?? (isLooping != 0 ? -1 : 1);
+             => _gbDecoderComputeRepeatCount?.Invoke(repeatBehavior ?? string.Empty, isLooping) ?? (isLooping != 0 ? -1 : 1);
 
         /// <summary>
         /// Calculates adaptive cache size based on frame count and percentage (in C++).
@@ -790,5 +930,47 @@ namespace GifBolt.Internal
         /// <returns>The recommended cache size in frames.</returns>
         internal static uint gb_decoder_calculate_adaptive_cache_size(int frameCount, float cachePercentage, uint minCachedFrames, uint maxCachedFrames)
              => _gbDecoderCalculateAdaptiveCacheSize?.Invoke(frameCount, cachePercentage, minCachedFrames, maxCachedFrames) ?? minCachedFrames;
+    }
+
+    /// <summary>
+    /// Safe wrapper for a native GIF decoder handle.
+    /// </summary>
+    internal sealed class DecoderHandle : SafeHandle
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DecoderHandle"/> class with an invalid handle.
+        /// </summary>
+        public DecoderHandle() : base(IntPtr.Zero, true)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DecoderHandle"/> class with an existing native handle.
+        /// </summary>
+        /// <param name="handle">The native decoder pointer.</param>
+        public DecoderHandle(IntPtr handle) : base(IntPtr.Zero, true)
+        {
+            this.SetHandle(handle);
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether the handle is invalid.
+        /// </summary>
+        public override bool IsInvalid => this.handle == IntPtr.Zero;
+
+        /// <summary>
+        /// Releases the native decoder handle.
+        /// </summary>
+        /// <returns>true if successfully released; otherwise false.</returns>
+        protected override bool ReleaseHandle()
+        {
+            if (this.handle != IntPtr.Zero)
+            {
+                Native.gb_decoder_destroy(this.handle);
+                return true;
+            }
+
+            return false;
+        }
     }
 }

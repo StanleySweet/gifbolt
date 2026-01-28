@@ -193,6 +193,21 @@ extern "C"
         return ptr->IsLooping() ? -1 : 0;
     }
 
+    GB_API gb_decoder_metadata_s gb_decoder_get_metadata(gb_decoder_t decoder)
+    {
+        gb_decoder_metadata_s metadata = {0, 0, 0, 0};
+        if (decoder == nullptr)
+        {
+            return metadata;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        metadata.width = static_cast<int>(ptr->GetWidth());
+        metadata.height = static_cast<int>(ptr->GetHeight());
+        metadata.frameCount = static_cast<int>(ptr->GetFrameCount());
+        metadata.loopCount = ptr->IsLooping() ? -1 : 0;
+        return metadata;
+    }
+
     GB_API int gb_decoder_get_frame_delay_ms(gb_decoder_t decoder, int index)
     {
         if (decoder == nullptr)
@@ -596,6 +611,61 @@ extern "C"
             return result;
         }
 
+        int nextFrame = currentFrame + 1;
+
+        // Check if we've reached the end of the frame sequence
+        if (nextFrame >= frameCount)
+        {
+            // Determine if we should loop
+            if (repeatCount == -1)
+            {
+                // Infinite loop
+                result.nextFrame = 0;
+                result.isComplete = 0;
+                result.updatedRepeatCount = -1;
+            }
+            else if (repeatCount > 0)
+            {
+                // Finite repeats remaining
+                result.nextFrame = 0;
+                result.isComplete = 0;
+                result.updatedRepeatCount = repeatCount - 1;
+            }
+            else
+            {
+                // No more repeats; animation is complete
+                result.nextFrame = currentFrame;
+                result.isComplete = 1;
+                result.updatedRepeatCount = 0;
+            }
+        }
+        else
+        {
+            // Normal frame advance within the sequence
+            result.nextFrame = nextFrame;
+            result.isComplete = 0;
+            result.updatedRepeatCount = repeatCount;
+        }
+
+        return result;
+    }
+
+    GB_API gb_frame_advance_timed_result_s gb_decoder_advance_frame_timed(
+        int currentFrame, int frameCount, int repeatCount, int rawFrameDelayMs, int minFrameDelayMs)
+    {
+        gb_frame_advance_timed_result_s result = {currentFrame, 0, repeatCount, rawFrameDelayMs};
+
+        // Compute effective frame delay (applying minimum threshold)
+        result.effectiveDelayMs = rawFrameDelayMs < minFrameDelayMs ? minFrameDelayMs : rawFrameDelayMs;
+
+        // Validate frame count
+        if (frameCount < 1)
+        {
+            result.isComplete = 1;
+            return result;
+        }
+
+        // Perform frame advancement
         int nextFrame = currentFrame + 1;
 
         // Check if we've reached the end of the frame sequence

@@ -10,6 +10,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using static GifBolt.Internal.Native;
 
 namespace GifBolt;
 
@@ -20,6 +21,23 @@ namespace GifBolt;
 /// </summary>
 public sealed class GifPlayer : IDisposable
 {
+    /// <summary>
+    /// The default minimum frame delay in milliseconds (10 ms).
+    /// Most GIFs are created with delays of 10-100ms; we use 10ms as a reasonable
+    /// minimum to prevent GIFs with very small delays from playing too fast,
+    /// while still allowing fast animations to play at reasonable speeds.
+    /// Synchronized with C++: GB_DEFAULT_MIN_FRAME_DELAY_MS.
+    /// </summary>
+    public const int DefaultMinFrameDelayMs = 10;
+
+    /// <summary>
+    /// The minimum render interval for the UI thread timer (16 ms = 60 FPS).
+    /// This is the fastest the UI can be updated while staying responsive.
+    /// Synchronized with C++: GB_MIN_RENDER_INTERVAL_MS.
+    /// </summary>
+    public const int MinRenderIntervalMs = 16;
+
+
     /// <summary>
     /// Rendering backend identifiers for GPU acceleration.
     /// </summary>
@@ -104,6 +122,62 @@ public sealed class GifPlayer : IDisposable
 
             return Native.gb_decoder_has_transparency(this._decoder.DangerousGetHandle()) != 0;
         }
+    }
+
+    /// <summary>
+    /// Advances to the next frame in a GIF animation.
+    /// Implementation delegates to C++ for performance.
+    /// </summary>
+    /// <param name="currentFrame">The current frame index (0-based).</param>
+    /// <param name="frameCount">The total number of frames in the GIF.</param>
+    /// <param name="repeatCount">The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).</param>
+    /// <returns>A <see cref="FrameAdvanceResult"/> containing the next frame and updated state.</returns>
+    /// <exception cref="ArgumentException">Thrown if frameCount is less than 1.</exception>
+    public static FrameAdvanceResult AdvanceFrame(int currentFrame, int frameCount, int repeatCount)
+    {
+        if (frameCount < 1)
+        {
+            throw new ArgumentException("frameCount must be at least 1", nameof(frameCount));
+        }
+
+        // Call C++ implementation for platform-agnostic frame advancement
+        var nativeResult = Native.gb_decoder_advance_frame(currentFrame, frameCount, repeatCount);
+        return new FrameAdvanceResult(nativeResult.NextFrame, nativeResult.IsComplete != 0, nativeResult.UpdatedRepeatCount);
+    }
+
+    /// <summary>
+    /// Calculates the effective frame delay, applying a minimum threshold.
+    /// Implementation delegates to C++ for consistency.
+    /// </summary>
+    /// <param name="frameDelayMs">The frame delay from GIF metadata (in milliseconds).</param>
+    /// <param name="minDelayMs">The minimum frame delay to enforce (in milliseconds).</param>
+    /// <returns>The effective frame delay in milliseconds.</returns>
+    public static int GetEffectiveFrameDelay(int frameDelayMs, int minDelayMs = 0)
+    {
+        return Native.gb_decoder_get_effective_frame_delay(frameDelayMs, minDelayMs);
+    }
+
+    /// <summary>
+    /// Performs consolidated frame advancement with timing and repeat count management.
+    /// This is more efficient than calling AdvanceFrame() and GetEffectiveFrameDelay() separately,
+    /// as it performs all operations in a single P/Invoke call.
+    /// </summary>
+    /// <param name="currentFrame">The current frame index (0-based).</param>
+    /// <param name="frameCount">The total number of frames in the GIF.</param>
+    /// <param name="repeatCount">The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).</param>
+    /// <param name="rawFrameDelayMs">The raw frame delay from GIF metadata (in milliseconds).</param>
+    /// <param name="minFrameDelayMs">The minimum frame delay threshold (in milliseconds).</param>
+    /// <returns>A result containing the next frame, effective timing, and updated state.</returns>
+    /// <exception cref="ArgumentException">Thrown if frameCount is less than 1.</exception>
+    public static FrameAdvanceTimedResult AdvanceFrameTimed(int currentFrame, int frameCount, int repeatCount, int rawFrameDelayMs, int minFrameDelayMs = DefaultMinFrameDelayMs)
+    {
+        if (frameCount < 1)
+        {
+            throw new ArgumentException("frameCount must be at least 1", nameof(frameCount));
+        }
+
+        // Call consolidated C++ implementation
+        return Native.gb_decoder_advance_frame_timed(currentFrame, frameCount, repeatCount, rawFrameDelayMs, minFrameDelayMs);
     }
 
     /// <summary>
@@ -455,6 +529,17 @@ public sealed class GifPlayer : IDisposable
 
         return Native.gb_decoder_get_current_gpu_texture_ptr(this._decoder.DangerousGetHandle());
     }
+
+    /// <summary>
+    /// Computes the repeat count based on the specified repeat behavior string.
+    /// </summary>
+    /// <param name="repeatBehavior">The repeat behavior</param>
+    /// <returns></returns>
+    public int ComputeRepeatCount(string repeatBehavior)
+    {
+        return Native.gb_decoder_compute_repeat_count(repeatBehavior, this.IsLooping ? 1 : 0);
+    }
+
     /// <summary>Releases the unmanaged resources associated with the player.</summary>
     public void Dispose()
     {
@@ -525,14 +610,15 @@ public sealed class GifPlayer : IDisposable
         }
         else
         {
-            // Update dimensions for existing decoder
-            this.Width = Native.gb_decoder_get_width(this._decoder.DangerousGetHandle());
-            this.Height = Native.gb_decoder_get_height(this._decoder.DangerousGetHandle());
-            this.FrameCount = Native.gb_decoder_get_frame_count(this._decoder.DangerousGetHandle());
-            this.IsLooping = Native.gb_decoder_get_loop_count(this._decoder.DangerousGetHandle()) < 0;
+            // Update dimensions for existing decoder (use consolidated query for efficiency)
+            var metadata = Native.gb_decoder_get_metadata(this._decoder.DangerousGetHandle());
+            this.Width = metadata.Width;
+            this.Height = metadata.Height;
+            this.FrameCount = metadata.FrameCount;
+            this.IsLooping = metadata.LoopCount < 0;
             this.CurrentFrame = 0;
         }
-        
+
         return true;
     }
 
@@ -559,10 +645,13 @@ public sealed class GifPlayer : IDisposable
     private void AssignDecoder(DecoderHandle handle)
     {
         this._decoder = handle;
-        this.Width = Native.gb_decoder_get_width(this._decoder.DangerousGetHandle());
-        this.Height = Native.gb_decoder_get_height(this._decoder.DangerousGetHandle());
-        this.FrameCount = Native.gb_decoder_get_frame_count(this._decoder.DangerousGetHandle());
-        this.IsLooping = Native.gb_decoder_get_loop_count(this._decoder.DangerousGetHandle()) < 0;
+
+        // Get all metadata in a single P/Invoke call for efficiency
+        var metadata = Native.gb_decoder_get_metadata(this._decoder.DangerousGetHandle());
+        this.Width = metadata.Width;
+        this.Height = metadata.Height;
+        this.FrameCount = metadata.FrameCount;
+        this.IsLooping = metadata.LoopCount < 0;
         this.CurrentFrame = 0;
 
         // Set adaptive cache size based on frame count

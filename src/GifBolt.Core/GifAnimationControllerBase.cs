@@ -34,22 +34,16 @@ namespace GifBolt
         protected int RepeatCount { get; set; }
 
         /// <summary>
-        /// Gets or sets the repeat strategy.
-        /// </summary>
-        protected IRepeatStrategy RepeatStrategy { get; set; }
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationControllerBase"/> class.
         /// </summary>
         /// <remarks>
         /// Derived classes are responsible for initializing the Player property.
-        /// Defaults to metadata-based repeat strategy.
+        /// Repeat count defaults to 1 (metadata-based behavior).
         /// </remarks>
         protected GifAnimationControllerBase()
         {
             this.IsPlaying = false;
             this.RepeatCount = 1;
-            this.RepeatStrategy = MetadataRepeatStrategy.Instance;
         }
 
         /// <summary>
@@ -98,7 +92,6 @@ namespace GifBolt
         /// Sets the repeat behavior for the animation.
         /// </summary>
         /// <param name="repeatBehavior">The repeat behavior string ("Forever", "3x", "0x", etc.).</param>
-        /// <exception cref="ArgumentNullException">Thrown when repeatBehavior is null.</exception>
         public virtual void SetRepeatBehavior(string repeatBehavior)
         {
             if (string.IsNullOrWhiteSpace(repeatBehavior) || this.Player == null)
@@ -106,8 +99,7 @@ namespace GifBolt
                 return;
             }
 
-            this.RepeatStrategy = RepeatStrategyFactory.CreateStrategy(repeatBehavior);
-            this.RepeatCount = this.RepeatStrategy.GetRepeatCount(this.Player.IsLooping);
+            this.RepeatCount = this.Player.ComputeRepeatCount(repeatBehavior);
         }
 
         /// <summary>
@@ -133,12 +125,12 @@ namespace GifBolt
                 return;
             }
 
-            var advanceResult = FrameAdvanceHelper.AdvanceFrame(
+            var advanceResult = GifPlayer.AdvanceFrame(
                 this.Player.CurrentFrame,
                 this.Player.FrameCount,
                 this.RepeatCount);
 
-            if (advanceResult.IsComplete)
+            if (advanceResult.IsComplete != 0)
             {
                 this.Stop();
                 return;
