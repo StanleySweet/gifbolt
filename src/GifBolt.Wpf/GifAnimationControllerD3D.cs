@@ -76,6 +76,7 @@ namespace GifBolt.Wpf
         private readonly byte[]? _sourceBytes;
         private D3DImage? _d3dImage;
         private DispatcherTimer? _renderTimer;
+        private System.Threading.Timer? _threadingTimer;
         private bool _isDisposed;
         private int _generationId;
         private string? _pendingRepeatBehavior;
@@ -191,8 +192,14 @@ namespace GifBolt.Wpf
                             this._image.Stretch = Stretch.Fill;
 
                             this._renderTimer = new DispatcherTimer(DispatcherPriority.Render);
-                            this._renderTimer.Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs);
                             this._renderTimer.Tick += this.OnRenderTick;
+                            this._renderTimer.Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs);
+
+                            // Create animation context with GIF metadata
+                            if (this.Player != null)
+                            {
+                                this.AnimationContext = GifPlayer.CreateAnimationContext(this.Player, null);
+                            }
 
                             if (!string.IsNullOrWhiteSpace(this._pendingRepeatBehavior))
                             {
@@ -236,6 +243,8 @@ namespace GifBolt.Wpf
                 return;
             }
 
+
+
             this.Player.Play();
             GifPlayer.SetAnimationPlaying(this.AnimationContext, true, false);
             this._frameStopwatch.Restart();
@@ -268,10 +277,71 @@ namespace GifBolt.Wpf
                 this.RenderFrame();
             }
 
-            if (this._renderTimer != null && !this._isDisposed)
+            // Use System.Threading.Timer as a reliable frame timer
+            if (this._threadingTimer != null)
             {
-                this._renderTimer.Interval = TimeSpan.FromMilliseconds(GifPlayer.MinRenderIntervalMs);
-                this._renderTimer.Start();
+                this._threadingTimer.Dispose();
+                this._threadingTimer = null;
+            }
+
+            this._threadingTimer = new System.Threading.Timer(
+                this.OnTimerTick,
+                null,
+                GifPlayer.MinRenderIntervalMs,
+                GifPlayer.MinRenderIntervalMs);
+        }
+
+        private void OnTimerTick(object? state)
+        {
+            if (this._isDisposed || this.Player == null || this.AnimationContext == System.IntPtr.Zero || this._d3dImage == null)
+            {
+                return;
+            }
+
+            // Dispatch back to UI thread
+            if (!this._image.Dispatcher.CheckAccess())
+            {
+                this._image.Dispatcher.BeginInvoke(() => this.OnTimerTickUI());
+            }
+            else
+            {
+                this.OnTimerTickUI();
+            }
+        }
+
+        private void OnTimerTickUI()
+        {
+            if (this._isDisposed || this.Player == null || this.AnimationContext == System.IntPtr.Zero || this._d3dImage == null || this._threadingTimer == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Use minimum frame delay for timing (C++ handles actual frame delays and advancement)
+                int frameDelayMs = GifPlayer.DefaultMinFrameDelayMs;
+                long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
+
+                // Check if enough time has passed to show the next frame
+                if (elapsedMs >= frameDelayMs)
+                {
+                    // Measure render time
+                    var renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
+                    
+                    // C++ handles frame advancement internally with looping
+                    this.RenderFrame();
+                    
+                    var renderTimeMs = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
+                    
+                    // Update FPS counter
+                    this.UpdateFpsTracking(frameDelayMs, renderTimeMs);
+                    
+                    this._frameStopwatch.Restart();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Swallow render errors
             }
         }
 
@@ -288,6 +358,12 @@ namespace GifBolt.Wpf
             this.Player.Pause();
             GifPlayer.SetAnimationPlaying(this.AnimationContext, false, false);
             this._renderTimer?.Stop();
+            if (this._threadingTimer != null)
+            {
+                this._threadingTimer.Dispose();
+                this._threadingTimer = null;
+            }
+            System.Windows.Media.CompositionTarget.Rendering -= this.OnCompositionTargetRendering;
             if (this._inNoGCRegion)
             {
                 System.GC.EndNoGCRegion();
@@ -426,6 +502,9 @@ namespace GifBolt.Wpf
                 int frameDelayMs = GifPlayer.DefaultMinFrameDelayMs;
                 long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
 
+                System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                    $"[OnRenderTick] elapsedMs={elapsedMs}, frameDelayMs={frameDelayMs}, isFrontBufferAvailable={this._d3dImage?.IsFrontBufferAvailable}\n");
+
                 // Check if enough time has passed to show the next frame
                 if (elapsedMs >= frameDelayMs)
                 {
@@ -454,6 +533,46 @@ namespace GifBolt.Wpf
             if (this._d3dImage != null && this._d3dImage.IsFrontBufferAvailable && this.AnimationContext != System.IntPtr.Zero)
             {
                 this.RenderFrame();
+            }
+        }
+
+        private void OnCompositionTargetRendering(object? sender, EventArgs e)
+        {
+            if (this._isDisposed || this.Player == null || this.AnimationContext == System.IntPtr.Zero || this._d3dImage == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Use minimum frame delay for timing (C++ handles actual frame delays and advancement)
+                int frameDelayMs = GifPlayer.DefaultMinFrameDelayMs;
+                long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
+
+                System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                    $"[CompositionTargetRendering] Called - elapsedMs={elapsedMs}, frameDelayMs={frameDelayMs}\n");
+
+                // Check if enough time has passed to show the next frame
+                if (elapsedMs >= frameDelayMs)
+                {
+                    // Measure render time
+                    var renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
+                    
+                    // C++ handles frame advancement internally with looping
+                    this.RenderFrame();
+                    
+                    var renderTimeMs = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
+                    
+                    // Update FPS counter
+                    this.UpdateFpsTracking(frameDelayMs, renderTimeMs);
+                    
+                    this._frameStopwatch.Restart();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifbolt_debug.log"), 
+                    $"[CompositionTargetRendering] Exception: {ex.Message}\n");
             }
         }
 
@@ -493,10 +612,19 @@ namespace GifBolt.Wpf
                 this._inNoGCRegion = false;
             }
 
+            // Unsubscribe from rendering events
+            System.Windows.Media.CompositionTarget.Rendering -= this.OnCompositionTargetRendering;
+
             if (this._renderTimer != null)
             {
                 this._renderTimer.Stop();
                 this._renderTimer = null;
+            }
+
+            if (this._threadingTimer != null)
+            {
+                this._threadingTimer.Dispose();
+                this._threadingTimer = null;
             }
 
             if (this._d3dImage != null)

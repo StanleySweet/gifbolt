@@ -207,12 +207,6 @@ bool D3D9ExTexture::Update(const void* data, size_t dataSize)
         return false;
     }
     
-    // DEBUG: Log every frame update to see activity
-    static int updateCount = 0;
-    updateCount++;
-    GifBolt::DebugLog("[D3D9ExTexture::Update] Frame %d, DisplayingAlt=%d, Data=%p, Size=%zu\n", 
-             updateCount, _impl->displayingAlt, data, dataSize);
-
     // Determine which surfaces to update (the ones NOT currently being displayed)
     IDirect3DSurface9* updateLockable = _impl->displayingAlt ? _impl->lockableSurface.Get() : _impl->lockableSurfaceAlt.Get();
     IDirect3DSurface9* updateGPUSurface = _impl->displayingAlt ? _impl->d3d9Surface.Get() : _impl->d3d9SurfaceAlt.Get();
@@ -247,10 +241,6 @@ bool D3D9ExTexture::Update(const void* data, size_t dataSize)
     }
     updateLockable->UnlockRect();
     
-    // DEBUG: Log surface swap details
-    GifBolt::DebugLog("  -> Updating %s surface, GPU sync...\n", 
-             _impl->displayingAlt ? "Primary" : "Alt");
-
     // Transfer from CPU surface to GPU texture surface (the non-displayed one)
     IDirect3DDevice9* device = nullptr;
     if (_impl->d3d9Texture)
@@ -278,8 +268,6 @@ bool D3D9ExTexture::Update(const void* data, size_t dataSize)
                 
                 // SUCCESS: Now swap which surface is displayed for next frame
                 _impl->displayingAlt = !_impl->displayingAlt;
-                GifBolt::DebugLog("  [OK] GPU sync complete, swapped to %s surface\n", 
-                         _impl->displayingAlt ? "Alt" : "Primary");
             }
             
             device->Release();

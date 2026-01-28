@@ -1348,6 +1348,7 @@ bool GifDecoder::AdvanceFrameAndUpdateGpuTexture()
     }
 
     // Advance to next frame with automatic wrapping for infinite loops
+    uint32_t prevFrame = this->_pImpl->_gpuRenderFrame;
     this->_pImpl->_gpuRenderFrame = (this->_pImpl->_gpuRenderFrame + 1) % this->_pImpl->_frameCount;
     
     // Update GPU texture for the new frame
@@ -1383,7 +1384,8 @@ bool GifDecoder::AdvanceFrameAndUpdateGpuTexture()
     }
 
     // Update the texture with frame data
-    return it->second->Update(pixels, this->_pImpl->_width * this->_pImpl->_height * 4);
+    bool updateResult = it->second->Update(pixels, this->_pImpl->_width * this->_pImpl->_height * 4);
+    return updateResult;
 }
 
 void* GifDecoder::GetCurrentGpuTexturePtr() const
