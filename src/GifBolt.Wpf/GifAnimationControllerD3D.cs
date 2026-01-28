@@ -79,8 +79,9 @@ namespace GifBolt.Wpf
         private bool _isDisposed;
         private int _generationId;
         private string? _pendingRepeatBehavior;
-        private DateTime _frameStartTime;
+        private System.Diagnostics.Stopwatch _frameStopwatch = new System.Diagnostics.Stopwatch();
         private ScalingFilter _scalingFilter = ScalingFilter.None;
+        private bool _inNoGCRegion;
 
         // FPS diagnostics
         private System.Diagnostics.Stopwatch? _fpsStopwatch;
@@ -134,38 +135,29 @@ namespace GifBolt.Wpf
                         return;
                     }
 
-                    System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: creating player with D3D9Ex backend");
-
                     // Create player with D3D9Ex backend for WPF D3DImage optimization
                     this.Player = GifBolt.GifPlayer.CreateWithBackend(GifBolt.GifPlayer.Backend.D3D9Ex);
 
                     // Fall back to D3D11 if D3D9Ex is not available
                     if (this.Player == null)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: D3D9Ex unavailable, trying D3D11");
                         this.Player = GifBolt.GifPlayer.CreateWithBackend(GifBolt.GifPlayer.Backend.D3D11);
                     }
 
                     // Fall back to Dummy if D3D11 is not available
                     if (this.Player == null)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: D3D11 unavailable, using Dummy backend");
                         this.Player = new GifBolt.GifPlayer();
                     }
 
                     if (this.Player != null)
                     {
                         int backendType = this.Player.GetBackend();
-                        System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: Backend type = {backendType}");
                     }
-
-                    System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: player created, loading GIF...");
 
                     bool loaded = this._sourceBytes != null
                         ? this.Player.Load(this._sourceBytes)
                         : this._sourcePath != null && this.Player.Load(this._sourcePath);
-
-                    System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: GIF loaded={loaded}, dimensions={this.Player.Width}x{this.Player.Height}");
 
                     if (!loaded || this.Player == null)
                     {
@@ -190,11 +182,8 @@ namespace GifBolt.Wpf
                         {
                             return;
                         }
-
                         try
                         {
-                            System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: creating D3DImage and render timer");
-
                             this._d3dImage = new D3DImage();
                             this._d3dImage.IsFrontBufferAvailableChanged += this.OnIsFrontBufferAvailableChanged;
 
@@ -211,12 +200,10 @@ namespace GifBolt.Wpf
                                 this._pendingRepeatBehavior = null;
                             }
 
-                            System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: D3DImage ready, calling onLoaded");
                             onLoaded?.Invoke();
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: Exception in UI thread - {ex.Message}");
                             if (!this._isDisposed && this._generationId == capturedGenerationId)
                             {
                                 onError?.Invoke(ex);
@@ -226,7 +213,6 @@ namespace GifBolt.Wpf
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] BeginLoad: Exception in background thread - {ex.Message}");
                     if (!this._isDisposed && this._generationId == capturedGenerationId)
                     {
                         this._image.Dispatcher.BeginInvoke(() => onError?.Invoke(ex));
@@ -240,41 +226,52 @@ namespace GifBolt.Wpf
         /// </summary>
         public override void Play()
         {
-            System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] Play() called - isDisposed={this._isDisposed}, player={this.Player != null}, d3dImage={this._d3dImage != null}");
-
             if (this._isDisposed)
             {
-                System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] Play: controller is disposed");
                 return;
             }
 
             if (this.Player == null)
             {
-                System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] Play: Player is null");
                 return;
             }
 
             this.Player.Play();
             this.IsPlaying = true;
-            this._frameStartTime = DateTime.UtcNow;
+            this._frameStopwatch.Restart();
 
             // Initialize FPS tracking
             this._fpsStopwatch = System.Diagnostics.Stopwatch.StartNew();
             this._frameCount = 0;
 
-            System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] Play: player.Play() called, d3dImage.IsFrontBuffer={this._d3dImage?.IsFrontBufferAvailable}");
+            // Suppress GC during animation to prevent collection pauses that cause jitter
+            if (!this._inNoGCRegion)
+            {
+                // Aggressively collect before starting region
+                System.GC.Collect(System.GC.MaxGeneration, System.GCCollectionMode.Forced, blocking: true, compacting: true);
+                System.GC.WaitForPendingFinalizers();
+                System.GC.Collect();
+                try
+                {
+                    // 100MB budget for sustained animation playback
+                    this._inNoGCRegion = System.GC.TryStartNoGCRegion(100 * 1024 * 1024);
+                }
+                catch (System.InvalidOperationException)
+                {
+                    // Already in a NoGCRegion (shouldn't happen with flag check, but handle defensively)
+                    this._inNoGCRegion = true;
+                }
+            }
 
             if (this._d3dImage != null && !this._isDisposed)
             {
-                System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] Play: calling RenderFrame(0)");
-                this.RenderFrame(this.Player.CurrentFrame);
+                this.RenderFrame();
             }
 
             if (this._renderTimer != null && !this._isDisposed)
             {
                 this._renderTimer.Interval = TimeSpan.FromMilliseconds(FrameTimingHelper.MinRenderIntervalMs);
                 this._renderTimer.Start();
-                System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] Play: render timer started with interval {FrameTimingHelper.MinRenderIntervalMs}ms");
             }
         }
 
@@ -291,6 +288,11 @@ namespace GifBolt.Wpf
             this.Player.Pause();
             this.IsPlaying = false;
             this._renderTimer?.Stop();
+            if (this._inNoGCRegion)
+            {
+                System.GC.EndNoGCRegion();
+                this._inNoGCRegion = false;
+            }
         }
 
         /// <summary>
@@ -306,6 +308,11 @@ namespace GifBolt.Wpf
             this.Player.Stop();
             this.IsPlaying = false;
             this._renderTimer?.Stop();
+            if (this._inNoGCRegion)
+            {
+                System.GC.EndNoGCRegion();
+                this._inNoGCRegion = false;
+            }
         }
 
         /// <summary>
@@ -353,7 +360,7 @@ namespace GifBolt.Wpf
             }
         }
 
-        private void RenderFrame(int frameIndex)
+        private void RenderFrame()
         {
             if (this._isDisposed || this.Player == null || this._d3dImage == null)
             {
@@ -367,39 +374,40 @@ namespace GifBolt.Wpf
 
             try
             {
-                // Try to get native D3D9Ex surface pointer
-                IntPtr texturePtr = this.Player.GetNativeTexturePtr(frameIndex);
-                System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] RenderFrame({frameIndex}): texturePtr={texturePtr:X}, IsFrontBuffer={this._d3dImage.IsFrontBufferAvailable}, D3DImageSize={this._d3dImage.PixelWidth}x{this._d3dImage.PixelHeight}");
+                // Advance to next frame and update GPU texture (C++ handles looping and frame indices)
+                if (!this.Player.AdvanceAndRenderFrame())
+                {
+                    return;
+                }
+
+                // Get the updated native D3D surface pointer for the current frame
+                IntPtr texturePtr = this.Player.GetCurrentGpuTexturePtr();
 
                 if (texturePtr != IntPtr.Zero)
                 {
-                    // GPU-accelerated path: Use D3D9Ex surface directly
+                    // GPU-accelerated path: Use native D3D surface directly
+                    // Native surfaces are already BGRA32 with alpha channel preserved
                     this._d3dImage.Lock();
                     try
                     {
-                        // Set D3D9Ex surface as back buffer
+                        // Set the native D3D surface as back buffer
+                        // Alpha transparency is preserved in the surface format
                         this._d3dImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, texturePtr);
-                        // Mark the entire image as dirty so it gets repainted
+                        
+                        // Mark the entire image as dirty for repaint
                         if (this.Player != null)
                         {
                             this._d3dImage.AddDirtyRect(new Int32Rect(0, 0, this.Player.Width, this.Player.Height));
                         }
-                        System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] RenderFrame({frameIndex}): SetBackBuffer completed, DirtyRect={this.Player?.Width}x{this.Player?.Height}");
                     }
                     finally
                     {
                         this._d3dImage.Unlock();
                     }
                 }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] RenderFrame({frameIndex}): ERROR - GetNativeTexturePtr returned zero");
-                }
-                // Note: Software fallback removed - use GifAnimationController for non-hardware-accelerated scenarios
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] RenderFrame({frameIndex}): Exception - {ex.Message}\n{ex.StackTrace}");
                 // Swallow render errors
             }
         }
@@ -413,43 +421,29 @@ namespace GifBolt.Wpf
 
             try
             {
-                int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
-                int frameDelayMs = Math.Max(rawFrameDelayMs, FrameTimingHelper.DefaultMinFrameDelayMs);
-                long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
+                // Use minimum frame delay for timing (C++ handles actual frame delays and advancement)
+                int frameDelayMs = FrameTimingHelper.DefaultMinFrameDelayMs;
+                long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
 
-                System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] OnRenderTick: frame={this.Player.CurrentFrame}, frameDelay={frameDelayMs}ms, elapsed={elapsedMs}ms");
-
+                // Check if enough time has passed to show the next frame
                 if (elapsedMs >= frameDelayMs)
                 {
-                    var advanceResult = FrameAdvanceHelper.AdvanceFrame(
-                        this.Player.CurrentFrame,
-                        this.Player.FrameCount,
-                        this.RepeatCount);
-
-                    if (advanceResult.IsComplete)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] OnRenderTick: animation complete");
-                        this.Stop();
-                        return;
-                    }
-
-                    this.Player.CurrentFrame = advanceResult.NextFrame;
-                    this.RepeatCount = advanceResult.UpdatedRepeatCount;
-                    this._frameStartTime = DateTime.UtcNow;
-                    System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] OnRenderTick: advanced to frame {advanceResult.NextFrame}");
+                    // Measure render time
+                    var renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
+                    
+                    // C++ handles frame advancement internally with looping
+                    this.RenderFrame();
+                    
+                    var renderTimeMs = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
+                    
+                    // Update FPS counter
+                    this.UpdateFpsTracking(frameDelayMs, renderTimeMs);
+                    
+                    this._frameStopwatch.Restart();
                 }
-
-                // Measure render time
-                var renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
-                this.RenderFrame(this.Player.CurrentFrame);
-                var renderTimeMs = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
-                
-                // Update FPS counter
-                this.UpdateFpsTracking(frameDelayMs, renderTimeMs);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[GifBolt.D3D] OnRenderTick: Exception - {ex.Message}");
                 // Swallow render errors
             }
         }
@@ -458,7 +452,7 @@ namespace GifBolt.Wpf
         {
             if (this._d3dImage != null && this._d3dImage.IsFrontBufferAvailable && this.IsPlaying)
             {
-                this.RenderFrame(this.Player?.CurrentFrame ?? 0);
+                this.RenderFrame();
             }
         }
 
@@ -491,6 +485,13 @@ namespace GifBolt.Wpf
             this._isDisposed = true;
             this._generationId = int.MinValue;
             this.IsPlaying = false;
+
+            // Exit NoGCRegion if active
+            if (this._inNoGCRegion)
+            {
+                System.GC.EndNoGCRegion();
+                this._inNoGCRegion = false;
+            }
 
             if (this._renderTimer != null)
             {
