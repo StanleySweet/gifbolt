@@ -356,6 +356,16 @@ extern "C"
         return ptr->GetBackgroundColor();
     }
 
+    GB_API int gb_decoder_has_transparency(gb_decoder_t decoder)
+    {
+        if (decoder == nullptr)
+        {
+            return 0;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        return ptr->HasTransparency() ? 1 : 0;
+    }
+
     GB_API void gb_decoder_start_prefetching(gb_decoder_t decoder, int startFrame)
     {
         if ((decoder == nullptr) || startFrame < 0)
@@ -529,9 +539,178 @@ extern "C"
         return dec->GetNativeTexturePtr(frameIndex);
     }
 
+    GB_API int gb_decoder_update_gpu_texture(gb_decoder_t decoder, int frameIndex)
+    {
+        if (decoder == nullptr)
+        {
+            return 0;
+        }
+        auto* dec = reinterpret_cast<GifDecoder*>(decoder);
+        return dec->UpdateGpuTexture(frameIndex) ? 1 : 0;
+    }
+
+    GB_API int gb_decoder_advance_and_update_gpu_texture(gb_decoder_t decoder)
+    {
+        if (decoder == nullptr)
+        {
+            return 0;
+        }
+        auto* dec = reinterpret_cast<GifDecoder*>(decoder);
+        return dec->AdvanceFrameAndUpdateGpuTexture() ? 1 : 0;
+    }
+
+    GB_API void* gb_decoder_get_current_gpu_texture_ptr(gb_decoder_t decoder)
+    {
+        if (decoder == nullptr)
+        {
+            return nullptr;
+        }
+        auto* dec = reinterpret_cast<GifDecoder*>(decoder);
+        return dec->GetCurrentGpuTexturePtr();
+    }
+
     GB_API const char* gb_decoder_get_last_error(void)
     {
         return g_lastError;
+    }
+
+    // Frame Control and Timing Functions
+
+    GB_API int gb_decoder_get_effective_frame_delay(int frameDelayMs, int minDelayMs)
+    {
+        if (frameDelayMs < minDelayMs)
+        {
+            return minDelayMs;
+        }
+        return frameDelayMs;
+    }
+
+    GB_API gb_frame_advance_result_s gb_decoder_advance_frame(
+        int currentFrame, int frameCount, int repeatCount)
+    {
+        gb_frame_advance_result_s result = {currentFrame, 0, repeatCount};
+
+        if (frameCount < 1)
+        {
+            result.isComplete = 1;
+            return result;
+        }
+
+        int nextFrame = currentFrame + 1;
+
+        // Check if we've reached the end of the frame sequence
+        if (nextFrame >= frameCount)
+        {
+            // Determine if we should loop
+            if (repeatCount == -1)
+            {
+                // Infinite loop
+                result.nextFrame = 0;
+                result.isComplete = 0;
+                result.updatedRepeatCount = -1;
+            }
+            else if (repeatCount > 0)
+            {
+                // Finite repeats remaining
+                result.nextFrame = 0;
+                result.isComplete = 0;
+                result.updatedRepeatCount = repeatCount - 1;
+            }
+            else
+            {
+                // No more repeats; animation is complete
+                result.nextFrame = currentFrame;
+                result.isComplete = 1;
+                result.updatedRepeatCount = 0;
+            }
+        }
+        else
+        {
+            // Normal frame advance within the sequence
+            result.nextFrame = nextFrame;
+            result.isComplete = 0;
+            result.updatedRepeatCount = repeatCount;
+        }
+
+        return result;
+    }
+
+    GB_API int gb_decoder_compute_repeat_count(const char* repeatBehavior, int isLooping)
+    {
+        // NULL, empty, or "0x" means use metadata
+        if (repeatBehavior == nullptr || repeatBehavior[0] == '\0' || 
+            (repeatBehavior[0] == '0' && repeatBehavior[1] == 'x' && repeatBehavior[2] == '\0'))
+        {
+            return isLooping ? -1 : 1;
+        }
+
+        // "Forever" means infinite loop
+        if ((repeatBehavior[0] == 'F' || repeatBehavior[0] == 'f') &&
+            (repeatBehavior[1] == 'o' || repeatBehavior[1] == 'O') &&
+            (repeatBehavior[2] == 'r' || repeatBehavior[2] == 'R') &&
+            (repeatBehavior[3] == 'e' || repeatBehavior[3] == 'E') &&
+            (repeatBehavior[4] == 'v' || repeatBehavior[4] == 'V') &&
+            (repeatBehavior[5] == 'e' || repeatBehavior[5] == 'E') &&
+            (repeatBehavior[6] == 'r' || repeatBehavior[6] == 'R') &&
+            repeatBehavior[7] == '\0')
+        {
+            return -1;
+        }
+
+        // "Nx" format where N is the count
+        int len = 0;
+        while (repeatBehavior[len] != '\0')
+        {
+            len++;
+        }
+
+        if (len >= 2 && (repeatBehavior[len - 1] == 'x' || repeatBehavior[len - 1] == 'X'))
+        {
+            // Try to parse the count
+            int count = 0;
+            int i = 0;
+            while (i < len - 1 && repeatBehavior[i] >= '0' && repeatBehavior[i] <= '9')
+            {
+                count = count * 10 + (repeatBehavior[i] - '0');
+                i++;
+            }
+
+            // If we successfully parsed the number and it's followed immediately by 'x'
+            if (i == len - 1 && count > 0)
+            {
+                return count;
+            }
+        }
+
+        // Default fallback to metadata
+        return isLooping ? -1 : 1;
+    }
+
+    GB_API unsigned int gb_decoder_calculate_adaptive_cache_size(
+        int frameCount, float cachePercentage, unsigned int minCachedFrames,
+        unsigned int maxCachedFrames)
+    {
+        if (frameCount <= 0)
+        {
+            return minCachedFrames;
+        }
+
+        // Calculate percentage-based cache size
+        float calculated = frameCount * cachePercentage;
+        unsigned int cacheSize = (unsigned int)(calculated + 0.5f);  // Round to nearest
+
+        // Clamp to min/max bounds
+        if (cacheSize < minCachedFrames)
+        {
+            return minCachedFrames;
+        }
+
+        if (cacheSize > maxCachedFrames)
+        {
+            return maxCachedFrames;
+        }
+
+        return cacheSize;
     }
 
 }  // extern "C"

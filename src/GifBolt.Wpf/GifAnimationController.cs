@@ -76,9 +76,13 @@ namespace GifBolt.Wpf
         private bool _isDisposed;
         private int _generationId;
         private string? _pendingRepeatBehavior;
-        private DateTime _frameStartTime;
+        private System.Diagnostics.Stopwatch _frameStopwatch = new System.Diagnostics.Stopwatch();
         private bool _wasPlayingBeforeHidden;
         private ScalingFilter _scalingFilter = ScalingFilter.None;
+        private bool _inNoGCRegion;
+        private byte[]? _cachedTransparentFill;
+        private int _cachedFillWidth;
+        private int _cachedFillHeight;
 
         // FPS diagnostics
         private System.Diagnostics.Stopwatch? _fpsStopwatch;
@@ -289,7 +293,7 @@ namespace GifBolt.Wpf
 
             this.Player.Play();
             this.IsPlaying = true;
-            this._frameStartTime = DateTime.UtcNow;
+            this._frameStopwatch.Restart();
 
             // Initialize FPS stopwatch
             if (this._fpsStopwatch == null)
@@ -300,6 +304,25 @@ namespace GifBolt.Wpf
             this._fpsStopwatch.Restart();
             this._frameCount = 0;
             this._lastRenderTimeMs = 0;
+
+            // Suppress GC during animation to prevent collection pauses that cause jitter
+            if (!this._inNoGCRegion)
+            {
+                // Aggressively collect before starting region
+                System.GC.Collect(System.GC.MaxGeneration, System.GCCollectionMode.Forced, blocking: true, compacting: true);
+                System.GC.WaitForPendingFinalizers();
+                System.GC.Collect();
+                try
+                {
+                    // 100MB budget for sustained animation playback
+                    this._inNoGCRegion = System.GC.TryStartNoGCRegion(100 * 1024 * 1024);
+                }
+                catch (System.InvalidOperationException)
+                {
+                    // Already in a NoGCRegion (shouldn't happen with flag check, but handle defensively)
+                    this._inNoGCRegion = true;
+                }
+            }
 
             if (this._writeableBitmap != null && !this._isDisposed)
             {
@@ -328,6 +351,11 @@ namespace GifBolt.Wpf
             this.Player.Pause();
             this.IsPlaying = false;
             this._renderTimer?.Stop();
+            if (this._inNoGCRegion)
+            {
+                System.GC.EndNoGCRegion();
+                this._inNoGCRegion = false;
+            }
         }
 
         /// <summary>
@@ -343,6 +371,11 @@ namespace GifBolt.Wpf
             this.Player.Stop();
             this.IsPlaying = false;
             this._renderTimer?.Stop();
+            if (this._inNoGCRegion)
+            {
+                System.GC.EndNoGCRegion();
+                this._inNoGCRegion = false;
+            }
         }
 
         /// <summary>
@@ -503,16 +536,24 @@ namespace GifBolt.Wpf
                     // If bitmap is larger than frame, fill it with transparent first
                     if (this._writeableBitmap.PixelWidth > outWidth || this._writeableBitmap.PixelHeight > outHeight)
                     {
-                        // Create transparent fill (BGRA 0x00000000)
                         int fillWidth = this._writeableBitmap.PixelWidth;
                         int fillHeight = this._writeableBitmap.PixelHeight;
-                        byte[] transparentFill = new byte[fillWidth * fillHeight * 4];
-                        // transparentFill is already zero-initialized (transparent black)
+                        int requiredSize = fillWidth * fillHeight * 4;
 
-                        // Fill entire bitmap with transparent
+                        // Reuse cached buffer if dimensions match, otherwise allocate once
+                        if (this._cachedTransparentFill == null || 
+                            this._cachedFillWidth != fillWidth || 
+                            this._cachedFillHeight != fillHeight)
+                        {
+                            this._cachedTransparentFill = new byte[requiredSize];
+                            this._cachedFillWidth = fillWidth;
+                            this._cachedFillHeight = fillHeight;
+                        }
+
+                        // Fill entire bitmap with transparent (buffer is zero-initialized)
                         this._writeableBitmap.WritePixels(
                             new Int32Rect(0, 0, fillWidth, fillHeight),
-                            transparentFill,
+                            this._cachedTransparentFill,
                             fillWidth * 4,
                             0);
                     }
@@ -543,7 +584,7 @@ namespace GifBolt.Wpf
             {
                 // Get the frame delay for the current frame and clamp to minimum
                 int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
-                long elapsedMs = (long)(DateTime.UtcNow - this._frameStartTime).TotalMilliseconds;
+                long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame (multiplied by debug factor)
                 if (elapsedMs >= rawFrameDelayMs)
@@ -570,7 +611,7 @@ namespace GifBolt.Wpf
                         this.RenderFrame(0);
                         var renderTimeMs = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
 
-                        this._frameStartTime = DateTime.UtcNow;
+                        this._frameStopwatch.Restart();
 
                         // FPS tracking
                         this.UpdateFpsTracking(rawFrameDelayMs, renderTimeMs);
@@ -580,7 +621,7 @@ namespace GifBolt.Wpf
                     // Update the current frame and repeat count
                     this.Player.CurrentFrame = advanceResult.NextFrame;
                     this.RepeatCount = advanceResult.UpdatedRepeatCount;
-                    this._frameStartTime = DateTime.UtcNow;
+                    this._frameStopwatch.Restart();
 
                     // Render only when frame actually changes
                     var renderStart2 = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -656,6 +697,13 @@ namespace GifBolt.Wpf
             this._isDisposed = true;
             this._generationId = int.MinValue; // Invalidate generation ID to block pending operations
             this.IsPlaying = false;
+
+            // Exit NoGCRegion if active
+            if (this._inNoGCRegion)
+            {
+                System.GC.EndNoGCRegion();
+                this._inNoGCRegion = false;
+            }
 
             // Unsubscribe from visibility changes
             this._image.IsVisibleChanged -= this.OnImageVisibilityChanged;

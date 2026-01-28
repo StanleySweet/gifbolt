@@ -103,6 +103,26 @@ struct D3D9ExDeviceCommandContext::Impl
         }
         
         OutputDebugStringA("[D3D9Ex] Device created successfully\n");
+
+        // Enable alpha blending for proper transparency compositing
+        // D3DImage surfaces need alpha blending enabled for WPF to composite alpha correctly
+        if (device)
+        {
+            // Enable alpha blending
+            device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+            
+            // Set blend factors for premultiplied alpha
+            // Source is already premultiplied, so use: src * 1 + dst * (1 - srcAlpha)
+            device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
+            device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+            
+            // Set alpha test to discard fully transparent pixels
+            device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+            device->SetRenderState(D3DRS_ALPHAREF, 0x00);
+            device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+            
+            OutputDebugStringA("[D3D9Ex] Alpha blending enabled for transparency support\n");
+        }
     }
 
     ~Impl()

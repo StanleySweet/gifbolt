@@ -55,6 +55,7 @@ namespace GifBolt.Internal
         private static GbDecoderGetFramePixelsRgba32Delegate? _gbDecoderGetFramePixelsRgba32;
         private static GbDecoderGetFramePixelsBgra32PremultipliedDelegate? _gbDecoderGetFramePixelsBgra32Premultiplied;
         private static GbDecoderGetBackgroundColorDelegate? _gbDecoderGetBackgroundColor;
+        private static GbDecoderHasTransparencyDelegate? _gbDecoderHasTransparency;
         private static GbDecoderSetMinFrameDelayMsDelegate? _gbDecoderSetMinFrameDelayMs;
         private static GbDecoderGetMinFrameDelayMsDelegate? _gbDecoderGetMinFrameDelayMs;
         private static GbDecoderSetMaxCachedFramesDelegate? _gbDecoderSetMaxCachedFrames;
@@ -72,7 +73,14 @@ namespace GifBolt.Internal
         private static GbDecoderResetCanvasDelegate? _gbDecoderResetCanvas;
         private static GbDecoderGetBackendDelegate? _gbDecoderGetBackend;
         private static GbDecoderGetNativeTexturePtrDelegate? _gbDecoderGetNativeTexturePtr;
+        private static GbDecoderUpdateGpuTextureDelegate? _gbDecoderUpdateGpuTexture;
+        private static GbDecoderAdvanceAndUpdateGpuTextureDelegate? _gbDecoderAdvanceAndUpdateGpuTexture;
+        private static GbDecoderGetCurrentGpuTexturePtrDelegate? _gbDecoderGetCurrentGpuTexturePtr;
         private static GbDecoderGetLastErrorDelegate? _gbDecoderGetLastError;
+        private static GbDecoderGetEffectiveFrameDelayDelegate? _gbDecoderGetEffectiveFrameDelay;
+        private static GbDecoderAdvanceFrameDelegate? _gbDecoderAdvanceFrame;
+        private static GbDecoderComputeRepeatCountDelegate? _gbDecoderComputeRepeatCount;
+        private static GbDecoderCalculateAdaptiveCacheSizeDelegate? _gbDecoderCalculateAdaptiveCacheSize;
 
         // Static constructor to load DLL and resolve function pointers
         static Native()
@@ -99,6 +107,7 @@ namespace GifBolt.Internal
             _gbDecoderGetFramePixelsRgba32 = GetDelegate<GbDecoderGetFramePixelsRgba32Delegate>("gb_decoder_get_frame_pixels_rgba32");
             _gbDecoderGetFramePixelsBgra32Premultiplied = GetDelegate<GbDecoderGetFramePixelsBgra32PremultipliedDelegate>("gb_decoder_get_frame_pixels_bgra32_premultiplied");
             _gbDecoderGetBackgroundColor = GetDelegate<GbDecoderGetBackgroundColorDelegate>("gb_decoder_get_background_color");
+            _gbDecoderHasTransparency = GetDelegate<GbDecoderHasTransparencyDelegate>("gb_decoder_has_transparency");
             _gbDecoderSetMinFrameDelayMs = GetDelegate<GbDecoderSetMinFrameDelayMsDelegate>("gb_decoder_set_min_frame_delay_ms");
             _gbDecoderGetMinFrameDelayMs = GetDelegate<GbDecoderGetMinFrameDelayMsDelegate>("gb_decoder_get_min_frame_delay_ms");
             _gbDecoderSetMaxCachedFrames = GetDelegate<GbDecoderSetMaxCachedFramesDelegate>("gb_decoder_set_max_cached_frames");
@@ -116,7 +125,14 @@ namespace GifBolt.Internal
             _gbDecoderResetCanvas = GetDelegate<GbDecoderResetCanvasDelegate>("gb_decoder_reset_canvas");
             _gbDecoderGetBackend = GetDelegate<GbDecoderGetBackendDelegate>("gb_decoder_get_backend");
             _gbDecoderGetNativeTexturePtr = GetDelegate<GbDecoderGetNativeTexturePtrDelegate>("gb_decoder_get_native_texture_ptr");
+            _gbDecoderUpdateGpuTexture = GetDelegate<GbDecoderUpdateGpuTextureDelegate>("gb_decoder_update_gpu_texture");
+            _gbDecoderAdvanceAndUpdateGpuTexture = GetDelegate<GbDecoderAdvanceAndUpdateGpuTextureDelegate>("gb_decoder_advance_and_update_gpu_texture");
+            _gbDecoderGetCurrentGpuTexturePtr = GetDelegate<GbDecoderGetCurrentGpuTexturePtrDelegate>("gb_decoder_get_current_gpu_texture_ptr");
             _gbDecoderGetLastError = GetDelegate<GbDecoderGetLastErrorDelegate>("gb_decoder_get_last_error");
+            _gbDecoderGetEffectiveFrameDelay = GetDelegate<GbDecoderGetEffectiveFrameDelayDelegate>("gb_decoder_get_effective_frame_delay");
+            _gbDecoderAdvanceFrame = GetDelegate<GbDecoderAdvanceFrameDelegate>("gb_decoder_advance_frame");
+            _gbDecoderComputeRepeatCount = GetDelegate<GbDecoderComputeRepeatCountDelegate>("gb_decoder_compute_repeat_count");
+            _gbDecoderCalculateAdaptiveCacheSize = GetDelegate<GbDecoderCalculateAdaptiveCacheSizeDelegate>("gb_decoder_calculate_adaptive_cache_size");
             _gbVersionGetMajor?.Invoke();
 
         }
@@ -160,6 +176,9 @@ namespace GifBolt.Internal
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate uint GbDecoderGetBackgroundColorDelegate(IntPtr decoder);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbDecoderHasTransparencyDelegate(IntPtr decoder);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void GbDecoderSetMinFrameDelayMsDelegate(IntPtr decoder, int minDelayMs);
@@ -215,8 +234,45 @@ namespace GifBolt.Internal
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr GbDecoderGetNativeTexturePtrDelegate(IntPtr decoder, int frameIndex);
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbDecoderUpdateGpuTextureDelegate(IntPtr decoder, int frameIndex);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbDecoderAdvanceAndUpdateGpuTextureDelegate(IntPtr decoder);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr GbDecoderGetCurrentGpuTexturePtrDelegate(IntPtr decoder);
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private delegate IntPtr GbDecoderGetLastErrorDelegate();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbDecoderGetEffectiveFrameDelayDelegate(int frameDelayMs, int minDelayMs);
+
+        /// <summary>
+        /// Struct returned by frame advance function.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FrameAdvanceResult
+        {
+            /// <summary>Gets the next frame index.</summary>
+            public int NextFrame;
+
+            /// <summary>Gets 1 if animation is complete, 0 otherwise.</summary>
+            public int IsComplete;
+
+            /// <summary>Gets the updated repeat count.</summary>
+            public int UpdatedRepeatCount;
+        }
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate FrameAdvanceResult GbDecoderAdvanceFrameDelegate(int currentFrame, int frameCount, int repeatCount);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private delegate int GbDecoderComputeRepeatCountDelegate(string? repeatBehavior, int isLooping);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate uint GbDecoderCalculateAdaptiveCacheSizeDelegate(int frameCount, float cachePercentage, uint minCachedFrames, uint maxCachedFrames);
 
 #if NET6_0_OR_GREATER
         /// <summary>
@@ -514,6 +570,13 @@ namespace GifBolt.Internal
         internal static uint gb_decoder_get_background_color(IntPtr decoder) => _gbDecoderGetBackgroundColor(decoder);
 
         /// <summary>
+        /// Checks if the GIF contains transparent pixels.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <returns>1 if the GIF has transparency; 0 otherwise.</returns>
+        internal static int gb_decoder_has_transparency(IntPtr decoder) => _gbDecoderHasTransparency(decoder);
+
+        /// <summary>
         /// Sets the minimum frame delay for the decoder.
         /// </summary>
         /// <param name="decoder">Pointer to the decoder.</param>
@@ -655,6 +718,31 @@ namespace GifBolt.Internal
              => _gbDecoderGetNativeTexturePtr(decoder, frameIndex);
 
         /// <summary>
+        /// Updates the GPU texture with the specified frame's pixel data.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <param name="frameIndex">The frame index to update to.</param>
+        /// <returns>1 if update succeeded; 0 otherwise.</returns>
+        internal static int gb_decoder_update_gpu_texture(IntPtr decoder, int frameIndex)
+             => _gbDecoderUpdateGpuTexture(decoder, frameIndex);
+
+        /// <summary>
+        /// Advances to the next frame and updates the GPU texture with automatic looping.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <returns>1 if frame advanced and texture updated; 0 on error.</returns>
+        internal static int gb_decoder_advance_and_update_gpu_texture(IntPtr decoder)
+             => _gbDecoderAdvanceAndUpdateGpuTexture != null ? _gbDecoderAdvanceAndUpdateGpuTexture(decoder) : 0;
+
+        /// <summary>
+        /// Gets the native GPU texture pointer for the current frame.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <returns>Native texture pointer (ID3D9Surface* for D3D, MTLTexture* for Metal), or IntPtr.Zero on error.</returns>
+        internal static IntPtr gb_decoder_get_current_gpu_texture_ptr(IntPtr decoder)
+             => _gbDecoderGetCurrentGpuTexturePtr(decoder);
+
+        /// <summary>
         /// Gets the last error message from a backend initialization failure.
         /// </summary>
         /// <returns>Error message string, or empty string if no error.</returns>
@@ -663,5 +751,44 @@ namespace GifBolt.Internal
             var ptr = _gbDecoderGetLastError?.Invoke() ?? IntPtr.Zero;
             return ptr != IntPtr.Zero ? Marshal.PtrToStringAnsi(ptr) ?? string.Empty : string.Empty;
         }
+
+        /// <summary>
+        /// Computes the effective frame delay, applying a minimum threshold (in C++).
+        /// </summary>
+        /// <param name="frameDelayMs">The frame delay from GIF metadata (in milliseconds).</param>
+        /// <param name="minDelayMs">The minimum frame delay to enforce (in milliseconds).</param>
+        /// <returns>The effective frame delay in milliseconds.</returns>
+        internal static int gb_decoder_get_effective_frame_delay(int frameDelayMs, int minDelayMs)
+             => _gbDecoderGetEffectiveFrameDelay?.Invoke(frameDelayMs, minDelayMs) ?? frameDelayMs;
+
+        /// <summary>
+        /// Advances to the next frame in a GIF animation (in C++).
+        /// </summary>
+        /// <param name="currentFrame">The current frame index (0-based).</param>
+        /// <param name="frameCount">The total number of frames in the GIF.</param>
+        /// <param name="repeatCount">The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).</param>
+        /// <returns>A FrameAdvanceResult containing the next frame and updated state.</returns>
+        internal static FrameAdvanceResult gb_decoder_advance_frame(int currentFrame, int frameCount, int repeatCount)
+             => _gbDecoderAdvanceFrame?.Invoke(currentFrame, frameCount, repeatCount) ?? default;
+
+        /// <summary>
+        /// Computes the repeat count from a repeat behavior string (in C++).
+        /// </summary>
+        /// <param name="repeatBehavior">The repeat behavior string (e.g., "Forever", "3x", "0x", or null).</param>
+        /// <param name="isLooping">Whether the GIF metadata indicates infinite looping.</param>
+        /// <returns>-1 for infinite repeat, positive integer for finite repeats.</returns>
+        internal static int gb_decoder_compute_repeat_count(string? repeatBehavior, int isLooping)
+             => _gbDecoderComputeRepeatCount?.Invoke(repeatBehavior, isLooping) ?? (isLooping != 0 ? -1 : 1);
+
+        /// <summary>
+        /// Calculates adaptive cache size based on frame count and percentage (in C++).
+        /// </summary>
+        /// <param name="frameCount">Total number of frames in the GIF.</param>
+        /// <param name="cachePercentage">Percentage of frames to cache (0.0 to 1.0).</param>
+        /// <param name="minCachedFrames">Minimum frames to keep cached.</param>
+        /// <param name="maxCachedFrames">Maximum frames to keep cached.</param>
+        /// <returns>The recommended cache size in frames.</returns>
+        internal static uint gb_decoder_calculate_adaptive_cache_size(int frameCount, float cachePercentage, uint minCachedFrames, uint maxCachedFrames)
+             => _gbDecoderCalculateAdaptiveCacheSize?.Invoke(frameCount, cachePercentage, minCachedFrames, maxCachedFrames) ?? minCachedFrames;
     }
 }

@@ -128,6 +128,40 @@ clang++ -std=c++17 debug_gif_delays.cpp -o debug_gif_delays -ldl
 ./debug_gif_delays /path/to/animation.gif
 ```
 
+**Debug Logging:**
+Use `DebugLog()` function to capture debug output to both OutputDebugString and `%TEMP%\gifbolt_debug.log`.
+
+Function signature:
+```cpp
+void DebugLog(const char* format, ...);
+```
+
+Usage:
+```cpp
+#include "Debug.h"  // or where DebugLog is declared
+
+// Simple message
+DebugLog("Initializing GPU texture");
+
+// With values
+DebugLog("[D3D9ExTexture::Update] Frame %d, DisplayingAlt=%d, Size=%zu bytes", frameIndex, alt, dataSize);
+
+// In conditional blocks
+if (!textureUpdateSucceeded) {
+    DebugLog("ERROR: GPU texture update failed for frame %d", frameIndex);
+}
+```
+
+Output locations:
+- Visual Studio: View → Output → Debug window
+- File: `%TEMP%\gifbolt_debug.log` (readable with `Get-Content $env:TEMP\gifbolt_debug.log`)
+
+Reading logs after test run:
+```powershell
+Get-Content $env:TEMP\gifbolt_debug.log -Tail 50  # Last 50 lines
+Get-Content $env:TEMP\gifbolt_debug.log | Select-String "ERROR"  # Filter to errors
+```
+
 ### C# Development
 
 **Building:**

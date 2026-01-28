@@ -308,7 +308,7 @@ namespace GifBolt.Wpf
             {
                 existingController.Stop();
                 SetAnimationController(image, null);
-                System.Threading.Tasks.Task.Run(() => existingController.Dispose());
+                existingController.Dispose(); // Synchronous disposal to ensure proper cleanup
             }
 
             // Null source = stop animation

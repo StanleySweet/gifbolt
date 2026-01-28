@@ -130,6 +130,9 @@ class GifDecoder::Impl
     std::atomic<bool> _prefetchThreadRunning{false};  ///< Prefetch thread active
     std::mutex _prefetchMutex;                        ///< Protect prefetch state
     static constexpr uint32_t PREFETCH_AHEAD = 5;     ///< Number of frames to decode ahead
+    
+    // GPU rendering frame management
+    int32_t _gpuRenderFrame{0};                       ///< Current frame index for GPU rendering (handles looping)
 
     SourceKind _sourceKind = SourceKind::None;  ///< Current source type
     std::vector<uint8_t> _memoryData;           ///< Memory-backed GIF bytes
@@ -771,6 +774,28 @@ uint32_t GifDecoder::GetBackgroundColor() const
     return _pImpl->_backgroundColor;
 }
 
+bool GifDecoder::HasTransparency() const
+{
+    if (!_pImpl || _pImpl->_frameCount == 0)
+    {
+        return false;
+    }
+
+    // Check if any frame has a valid transparent color index
+    // This is an inexpensive check before we even look at pixels
+    for (uint32_t i = 0; i < _pImpl->_frameCount; ++i)
+    {
+        const GifFrame& frame = _pImpl->GetOrDecodeFrame(i);
+        // If any frame has a transparent color index, the GIF uses transparency
+        if (frame.transparentIndex >= 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void GifBolt::GifDecoder::SetMinFrameDelayMs(uint32_t minDelayMs)
 {
     _pImpl->_minFrameDelayMs = minDelayMs;
@@ -1230,6 +1255,15 @@ void* GifDecoder::GetNativeTexturePtr(int frameIndex)
     {
         // Cache the texture so it stays alive
         this->_pImpl->_textureCache[frameIndex] = texture;
+        
+        // CRITICAL: Update the texture with pixel data to GPU
+        // CreateTexture initializes surfaces but doesn't call Update()
+        bool updateResult = texture->Update(pixels, this->_pImpl->_width * this->_pImpl->_height * 4);
+        if (!updateResult)
+        {
+            GifBolt::DebugLog("[GetNativeTexturePtr] WARNING: Texture::Update() failed during creation for frame %d\n", frameIndex);
+        }
+        
         void* ptr = texture->GetNativeTexturePtr();
         return ptr;
     }
@@ -1237,6 +1271,134 @@ void* GifDecoder::GetNativeTexturePtr(int frameIndex)
 #ifdef _WIN32
     OutputDebugStringA("[GifDecoder] GetNativeTexturePtr: CRITICAL - CreateTexture returned null\n");
 #endif
+    return nullptr;
+}
+
+bool GifDecoder::UpdateGpuTexture(int frameIndex)
+{
+    if (!this->_pImpl)
+    {
+        return  false;
+    }
+
+    uint32_t fc = this->_pImpl->_frameCount;
+    
+    if (frameIndex < 0 || static_cast<uint32_t>(frameIndex) >= fc)
+    {
+        return false;
+    }
+
+#ifdef _WIN32
+    char dbgMsg[256];
+    sprintf_s(dbgMsg, sizeof(dbgMsg), 
+        "[GifDecoder::UpdateGpuTexture] frameIndex=%d\n", frameIndex);
+    OutputDebugStringA(dbgMsg);
+#endif
+
+    // Get the frame pixels
+    const uint8_t* pixels = this->GetFramePixelsBGRA32Premultiplied(static_cast<uint32_t>(frameIndex));
+    if (!pixels)
+    {
+        GifBolt::DebugLog("[UpdateGpuTexture] ERROR: GetFramePixelsBGRA32Premultiplied returned null for frame %d\n", frameIndex);
+        return false;
+    }
+
+    // Find or create the cached texture for this frame
+    auto it = this->_pImpl->_textureCache.find(frameIndex);
+    if (it == this->_pImpl->_textureCache.end() || !it->second)
+    {
+        // Texture not cached yet - create and cache it first
+        if (!this->_pImpl->_deviceContext)
+        {
+            GifBolt::DebugLog("[UpdateGpuTexture] ERROR: No device context for frame %d\n", frameIndex);
+            return false;
+        }
+
+        auto texture = this->_pImpl->_deviceContext->CreateTexture(
+            this->_pImpl->_width,
+            this->_pImpl->_height,
+            pixels,
+            this->_pImpl->_width * this->_pImpl->_height * 4);
+
+        if (!texture)
+        {
+            GifBolt::DebugLog("[UpdateGpuTexture] ERROR: CreateTexture failed for frame %d\n", frameIndex);
+            return false;
+        }
+
+        // Cache the texture
+        this->_pImpl->_textureCache[frameIndex] = texture;
+        it = this->_pImpl->_textureCache.find(frameIndex);
+    }
+
+    // Update the texture with the frame data
+    bool updateResult = it->second->Update(pixels, this->_pImpl->_width * this->_pImpl->_height * 4);
+    if (!updateResult)
+    {
+        GifBolt::DebugLog("[UpdateGpuTexture] WARNING: Texture::Update() failed for frame %d\n", frameIndex);
+    }
+    return updateResult;
+}
+
+bool GifDecoder::AdvanceFrameAndUpdateGpuTexture()
+{
+    if (!this->_pImpl || this->_pImpl->_frameCount == 0)
+    {
+        return false;
+    }
+
+    // Advance to next frame with automatic wrapping for infinite loops
+    this->_pImpl->_gpuRenderFrame = (this->_pImpl->_gpuRenderFrame + 1) % this->_pImpl->_frameCount;
+    
+    // Update GPU texture for the new frame
+    const uint8_t* pixels = this->GetFramePixelsBGRA32Premultiplied(static_cast<uint32_t>(this->_pImpl->_gpuRenderFrame));
+    if (!pixels)
+    {
+        return false;
+    }
+
+    // Find or create the cached texture for this frame
+    auto it = this->_pImpl->_textureCache.find(this->_pImpl->_gpuRenderFrame);
+    if (it == this->_pImpl->_textureCache.end() || !it->second)
+    {
+        // Create and cache texture
+        if (!this->_pImpl->_deviceContext)
+        {
+            return false;
+        }
+
+        auto texture = this->_pImpl->_deviceContext->CreateTexture(
+            this->_pImpl->_width,
+            this->_pImpl->_height,
+            pixels,
+            this->_pImpl->_width * this->_pImpl->_height * 4);
+
+        if (!texture)
+        {
+            return false;
+        }
+
+        this->_pImpl->_textureCache[this->_pImpl->_gpuRenderFrame] = texture;
+        it = this->_pImpl->_textureCache.find(this->_pImpl->_gpuRenderFrame);
+    }
+
+    // Update the texture with frame data
+    return it->second->Update(pixels, this->_pImpl->_width * this->_pImpl->_height * 4);
+}
+
+void* GifDecoder::GetCurrentGpuTexturePtr() const
+{
+    if (!this->_pImpl || this->_pImpl->_frameCount == 0)
+    {
+        return nullptr;
+    }
+
+    auto it = this->_pImpl->_textureCache.find(this->_pImpl->_gpuRenderFrame);
+    if (it != this->_pImpl->_textureCache.end() && it->second)
+    {
+        return it->second->GetNativeTexturePtr();
+    }
+
     return nullptr;
 }
 

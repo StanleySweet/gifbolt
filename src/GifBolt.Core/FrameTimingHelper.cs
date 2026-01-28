@@ -9,6 +9,7 @@ namespace GifBolt
 {
     /// <summary>
     /// Provides standard timing constants and helpers for GIF animation playback.
+    /// Values are synchronized with C++ constants for platform consistency.
     /// </summary>
     public static class FrameTimingHelper
     {
@@ -17,12 +18,14 @@ namespace GifBolt
         /// Most GIFs are created with delays of 10-100ms; we use 10ms as a reasonable
         /// minimum to prevent GIFs with very small delays from playing too fast,
         /// while still allowing fast animations to play at reasonable speeds.
+        /// Synchronized with C++: GB_DEFAULT_MIN_FRAME_DELAY_MS.
         /// </summary>
         public const int DefaultMinFrameDelayMs = 10;
 
         /// <summary>
         /// The minimum render interval for the UI thread timer (16 ms = 60 FPS).
         /// This is the fastest the UI can be updated while staying responsive.
+        /// Synchronized with C++: GB_MIN_RENDER_INTERVAL_MS.
         /// </summary>
         public const int MinRenderIntervalMs = 16;
     }

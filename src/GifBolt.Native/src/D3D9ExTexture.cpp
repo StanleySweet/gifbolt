@@ -7,15 +7,13 @@
 
 #ifdef _WIN32
 
+#include <windows.h>
 #include <d3d9.h>
 #include <wrl/client.h>
 #include <algorithm>
 #include <cstring>
 #include <stdexcept>
 #include <memory>
-#include <fstream>
-#include <stdio.h>
-#include <stdlib.h>
 
 using Microsoft::WRL::ComPtr;
 
@@ -208,10 +206,17 @@ bool D3D9ExTexture::Update(const void* data, size_t dataSize)
     {
         return false;
     }
+    
+    // DEBUG: Log every frame update to see activity
+    static int updateCount = 0;
+    updateCount++;
+    GifBolt::DebugLog("[D3D9ExTexture::Update] Frame %d, DisplayingAlt=%d, Data=%p, Size=%zu\n", 
+             updateCount, _impl->displayingAlt, data, dataSize);
 
     // Determine which surfaces to update (the ones NOT currently being displayed)
     IDirect3DSurface9* updateLockable = _impl->displayingAlt ? _impl->lockableSurface.Get() : _impl->lockableSurfaceAlt.Get();
     IDirect3DSurface9* updateGPUSurface = _impl->displayingAlt ? _impl->d3d9Surface.Get() : _impl->d3d9SurfaceAlt.Get();
+
 
     if (!updateLockable || !updateGPUSurface)
     {
@@ -242,41 +247,9 @@ bool D3D9ExTexture::Update(const void* data, size_t dataSize)
     }
     updateLockable->UnlockRect();
     
-    // DEBUG: Dump frame to disk for inspection
-    {
-        char tempPath[512];
-        char dumpDir[512];
-        if (SUCCEEDED(GetEnvironmentVariableA("TEMP", dumpDir, sizeof(dumpDir))))
-        {
-            sprintf_s(tempPath, sizeof(tempPath), "%s\\gifbolt_frame_%04u.raw", dumpDir, _impl->frameCounter);
-            std::ofstream file(tempPath, std::ios::binary);
-            if (file.is_open())
-            {
-                // Write width and height as little-endian uint32
-                uint32_t w = _impl->width;
-                uint32_t h = _impl->height;
-                file.write(reinterpret_cast<const char*>(&w), 4);
-                file.write(reinterpret_cast<const char*>(&h), 4);
-                // Write raw BGRA32 data
-                file.write(reinterpret_cast<const char*>(src), bufferSize);
-                file.close();
-            }
-            
-            // Also write a metadata file
-            sprintf_s(tempPath, sizeof(tempPath), "%s\\gifbolt_frame_%04u.txt", dumpDir, _impl->frameCounter);
-            std::ofstream meta(tempPath);
-            if (meta.is_open())
-            {
-                meta << "Frame: " << _impl->frameCounter << "\n";
-                meta << "Width: " << _impl->width << "\n";
-                meta << "Height: " << _impl->height << "\n";
-                meta << "DisplayingAlt: " << (_impl->displayingAlt ? "true" : "false") << "\n";
-                meta << "BufferSize: " << bufferSize << "\n";
-                meta.close();
-            }
-        }
-        _impl->frameCounter++;
-    }
+    // DEBUG: Log surface swap details
+    GifBolt::DebugLog("  -> Updating %s surface, GPU sync...\n", 
+             _impl->displayingAlt ? "Primary" : "Alt");
 
     // Transfer from CPU surface to GPU texture surface (the non-displayed one)
     IDirect3DDevice9* device = nullptr;
@@ -305,6 +278,8 @@ bool D3D9ExTexture::Update(const void* data, size_t dataSize)
                 
                 // SUCCESS: Now swap which surface is displayed for next frame
                 _impl->displayingAlt = !_impl->displayingAlt;
+                GifBolt::DebugLog("  [OK] GPU sync complete, swapped to %s surface\n", 
+                         _impl->displayingAlt ? "Alt" : "Primary");
             }
             
             device->Release();
@@ -328,6 +303,14 @@ void* D3D9ExTexture::GetNativeTexturePtr()
     if (!displaySurface)
     {
         return nullptr;
+    }
+
+    // DEBUG: Log texture pointer requests (called frequently by D3DImage)
+    static int getCount = 0;
+    if (++getCount % 60 == 0)  // Log every 60th call to reduce noise
+    {
+        GifBolt::DebugLog("[GetNativeTexturePtr] Call #%d, returning %s surface\n", 
+                 getCount, _impl->displayingAlt ? "Alt" : "Primary");
     }
 
     // AddRef before returning so caller owns a reference

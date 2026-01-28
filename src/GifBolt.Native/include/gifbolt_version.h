@@ -55,33 +55,39 @@ extern "C"
 #define GB_API
 #endif
 
+#ifdef __cplusplus
+#define GB_NOEXCEPT noexcept
+#else
+#define GB_NOEXCEPT
+#endif
+
     /// \brief Gets the major version number at runtime.
     /// \return The major version number.
-    GB_API int gb_version_get_major(void) noexcept;
+    GB_API int gb_version_get_major(void) GB_NOEXCEPT;
 
     /// \brief Gets the minor version number at runtime.
     /// \return The minor version number.
-    GB_API int gb_version_get_minor(void) noexcept;
+    GB_API int gb_version_get_minor(void) GB_NOEXCEPT;
 
     /// \brief Gets the patch version number at runtime.
     /// \return The patch version number.
-    GB_API int gb_version_get_patch(void) noexcept;
+    GB_API int gb_version_get_patch(void) GB_NOEXCEPT;
 
     /// \brief Gets the full semantic version string at runtime.
     /// \return A null-terminated version string (e.g., "1.0.0").
     ///         The string is statically allocated and must not be freed.
-    GB_API const char* gb_version_get_string(void) noexcept;
+    GB_API const char* gb_version_get_string(void) GB_NOEXCEPT;
 
     /// \brief Gets the packed integer version at runtime.
     /// \return The version as an integer (major * 10000 + minor * 100 + patch).
-    GB_API int gb_version_get_int(void) noexcept;
+    GB_API int gb_version_get_int(void) GB_NOEXCEPT;
 
     /// \brief Checks if the runtime version is at least the specified version.
     /// \param major Minimum required major version.
     /// \param minor Minimum required minor version.
     /// \param patch Minimum required patch version.
     /// \return 1 if runtime version >= specified version; 0 otherwise.
-    GB_API int gb_version_check(int major, int minor, int patch) noexcept;
+    GB_API int gb_version_check(int major, int minor, int patch) GB_NOEXCEPT;
 
 #ifdef __cplusplus
 }

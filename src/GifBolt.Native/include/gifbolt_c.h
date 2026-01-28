@@ -121,6 +121,15 @@ extern "C"
     /// \param decoder The decoder handle.
     /// \return The background color as RGBA32 (0xAABBGGRR), or 0xFF000000 (black) on error.
     GB_API unsigned int gb_decoder_get_background_color(gb_decoder_t decoder);
+
+    /// \brief Checks if any frame in the GIF has transparency (alpha < 255).
+    /// \param decoder The decoder handle.
+    /// \return 1 if the GIF contains transparent pixels, 0 otherwise.
+    /// \remarks Note: This checks for actual transparent pixels in decoded frames,
+    ///         not just the presence of a transparency color index.
+    ///         For GIFs with transparency, CPU rendering (WriteableBitmap) should be used
+    ///         instead of GPU rendering (D3DImage) as GPU paths have limited alpha support.
+    GB_API int gb_decoder_has_transparency(gb_decoder_t decoder);
     /// @}
 
     /// \typedef gb_renderer_t
@@ -245,10 +254,97 @@ extern "C"
     ///         - Metal: MTLTexture*
     ///         - Dummy: nullptr
     GB_API void* gb_decoder_get_native_texture_ptr(gb_decoder_t decoder, int frameIndex);
-    
+    /// \brief Updates and synchronizes the GPU texture with frame pixel data.
+    /// \param decoder The decoder handle.
+    /// \param frameIndex The frame index to update in the GPU texture.
+    /// \return 1 if update succeeded; 0 if no GPU texture available or error occurred.
+    /// \remarks This function must be called before using GetNativeTexturePtr() to ensure
+    ///          the GPU texture contains the correct frame data. This is critical for 
+    ///          GPU-accelerated rendering on D3D backends.
+    GB_API int gb_decoder_update_gpu_texture(gb_decoder_t decoder, int frameIndex);
+
+    /// \brief Advances to the next frame and updates the GPU texture with automatic looping.
+    /// \param decoder A valid GIF decoder handle from gb_decoder_create_from_file or similar.
+    /// \return 1 if frame advanced and GPU texture updated; 0 if error occurred.
+    /// \remarks Internally manages frame index with modulo wrapping for infinite looping.
+    ///          Call this repeatedly in your render loop to animate the GIF.
+    ///          Must have a device context set up for GPU rendering.
+    GB_API int gb_decoder_advance_and_update_gpu_texture(gb_decoder_t decoder);
+
+    /// \brief Gets the native GPU texture pointer for the current frame.
+    /// \param decoder A valid GIF decoder handle.
+    /// \return Native texture pointer (ID3D9Surface* for D3D, MTLTexture* for Metal), or nullptr on error.
+    /// \remarks Call gb_decoder_advance_and_update_gpu_texture() first to ensure texture is current.
+    ///          This function performs no GPU operations, just returns the current pointer.
+    GB_API void* gb_decoder_get_current_gpu_texture_ptr(gb_decoder_t decoder);
+
     /// \brief Gets the last error message from a backend initialization failure.
     /// \return Error message string, or empty string if no error. Valid until next decoder call.
     GB_API const char* gb_decoder_get_last_error(void);
+    /// @}
+
+    /// \defgroup FrameControl Frame Control and Timing Functions
+    /// @{
+
+    /// \brief Timing constants for GIF animation playback.
+    /// \details These constants define standard timing values used across GifBolt.
+    enum gb_timing_constants_e
+    {
+        /// \brief Default minimum frame delay in milliseconds (10 ms).
+        /// Most GIFs are created with delays of 10-100ms; we use 10ms as a reasonable
+        /// minimum to prevent GIFs with very small delays from playing too fast.
+        GB_DEFAULT_MIN_FRAME_DELAY_MS = 10,
+
+        /// \brief Minimum render interval for UI thread timer (16 ms = 60 FPS).
+        /// This is the fastest the UI can be updated while staying responsive.
+        GB_MIN_RENDER_INTERVAL_MS = 16
+    };
+
+    /// \brief Computes the effective frame delay, applying a minimum threshold.
+    /// \param frameDelayMs The frame delay from GIF metadata (in milliseconds).
+    /// \param minDelayMs The minimum frame delay to enforce (in milliseconds).
+    /// \return The effective frame delay in milliseconds.
+    /// \remarks Use 0 for minDelayMs to get the raw delay without threshold enforcement.
+    GB_API int gb_decoder_get_effective_frame_delay(int frameDelayMs, int minDelayMs);
+
+    /// \struct gb_frame_advance_result_s
+    /// \brief Result of a frame advance operation.
+    typedef struct
+    {
+        int nextFrame;          ///< The next frame index.
+        int isComplete;         ///< 1 if animation has completed, 0 otherwise.
+        int updatedRepeatCount; ///< The updated repeat count (-1=infinite, 0=stop, >0=remaining repeats).
+    } gb_frame_advance_result_s;
+
+    /// \brief Advances to the next frame in a GIF animation.
+    /// \param currentFrame The current frame index (0-based).
+    /// \param frameCount The total number of frames in the GIF.
+    /// \param repeatCount The current repeat count (-1 = infinite, 0 = stop, >0 = repeat N times).
+    /// \return A gb_frame_advance_result_s containing the next frame and updated state.
+    /// \remarks frameCount must be >= 1. Otherwise, returns with isComplete=1.
+    GB_API gb_frame_advance_result_s gb_decoder_advance_frame(
+        int currentFrame, int frameCount, int repeatCount);
+
+    /// \brief Computes the repeat count from a repeat behavior string.
+    /// \param repeatBehavior The repeat behavior string (e.g., "Forever", "3x", "0x", or NULL).
+    /// \param isLooping Whether the GIF metadata indicates infinite looping.
+    /// \return -1 for infinite repeat, positive integer for finite repeats.
+    /// \remarks Supported formats:
+    ///          - "Forever": infinite loop (-1)
+    ///          - "Nx": repeat N times (where N > 0)
+    ///          - "0x", NULL, or empty: use GIF metadata (returns -1 if isLooping, else 1)
+    GB_API int gb_decoder_compute_repeat_count(const char* repeatBehavior, int isLooping);
+
+    /// \brief Calculates adaptive cache size based on frame count and percentage.
+    /// \param frameCount Total number of frames in the GIF.
+    /// \param cachePercentage Percentage of frames to cache (0.0 to 1.0).
+    /// \param minCachedFrames Minimum frames to keep cached.
+    /// \param maxCachedFrames Maximum frames to keep cached.
+    /// \return The recommended cache size in frames.
+    /// \remarks Result is clamped between minCachedFrames and maxCachedFrames.
+    GB_API unsigned int gb_decoder_calculate_adaptive_cache_size(
+        int frameCount, float cachePercentage, unsigned int minCachedFrames,
+        unsigned int maxCachedFrames);
     /// @}
 
 #ifdef __cplusplus

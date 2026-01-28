@@ -49,21 +49,32 @@ namespace GifBolt.SampleApp
             this._fpsTimer.Tick += (s, args) => this.UpdateFpsDisplay();
             this._fpsTimer.Start();
 
-            // Load a default GIF if available
-            string sampleGif = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "sample.gif");
-            if (File.Exists(sampleGif))
+            // Load GIF from command-line argument, or use default sample.gif
+            string gifPath = null;
+            if (!string.IsNullOrEmpty(App.CommandLineGifPath))
+            {
+                gifPath = App.CommandLineGifPath;
+                LogToFile($"Loading GIF from command-line: {gifPath}");
+            }
+            else
+            {
+                // Fall back to default sample.gif in the application directory
+                gifPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "sample.gif");
+                if (!File.Exists(gifPath))
+                {
+                    gifPath = null;
+                }
+            }
+
+            if (gifPath != null && File.Exists(gifPath))
             {
                 if (this.GifImageScaling != null)
                 {
-                    AnimationBehavior.SetSourceUri(this.GifImageScaling, sampleGif);
+                    AnimationBehavior.SetSourceUri(this.GifImageScaling, gifPath);
                 }
 
-                if (this.ImageBehaviorImage != null)
-                {
-                    AnimationBehavior.SetSourceUri(this.ImageBehaviorImage, sampleGif);
-                }
-
-                this.UpdateStatus($"Loaded sample GIF: {Path.GetFileName(sampleGif)}");
+                this.UpdateStatus($"Loaded GIF: {Path.GetFileName(gifPath)}");
+                LogToFile($"Loaded GIF: {gifPath}");
             }
         }
 
@@ -131,16 +142,6 @@ namespace GifBolt.SampleApp
                     else
                     {
                         LogToFile("ERROR: GifImageScaling is null");
-                    }
-
-                    if (this.ImageBehaviorImage != null)
-                    {
-                        LogToFile($"Setting ImageBehaviorImage source to: {dlg.FileName}");
-                        AnimationBehavior.SetSourceUri(this.ImageBehaviorImage, dlg.FileName);
-                    }
-                    else
-                    {
-                        LogToFile("ERROR: ImageBehaviorImage is null");
                     }
 
                     this.UpdateStatus($"Loaded: {Path.GetFileName(dlg.FileName)}");

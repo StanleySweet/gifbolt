@@ -12,6 +12,11 @@ namespace GifBolt.SampleApp
     /// </summary>
     public partial class App : Application
     {
+        /// <summary>
+        /// Gets the GIF file path provided as a command-line argument, if any.
+        /// </summary>
+        public static string CommandLineGifPath { get; private set; }
+
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern bool SetDllDirectory(string lpPathName);
 
@@ -21,6 +26,22 @@ namespace GifBolt.SampleApp
         /// </summary>
         public App()
         {
+            // Extract GIF path from command-line arguments if provided
+            var args = Environment.GetCommandLineArgs();
+            if (args.Length > 1)
+            {
+                var potentialPath = args[1];
+                if (File.Exists(potentialPath))
+                {
+                    CommandLineGifPath = potentialPath;
+                    LogToFile($"Command-line GIF path: {potentialPath}");
+                }
+                else
+                {
+                    LogToFile($"Command-line argument provided but file not found: {potentialPath}");
+                }
+            }
+
             // Hook global exception handlers for debugging
             this.DispatcherUnhandledException += (s, e) =>
             {

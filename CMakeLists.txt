@@ -81,6 +81,15 @@ endif()
 add_subdirectory(src/GifBolt.Native)
 add_subdirectory(tests)
 
+# Optional: SDL2 sample (C/cross-platform debugging)
+find_package(SDL2 CONFIG QUIET)
+if(SDL2_FOUND)
+    message(STATUS "SDL2 found - building NativeSDL2Sample")
+    add_subdirectory(samples/GifBolt.NativeSDL2Sample)
+else()
+    message(STATUS "SDL2 not found - skipping NativeSDL2Sample")
+endif()
+
 # Output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

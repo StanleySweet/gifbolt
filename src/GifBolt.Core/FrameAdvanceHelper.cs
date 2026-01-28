@@ -6,42 +6,44 @@
 // SPDX-FileCopyrightText: 2026 GifBolt Contributors
 
 using System;
+using GifBolt.Internal;
 
 namespace GifBolt
 {
     /// <summary>
     /// Helper for managing GIF frame advancement and animation state.
     /// Provides reusable logic for frame iteration, repeat counting, and timing.
+    /// Delegates to C++ implementations for performance.
     /// </summary>
     public static class FrameAdvanceHelper
     {
         /// <summary>
-        /// Represents the result of a frame advance operation.
+        /// Represents the result of a frame advance operation (stack-allocated value type).
         /// </summary>
-        public sealed class FrameAdvanceResult
+        public readonly struct FrameAdvanceResult
         {
             /// <summary>
             /// Gets the next frame index.
             /// </summary>
-        public int NextFrame { get; }
+            public int NextFrame { get; }
 
-        /// <summary>
-        /// Gets a value indicating whether the animation has completed (no more frames to display).
-        /// </summary>
-        public bool IsComplete { get; }
+            /// <summary>
+            /// Gets a value indicating whether the animation has completed (no more frames to display).
+            /// </summary>
+            public bool IsComplete { get; }
 
-        /// <summary>
-        /// Gets the updated repeat count (decremented if needed).
-        /// </summary>
-        public int UpdatedRepeatCount { get; }
+            /// <summary>
+            /// Gets the updated repeat count (decremented if needed).
+            /// </summary>
+            public int UpdatedRepeatCount { get; }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="FrameAdvanceResult"/> class.
-        /// </summary>
-        /// <param name="nextFrame">The next frame index.</param>
-        /// <param name="isComplete">Whether the animation is complete.</param>
-        /// <param name="updatedRepeatCount">The updated repeat count.</param>
-        public FrameAdvanceResult(int nextFrame, bool isComplete, int updatedRepeatCount)
+            /// <summary>
+            /// Initializes a new instance of the <see cref="FrameAdvanceResult"/> struct.
+            /// </summary>
+            /// <param name="nextFrame">The next frame index.</param>
+            /// <param name="isComplete">Whether the animation is complete.</param>
+            /// <param name="updatedRepeatCount">The updated repeat count.</param>
+            public FrameAdvanceResult(int nextFrame, bool isComplete, int updatedRepeatCount)
             {
                 this.NextFrame = nextFrame;
                 this.IsComplete = isComplete;
@@ -51,6 +53,7 @@ namespace GifBolt
 
         /// <summary>
         /// Advances to the next frame in a GIF animation.
+        /// Implementation delegates to C++ for performance.
         /// </summary>
         /// <param name="currentFrame">The current frame index (0-based).</param>
         /// <param name="frameCount">The total number of frames in the GIF.</param>
@@ -64,47 +67,21 @@ namespace GifBolt
                 throw new ArgumentException("frameCount must be at least 1", nameof(frameCount));
             }
 
-            int nextFrame = currentFrame + 1;
-
-            // Check if we've reached the end of the frame sequence
-            if (nextFrame >= frameCount)
-            {
-                // Determine if we should loop
-                if (repeatCount == -1)
-                {
-                    // Infinite loop
-                    return new FrameAdvanceResult(nextFrame: 0, isComplete: false, updatedRepeatCount: -1);
-                }
-                else if (repeatCount > 0)
-                {
-                    // Finite repeats remaining
-                    return new FrameAdvanceResult(nextFrame: 0, isComplete: false, updatedRepeatCount: repeatCount - 1);
-                }
-                else
-                {
-                    // No more repeats; animation is complete
-                    return new FrameAdvanceResult(nextFrame: currentFrame, isComplete: true, updatedRepeatCount: 0);
-                }
-            }
-
-            // Normal frame advance within the sequence
-            return new FrameAdvanceResult(nextFrame: nextFrame, isComplete: false, updatedRepeatCount: repeatCount);
+            // Call C++ implementation for platform-agnostic frame advancement
+            var nativeResult = Native.gb_decoder_advance_frame(currentFrame, frameCount, repeatCount);
+            return new FrameAdvanceResult(nativeResult.NextFrame, nativeResult.IsComplete != 0, nativeResult.UpdatedRepeatCount);
         }
 
         /// <summary>
         /// Calculates the effective frame delay, applying a minimum threshold.
+        /// Implementation delegates to C++ for consistency.
         /// </summary>
         /// <param name="frameDelayMs">The frame delay from GIF metadata (in milliseconds).</param>
         /// <param name="minDelayMs">The minimum frame delay to enforce (in milliseconds).</param>
         /// <returns>The effective frame delay in milliseconds.</returns>
         public static int GetEffectiveFrameDelay(int frameDelayMs, int minDelayMs = 0)
         {
-            if (frameDelayMs < minDelayMs)
-            {
-                return minDelayMs;
-            }
-
-            return frameDelayMs;
+            return Native.gb_decoder_get_effective_frame_delay(frameDelayMs, minDelayMs);
         }
     }
 }

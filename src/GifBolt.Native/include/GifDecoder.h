@@ -127,6 +127,12 @@ class GifDecoder
     /// \return The background color as RGBA32 (0xAABBGGRR).
     uint32_t GetBackgroundColor() const;
 
+    /// \brief Checks if any frame in the GIF contains transparent pixels.
+    /// \return true if the GIF contains transparent pixels (alpha < 255); false otherwise.
+    /// \remarks For GIFs with transparency, CPU rendering should be used instead of GPU
+    ///         (D3DImage) as GPU paths have limited alpha compositing support in WPF.
+    bool HasTransparency() const;
+
     /// \brief Gets BGRA pixel data with premultiplied alpha for the specified frame.
     /// \param index The zero-based index of the frame.
     /// \return A pointer to BGRA32 premultiplied pixel data, or nullptr on error.
@@ -174,6 +180,21 @@ class GifDecoder
     /// \param frameIndex The frame index to get the texture for.
     /// \return Native texture pointer (ID3D11Texture2D* or MTLTexture*), or nullptr on error.
     void* GetNativeTexturePtr(int frameIndex);
+
+    /// \brief Updates the GPU texture with the specified frame's pixel data.
+    /// \param frameIndex The frame index to update to.
+    /// \return true if update succeeded; false if no GPU texture or error occurred.
+    bool UpdateGpuTexture(int frameIndex);
+
+    /// \brief Advances to the next frame and updates GPU texture (with automatic looping).
+    /// \remarks Internally manages frame index with wrapping. Call this repeatedly to animate.
+    /// \return true if frame advanced and GPU texture updated; false on error.
+    bool AdvanceFrameAndUpdateGpuTexture();
+
+    /// \brief Gets the native GPU texture pointer for the current frame.
+    /// \remarks Call AdvanceFrameAndUpdateGpuTexture() first to ensure texture is current.
+    /// \return Native texture pointer (ID3D11Texture2D* or MTLTexture*), or nullptr on error.
+    void* GetCurrentGpuTexturePtr() const;
 
    private:
     class Impl;

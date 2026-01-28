@@ -43,13 +43,13 @@ public sealed class GifPlayer : IDisposable
 
     /// <summary>Gets or sets the percentage of frames to cache (0.0 to 1.0). Default is 0.25 (25%).</summary>
     /// <remarks>Applied when a GIF is loaded. Use SetMaxCachedFrames() to override with an absolute value.</remarks>
-    public float CachePercentage { get; set; } = 0.25f;
+    public float CachePercentage { get; set; } = 0.1f;
 
     /// <summary>Gets or sets the minimum number of frames to cache. Default is 5.</summary>
     public uint MinCachedFrames { get; set; } = 5;
 
-    /// <summary>Gets or sets the maximum number of frames to cache. Default is 100.</summary>
-    public uint MaxCachedFrames { get; set; } = 100;
+    /// <summary>Gets or sets the maximum number of frames to cache. Default is 10.</summary>
+    public uint MaxCachedFrames { get; set; } = 10;
 
     /// <summary>Gets a value indicating whether playback is in progress.</summary>
     public bool IsPlaying { get; private set; }
@@ -90,6 +90,21 @@ public sealed class GifPlayer : IDisposable
 
     /// <summary>Gets the height of the image in pixels.</summary>
     public int Height { get; private set; }
+
+    /// <summary>Gets a value indicating whether the GIF contains transparent pixels.</summary>
+    /// <remarks>When true, GPU rendering (D3DImage) may not fully composite alpha channels correctly.</remarks>
+    public bool HasTransparency
+    {
+        get
+        {
+            if (this._decoder == null)
+            {
+                return false;
+            }
+
+            return Native.gb_decoder_has_transparency(this._decoder.DangerousGetHandle()) != 0;
+        }
+    }
 
     /// <summary>
     /// Creates a new GifPlayer with a specified rendering backend.
@@ -382,7 +397,64 @@ public sealed class GifPlayer : IDisposable
 
         return Native.gb_decoder_get_native_texture_ptr(this._decoder.DangerousGetHandle(), frameIndex);
     }
+    /// <summary>Updates the GPU texture with the pixel data for the specified frame (for GPU-accelerated rendering).</summary>
+    /// <param name="frameIndex">The frame index to render to the GPU texture.</param>
+    /// <returns>true if the texture was updated successfully; false if no GPU texture is available or an error occurred.</returns>
+    /// <remarks>
+    /// This method should be called before displaying a frame on D3DImage. It ensures the 
+    /// GPU texture is synchronized with the frame pixel data. For CPU rendering (WriteableBitmap),
+    /// use TryGetFramePixels* methods instead.
+    /// </remarks>
+    public bool UpdateNativeTexture(int frameIndex)
+    {
+        if (this._decoder == null || this.FrameCount == 0)
+        {
+            return false;
+        }
 
+        // Wrap frame index to frame count to handle looping (defensive)
+        // This ensures we never request a frame outside valid bounds
+        int wrappedFrameIndex = frameIndex % this.FrameCount;
+        if (wrappedFrameIndex < 0)
+        {
+            wrappedFrameIndex += this.FrameCount;
+        }
+
+        // Call the native update function to sync GPU texture with frame data
+        // This is critical for GPU-accelerated rendering on D3D backends
+        int result = Native.gb_decoder_update_gpu_texture(this._decoder.DangerousGetHandle(), wrappedFrameIndex);
+        return result != 0;
+    }
+
+    /// <summary>
+    /// Advances to the next frame and updates GPU texture (C++handles looping automatically).
+    /// </summary>
+    /// <returns>true if frame advanced and GPU texture updated; false on error.</returns>
+    public bool AdvanceAndRenderFrame()
+    {
+        if (this._decoder == null)
+        {
+            return false;
+        }
+
+        // C++ handles frame advancement and wrapping internally
+        int result = Native.gb_decoder_advance_and_update_gpu_texture(this._decoder.DangerousGetHandle());
+        return result != 0;
+    }
+
+    /// <summary>
+    /// Gets the native GPU texture pointer for the current frame (after advancing).
+    /// </summary>
+    /// <returns>Native texture pointer, or IntPtr.Zero on error.</returns>
+    public IntPtr GetCurrentGpuTexturePtr()
+    {
+        if (this._decoder == null)
+        {
+            return IntPtr.Zero;
+        }
+
+        return Native.gb_decoder_get_current_gpu_texture_ptr(this._decoder.DangerousGetHandle());
+    }
     /// <summary>Releases the unmanaged resources associated with the player.</summary>
     public void Dispose()
     {
@@ -505,26 +577,11 @@ public sealed class GifPlayer : IDisposable
 
     private uint CalculateAdaptiveCacheSize()
     {
-        if (this.FrameCount <= 0)
-        {
-            return this.MinCachedFrames;
-        }
-
-        // Calculate percentage-based cache size
-        float calculated = this.FrameCount * this.CachePercentage;
-        uint cacheSize = (uint)Math.Round(calculated);
-
-        // Clamp to min/max bounds
-        if (cacheSize < this.MinCachedFrames)
-        {
-            return this.MinCachedFrames;
-        }
-
-        if (cacheSize > this.MaxCachedFrames)
-        {
-            return this.MaxCachedFrames;
-        }
-
-        return cacheSize;
+        // Delegate to C++ implementation for consistent cache calculation
+        return Native.gb_decoder_calculate_adaptive_cache_size(
+            this.FrameCount,
+            this.CachePercentage,
+            this.MinCachedFrames,
+            this.MaxCachedFrames);
     }
 }

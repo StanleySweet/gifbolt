@@ -69,58 +69,6 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- Basic Animation Tab -->
-            <TabItem Header="Basic Animation">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="20">
-                        <TextBlock Text="AnimationBehavior Example"
-                                   FontSize="16" FontWeight="Bold"/>
-                        <TextBlock Text="Using attached properties on standard Image controls"
-                                   Foreground="Gray" Margin="0,5,0,15"/>
-
-                        <TextBlock Text="✅ Live Demo: Image control with gifbolt:AnimationBehavior.SourceUri"
-                                   FontWeight="SemiBold" Margin="0,10,0,5"/>
-
-                        <Border BorderBrush="Gray" BorderThickness="1"
-                                HorizontalAlignment="Left" Margin="0,0,0,15">
-                            <Border.Background>
-                                <SolidColorBrush Color="#22000000"/>
-                            </Border.Background>
-                            <Image x:Name="ImageBehaviorImage"
-                                   gifbolt:AnimationBehavior.RepeatBehavior="Forever"
-                                   Stretch="Uniform"/>
-                        </Border>
-
-                        <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,10,0,15">
-                            The above Image uses attached properties for easy GIF animation.
-                            Drop in any standard WPF Image control!
-                        </TextBlock>
-
-                        <Border BorderBrush="Green" BorderThickness="2" CornerRadius="5"
-                                Padding="15" Margin="0,10,0,0">
-                            <Border.Background>
-                                <SolidColorBrush Color="#22008000"/>
-                            </Border.Background>
-                            <StackPanel>
-                                <TextBlock Text="✨ Usage Example" FontWeight="Bold" Foreground="LightGreen"/>
-                                <TextBlock TextWrapping="Wrap" Foreground="#DDFFFFFF" Margin="0,5,0,0">
-                                    AnimationBehavior attached properties:
-                                </TextBlock>
-                                <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,10,0,0">
-                                    &lt;Image gifbolt:AnimationBehavior.SourceUri="file.gif"
-                                </TextBlock>
-                                <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,0,0,0">
-                                           gifbolt:AnimationBehavior.RepeatBehavior="Forever"
-                                </TextBlock>
-                                <TextBlock FontFamily="Consolas,Courier New" Foreground="#DDFFFFFF" Margin="10,0,0,0">
-                                           gifbolt:AnimationBehavior.AutoStart="True"/&gt;
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
             <!-- Info Tab -->
             <TabItem Header="System Info">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">

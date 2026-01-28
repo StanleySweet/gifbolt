@@ -1,14 +1,10 @@
-// <copyright file="RepeatBehaviorHelper.cs" company="GifBolt Contributors">
-// Copyright (c) 2026 GifBolt Contributors. All rights reserved.
-// Licensed under the MIT License. See LICENSE file in the project root for full license information.
-// </copyright>
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2026 GifBolt Contributors
+using GifBolt.Internal;
 
 namespace GifBolt
 {
     /// <summary>
     /// Provides helper methods to compute GIF repeat behavior consistently across frameworks.
+    /// Delegates to C++ implementation for performance and consistency.
     /// </summary>
     /// <remarks>
     /// This class serves as a facade over the Strategy pattern implementation for backwards compatibility.
@@ -18,6 +14,7 @@ namespace GifBolt
     {
         /// <summary>
         /// Computes the repeat count from a repeat behavior string.
+        /// Delegates to C++ implementation for platform-consistent behavior.
         /// </summary>
         /// <param name="repeatBehavior">The repeat behavior string (e.g., "Forever", "3x", "0x").</param>
         /// <param name="isLooping">Whether the GIF metadata indicates infinite looping.</param>
@@ -27,8 +24,7 @@ namespace GifBolt
         /// </returns>
         public static int ComputeRepeatCount(string repeatBehavior, bool isLooping)
         {
-            IRepeatStrategy strategy = RepeatStrategyFactory.CreateStrategy(repeatBehavior);
-            return strategy.GetRepeatCount(isLooping);
+            return Native.gb_decoder_compute_repeat_count(repeatBehavior, isLooping ? 1 : 0);
         }
     }
 }
