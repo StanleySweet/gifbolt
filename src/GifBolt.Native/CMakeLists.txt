@@ -6,6 +6,7 @@ add_library(
     src/GifBoltRenderer.cpp
     src/GifDecoder.cpp
     src/DummyDeviceCommandContext.cpp
+    src/PixelBuffer.cpp
     src/gifbolt_c.cpp
     src/gifbolt_version.cpp)
 

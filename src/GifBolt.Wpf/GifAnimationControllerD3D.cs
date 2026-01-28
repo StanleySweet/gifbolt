@@ -356,7 +356,7 @@ namespace GifBolt.Wpf
         {
             if (this.Player != null && minDelayMs > 0)
             {
-                this.Player.SetMinFrameDelayMs(minDelayMs);
+                this.Player.MinFrameDelayMs = minDelayMs;
             }
         }
 

@@ -365,6 +365,97 @@ public sealed class GifPlayer : IDisposable
         return true;
     }
 
+    /// <summary>Gets the RGBA32 pixel data as a reference-counted buffer (zero-copy access).</summary>
+    /// <param name="frameIndex">The index of the frame.</param>
+    /// <param name="pixelBuffer">The output pixel buffer. Must be disposed when finished.</param>
+    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
+    /// <remarks>This method provides zero-copy access to pixel data. The caller must dispose the buffer when finished.</remarks>
+    public bool TryGetFramePixelsRgba32Buffer(int frameIndex, out PixelBuffer pixelBuffer)
+    {
+        pixelBuffer = default;
+        if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+        {
+            return false;
+        }
+
+        IntPtr buffer;
+        int byteCount;
+        int result = Native.gb_decoder_get_frame_pixels_rgba32_buffer(
+            this._decoder.DangerousGetHandle(), frameIndex, out buffer, out byteCount);
+        
+        if (result == 0 || buffer == IntPtr.Zero || byteCount <= 0)
+        {
+            return false;
+        }
+
+        pixelBuffer = new PixelBuffer(buffer, byteCount);
+        return true;
+    }
+
+    /// <summary>Gets the BGRA32 premultiplied pixel data as a reference-counted buffer (zero-copy access).</summary>
+    /// <param name="frameIndex">The index of the frame.</param>
+    /// <param name="pixelBuffer">The output pixel buffer. Must be disposed when finished.</param>
+    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
+    /// <remarks>This method provides zero-copy access to pixel data and is optimized for Avalonia. The caller must dispose the buffer when finished.</remarks>
+    public bool TryGetFramePixelsBgra32PremultipliedBuffer(int frameIndex, out PixelBuffer pixelBuffer)
+    {
+        pixelBuffer = default;
+        if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+        {
+            return false;
+        }
+
+        IntPtr buffer;
+        int byteCount;
+        int result = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied_buffer(
+            this._decoder.DangerousGetHandle(), frameIndex, out buffer, out byteCount);
+        
+        if (result == 0 || buffer == IntPtr.Zero || byteCount <= 0)
+        {
+            return false;
+        }
+
+        pixelBuffer = new PixelBuffer(buffer, byteCount);
+        return true;
+    }
+
+    /// <summary>Gets the scaled BGRA32 premultiplied pixel data as a reference-counted buffer (zero-copy access).</summary>
+    /// <param name="frameIndex">The index of the frame.</param>
+    /// <param name="targetWidth">The desired output width in pixels.</param>
+    /// <param name="targetHeight">The desired output height in pixels.</param>
+    /// <param name="pixelBuffer">The output pixel buffer. Must be disposed when finished.</param>
+    /// <param name="outWidth">The actual output width in pixels.</param>
+    /// <param name="outHeight">The actual output height in pixels.</param>
+    /// <param name="filter">The scaling filter to use (Nearest, Bilinear, Bicubic, Lanczos).</param>
+    /// <returns>true if the frame pixels were retrieved successfully; otherwise false.</returns>
+    /// <remarks>This method uses GPU acceleration and provides zero-copy access. The caller must dispose the buffer when finished.</remarks>
+    public bool TryGetFramePixelsBgra32PremultipliedScaledBuffer(int frameIndex, int targetWidth, int targetHeight,
+                                                                  out PixelBuffer pixelBuffer, out int outWidth, out int outHeight,
+                                                                  ScalingFilter filter = ScalingFilter.Bilinear)
+    {
+        pixelBuffer = default;
+        outWidth = 0;
+        outHeight = 0;
+        if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
+        {
+            return false;
+        }
+
+        IntPtr buffer;
+        int byteCount;
+        int result = Native.gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled_buffer(
+            this._decoder.DangerousGetHandle(), frameIndex, targetWidth, targetHeight,
+            out buffer, out outWidth, out outHeight, out byteCount, (int)filter);
+        
+        if (result == 0 || buffer == IntPtr.Zero || byteCount <= 0)
+        {
+            return false;
+        }
+
+        pixelBuffer = new PixelBuffer(buffer, byteCount);
+        return true;
+    }
+
     /// <summary>Gets the display duration of the specified frame.</summary>
     /// <param name="frameIndex">The index of the frame.</param>
     /// <returns>The frame delay in milliseconds.</returns>
@@ -378,54 +469,32 @@ public sealed class GifPlayer : IDisposable
         return Native.gb_decoder_get_frame_delay_ms(this._decoder.DangerousGetHandle(), frameIndex);
     }
 
-    /// <summary>
-    /// Sets the minimum frame delay (in ms) for GIF playback.
-    /// </summary>
-    /// <param name="minDelayMs">Minimum delay in milliseconds.</param>
-    public void SetMinFrameDelayMs(int minDelayMs)
+    /// <summary>Gets or sets the minimum frame delay (in ms) for GIF playback.</summary>
+    /// <remarks>Default is 10 ms. Used to enforce a lower bound on frame delays during playback.</remarks>
+    public int MinFrameDelayMs
     {
-        if (this._decoder != null)
+        get => this._decoder != null ? Native.gb_decoder_get_min_frame_delay_ms(this._decoder.DangerousGetHandle()) : 0;
+        set
         {
-            Native.gb_decoder_set_min_frame_delay_ms(this._decoder.DangerousGetHandle(), minDelayMs);
+            if (this._decoder != null)
+            {
+                Native.gb_decoder_set_min_frame_delay_ms(this._decoder.DangerousGetHandle(), value);
+            }
         }
     }
 
-    /// <summary>
-    /// Gets the minimum frame delay (in ms) for GIF playback.
-    /// </summary>
-    /// <returns>Minimum delay in milliseconds.</returns>
-    public int GetMinFrameDelayMs()
+    /// <summary>Gets or sets the maximum number of frames to cache in memory.</summary>
+    /// <remarks>Default is 10 frames. Larger values improve playback smoothness but consume more memory.</remarks>
+    public uint MaxCachedFramesCount
     {
-        if (this._decoder != null)
+        get => this._decoder != null ? Native.gb_decoder_get_max_cached_frames(this._decoder.DangerousGetHandle()) : 0;
+        set
         {
-            return Native.gb_decoder_get_min_frame_delay_ms(this._decoder.DangerousGetHandle());
+            if (this._decoder != null && value > 0)
+            {
+                Native.gb_decoder_set_max_cached_frames(this._decoder.DangerousGetHandle(), value);
+            }
         }
-        return 0;
-    }
-
-    /// <summary>
-    /// Sets the maximum number of frames to cache in memory.
-    /// </summary>
-    /// <param name="maxFrames">The maximum number of frames to cache. Must be greater than 0.</param>
-    public void SetMaxCachedFrames(uint maxFrames)
-    {
-        if (this._decoder != null && maxFrames > 0)
-        {
-            Native.gb_decoder_set_max_cached_frames(this._decoder.DangerousGetHandle(), maxFrames);
-        }
-    }
-
-    /// <summary>
-    /// Gets the maximum number of frames cached in memory.
-    /// </summary>
-    /// <returns>The maximum number of cached frames.</returns>
-    public uint GetMaxCachedFrames()
-    {
-        if (this._decoder != null)
-        {
-            return Native.gb_decoder_get_max_cached_frames(this._decoder.DangerousGetHandle());
-        }
-        return 0;
     }
 
     /// <summary>
@@ -654,23 +723,18 @@ public sealed class GifPlayer : IDisposable
         this.IsLooping = metadata.LoopCount < 0;
         this.CurrentFrame = 0;
 
-        // Set adaptive cache size based on frame count
-        uint adaptiveCacheSize = this.CalculateAdaptiveCacheSize();
+        // Calculate and set adaptive cache size based on frame count
+        // This is done once during initialization via metadata, not repeatedly
+        uint adaptiveCacheSize = Native.gb_decoder_calculate_adaptive_cache_size(
+            this.FrameCount,
+            this.CachePercentage,
+            this.MinCachedFrames,
+            this.MaxCachedFrames);
         Native.gb_decoder_set_max_cached_frames(this._decoder.DangerousGetHandle(), adaptiveCacheSize);
 
         if (this.EnablePrefetching)
         {
             Native.gb_decoder_start_prefetching(this._decoder.DangerousGetHandle(), 0);
         }
-    }
-
-    private uint CalculateAdaptiveCacheSize()
-    {
-        // Delegate to C++ implementation for consistent cache calculation
-        return Native.gb_decoder_calculate_adaptive_cache_size(
-            this.FrameCount,
-            this.CachePercentage,
-            this.MinCachedFrames,
-            this.MaxCachedFrames);
     }
 }

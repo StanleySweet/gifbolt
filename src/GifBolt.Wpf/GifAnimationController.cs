@@ -407,7 +407,7 @@ namespace GifBolt.Wpf
         {
             if (this.Player != null && minDelayMs > 0)
             {
-                this.Player.SetMinFrameDelayMs(minDelayMs);
+                this.Player.MinFrameDelayMs = minDelayMs;
             }
         }
 
@@ -583,7 +583,7 @@ namespace GifBolt.Wpf
             {
                 // Get the frame delay for the current frame and clamp to minimum
                 int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
-                int minFrameDelayMs = this.Player.GetMinFrameDelayMs();
+                int minFrameDelayMs = this.Player.MinFrameDelayMs;
                 long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
 
                 // Only advance frame if enough time has elapsed for the current frame (multiplied by debug factor)

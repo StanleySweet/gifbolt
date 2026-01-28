@@ -12,6 +12,7 @@
 #include "GifBoltRenderer.h"
 #include "GifDecoder.h"
 #include "ITexture.h"
+#include "PixelBuffer.h"
 
 using namespace GifBolt;
 
@@ -204,8 +205,8 @@ extern "C"
         metadata.width = static_cast<int>(ptr->GetWidth());
         metadata.height = static_cast<int>(ptr->GetHeight());
         metadata.frameCount = static_cast<int>(ptr->GetFrameCount());
-        metadata.loopCount = ptr->IsLooping() ? -1 : 0;
-        return metadata;
+        metadata.loopCount = ptr->IsLooping() ? -1 : 0;        metadata.minFrameDelayMs = static_cast<int>(ptr->GetMinFrameDelayMs());
+        metadata.maxCachedFrames = static_cast<unsigned int>(ptr->GetMaxCachedFrames());        return metadata;
     }
 
     GB_API int gb_decoder_get_frame_delay_ms(gb_decoder_t decoder, int index)
@@ -359,6 +360,213 @@ extern "C"
         {
             return nullptr;
         }
+    }
+
+    GB_API int gb_decoder_get_frame_pixels_rgba32_buffer(gb_decoder_t decoder, int index,
+                                                          gb_pixel_buffer_t* buffer, int* byteCount)
+    {
+        if (buffer == nullptr || byteCount == nullptr)
+        {
+            return 0;
+        }
+        if (decoder == nullptr)
+        {
+            *buffer = nullptr;
+            *byteCount = 0;
+            return 0;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        if (index < 0)
+        {
+            *buffer = nullptr;
+            *byteCount = 0;
+            return 0;
+        }
+        try
+        {
+            const GifFrame& f = ptr->GetFrame(static_cast<uint32_t>(index));
+            // Create a pixel buffer with a copy of the pixel data
+            auto pixelBuf = new PixelBuffer(f.pixels.size() * sizeof(uint32_t));
+            if (!pixelBuf)
+            {
+                *buffer = nullptr;
+                *byteCount = 0;
+                return 0;
+            }
+            pixelBuf->CopyFrom(f.pixels.data(), f.pixels.size() * sizeof(uint32_t));
+            *buffer = reinterpret_cast<gb_pixel_buffer_t>(pixelBuf);
+            *byteCount = static_cast<int>(f.pixels.size() * sizeof(uint32_t));
+            return 1;
+        }
+        catch (...)
+        {
+            *buffer = nullptr;
+            *byteCount = 0;
+            return 0;
+        }
+    }
+
+    GB_API int gb_decoder_get_frame_pixels_bgra32_premultiplied_buffer(gb_decoder_t decoder, int index,
+                                                                        gb_pixel_buffer_t* buffer, int* byteCount)
+    {
+        if (buffer == nullptr || byteCount == nullptr)
+        {
+            return 0;
+        }
+        if (decoder == nullptr)
+        {
+            *buffer = nullptr;
+            *byteCount = 0;
+            return 0;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        if (index < 0)
+        {
+            *buffer = nullptr;
+            *byteCount = 0;
+            return 0;
+        }
+        try
+        {
+            const uint8_t* bgraPixels = ptr->GetFramePixelsBGRA32Premultiplied(static_cast<uint32_t>(index));
+            if (bgraPixels == nullptr)
+            {
+                *buffer = nullptr;
+                *byteCount = 0;
+                return 0;
+            }
+
+            // Get frame dimensions to calculate byte count
+            const GifFrame& f = ptr->GetFrame(static_cast<uint32_t>(index));
+            size_t sizeInBytes = f.pixels.size() * sizeof(uint32_t);
+            
+            // Create a pixel buffer with the BGRA data
+            auto pixelBuf = new PixelBuffer(sizeInBytes);
+            if (!pixelBuf)
+            {
+                *buffer = nullptr;
+                *byteCount = 0;
+                return 0;
+            }
+            pixelBuf->CopyFrom(bgraPixels, sizeInBytes);
+            *buffer = reinterpret_cast<gb_pixel_buffer_t>(pixelBuf);
+            *byteCount = static_cast<int>(sizeInBytes);
+            return 1;
+        }
+        catch (...)
+        {
+            *buffer = nullptr;
+            *byteCount = 0;
+            return 0;
+        }
+    }
+
+    GB_API int gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled_buffer(
+        gb_decoder_t decoder, int index, int targetWidth, int targetHeight,
+        gb_pixel_buffer_t* buffer, int* outWidth, int* outHeight, int* byteCount, int filterType)
+    {
+        if (buffer == nullptr || outWidth == nullptr || outHeight == nullptr || byteCount == nullptr)
+        {
+            return 0;
+        }
+        if (decoder == nullptr)
+        {
+            *buffer = nullptr;
+            *outWidth = 0;
+            *outHeight = 0;
+            *byteCount = 0;
+            return 0;
+        }
+        auto* ptr = reinterpret_cast<GifDecoder*>(decoder);
+        if (index < 0 || targetWidth <= 0 || targetHeight <= 0)
+        {
+            *buffer = nullptr;
+            *outWidth = 0;
+            *outHeight = 0;
+            *byteCount = 0;
+            return 0;
+        }
+        try
+        {
+            uint32_t actualWidth = 0;
+            uint32_t actualHeight = 0;
+            const uint8_t* bgraPixels = ptr->GetFramePixelsBGRA32PremultipliedScaled(
+                static_cast<uint32_t>(index), static_cast<uint32_t>(targetWidth),
+                static_cast<uint32_t>(targetHeight), actualWidth, actualHeight,
+                static_cast<ScalingFilter>(filterType));
+
+            if (bgraPixels == nullptr)
+            {
+                *buffer = nullptr;
+                *outWidth = 0;
+                *outHeight = 0;
+                *byteCount = 0;
+                return 0;
+            }
+
+            size_t sizeInBytes = static_cast<size_t>(actualWidth) * actualHeight * 4;
+            
+            // Create a pixel buffer with the scaled BGRA data
+            auto pixelBuf = new PixelBuffer(sizeInBytes);
+            if (!pixelBuf)
+            {
+                *buffer = nullptr;
+                *outWidth = 0;
+                *outHeight = 0;
+                *byteCount = 0;
+                return 0;
+            }
+            pixelBuf->CopyFrom(bgraPixels, sizeInBytes);
+            *buffer = reinterpret_cast<gb_pixel_buffer_t>(pixelBuf);
+            *outWidth = static_cast<int>(actualWidth);
+            *outHeight = static_cast<int>(actualHeight);
+            *byteCount = static_cast<int>(sizeInBytes);
+            return 1;
+        }
+        catch (...)
+        {
+            *buffer = nullptr;
+            *outWidth = 0;
+            *outHeight = 0;
+            *byteCount = 0;
+            return 0;
+        }
+    }
+
+    GB_API const void* gb_pixel_buffer_get_data(gb_pixel_buffer_t buffer)
+    {
+        if (buffer == nullptr)
+        {
+            return nullptr;
+        }
+        auto* pixelBuf = reinterpret_cast<PixelBuffer*>(buffer);
+        return pixelBuf->Data();
+    }
+
+    GB_API int gb_pixel_buffer_get_size(gb_pixel_buffer_t buffer)
+    {
+        if (buffer == nullptr)
+        {
+            return 0;
+        }
+        auto* pixelBuf = reinterpret_cast<PixelBuffer*>(buffer);
+        return static_cast<int>(pixelBuf->SizeInBytes());
+    }
+
+    GB_API void gb_pixel_buffer_add_ref(gb_pixel_buffer_t buffer)
+    {
+        // No-op with current design (managed by C# GC)
+        (void)buffer;
+    }
+
+    GB_API void gb_pixel_buffer_release(gb_pixel_buffer_t buffer)
+    {
+        if (buffer == nullptr)
+        {
+            return;
+        }
+        auto* pixelBuf = reinterpret_cast<PixelBuffer*>(buffer);
+        delete pixelBuf;
     }
 
     GB_API unsigned int gb_decoder_get_background_color(gb_decoder_t decoder)

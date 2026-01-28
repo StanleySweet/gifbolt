@@ -128,6 +128,13 @@ namespace GifBolt.Internal
         private static GbDecoderSetMaxCachedFramesDelegate? _gbDecoderSetMaxCachedFrames;
         private static GbDecoderGetMaxCachedFramesDelegate? _gbDecoderGetMaxCachedFrames;
         private static GbDecoderGetFramePixelsBgra32PremultipliedScaledDelegate? _gbDecoderGetFramePixelsBgra32PremultipliedScaled;
+        private static GbDecoderGetFramePixelsRgba32BufferDelegate? _gbDecoderGetFramePixelsRgba32Buffer;
+        private static GbDecoderGetFramePixelsBgra32PremultipliedBufferDelegate? _gbDecoderGetFramePixelsBgra32PremultipliedBuffer;
+        private static GbDecoderGetFramePixelsBgra32PremultipliedScaledBufferDelegate? _gbDecoderGetFramePixelsBgra32PremultipliedScaledBuffer;
+        private static GbPixelBufferGetDataDelegate? _gbPixelBufferGetData;
+        private static GbPixelBufferGetSizeDelegate? _gbPixelBufferGetSize;
+        private static GbPixelBufferAddRefDelegate? _gbPixelBufferAddRef;
+        private static GbPixelBufferReleaseDelegate? _gbPixelBufferRelease;
         private static GbVersionGetMajorDelegate? _gbVersionGetMajor;
         private static GbVersionGetMinorDelegate? _gbVersionGetMinor;
         private static GbVersionGetPatchDelegate? _gbVersionGetPatch;
@@ -184,6 +191,13 @@ namespace GifBolt.Internal
             _gbDecoderSetMaxCachedFrames = GetDelegate<GbDecoderSetMaxCachedFramesDelegate>("gb_decoder_set_max_cached_frames");
             _gbDecoderGetMaxCachedFrames = GetDelegate<GbDecoderGetMaxCachedFramesDelegate>("gb_decoder_get_max_cached_frames");
             _gbDecoderGetFramePixelsBgra32PremultipliedScaled = GetDelegate<GbDecoderGetFramePixelsBgra32PremultipliedScaledDelegate>("gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled");
+            _gbDecoderGetFramePixelsRgba32Buffer = GetDelegate<GbDecoderGetFramePixelsRgba32BufferDelegate>("gb_decoder_get_frame_pixels_rgba32_buffer");
+            _gbDecoderGetFramePixelsBgra32PremultipliedBuffer = GetDelegate<GbDecoderGetFramePixelsBgra32PremultipliedBufferDelegate>("gb_decoder_get_frame_pixels_bgra32_premultiplied_buffer");
+            _gbDecoderGetFramePixelsBgra32PremultipliedScaledBuffer = GetDelegate<GbDecoderGetFramePixelsBgra32PremultipliedScaledBufferDelegate>("gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled_buffer");
+            _gbPixelBufferGetData = GetDelegate<GbPixelBufferGetDataDelegate>("gb_pixel_buffer_get_data");
+            _gbPixelBufferGetSize = GetDelegate<GbPixelBufferGetSizeDelegate>("gb_pixel_buffer_get_size");
+            _gbPixelBufferAddRef = GetDelegate<GbPixelBufferAddRefDelegate>("gb_pixel_buffer_add_ref");
+            _gbPixelBufferRelease = GetDelegate<GbPixelBufferReleaseDelegate>("gb_pixel_buffer_release");
             _gbVersionGetMajor = GetDelegate<GbVersionGetMajorDelegate>("gb_version_get_major");
             _gbVersionGetMinor = GetDelegate<GbVersionGetMinorDelegate>("gb_version_get_minor");
             _gbVersionGetPatch = GetDelegate<GbVersionGetPatchDelegate>("gb_version_get_patch");
@@ -270,6 +284,32 @@ namespace GifBolt.Internal
         private delegate IntPtr GbDecoderGetFramePixelsBgra32PremultipliedScaledDelegate(
             IntPtr decoder, int index, int targetWidth, int targetHeight,
             out int outWidth, out int outHeight, out int byteCount, int filterType);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbDecoderGetFramePixelsRgba32BufferDelegate(
+            IntPtr decoder, int index, out IntPtr buffer, out int byteCount);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbDecoderGetFramePixelsBgra32PremultipliedBufferDelegate(
+            IntPtr decoder, int index, out IntPtr buffer, out int byteCount);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("StyleCop.CSharp.ReadabilityRules", "SA1117:Parameters should be on same line or separate lines", Justification = "<En attente>")]
+        private delegate int GbDecoderGetFramePixelsBgra32PremultipliedScaledBufferDelegate(
+            IntPtr decoder, int index, int targetWidth, int targetHeight,
+            out IntPtr buffer, out int outWidth, out int outHeight, out int byteCount, int filterType);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr GbPixelBufferGetDataDelegate(IntPtr buffer);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int GbPixelBufferGetSizeDelegate(IntPtr buffer);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GbPixelBufferAddRefDelegate(IntPtr buffer);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GbPixelBufferReleaseDelegate(IntPtr buffer);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int GbVersionGetMajorDelegate();
@@ -361,6 +401,12 @@ namespace GifBolt.Internal
 
             /// <summary>Gets the loop count (-1=infinite, >=0=specific count).</summary>
             public int LoopCount;
+
+            /// <summary>Gets the minimum frame delay threshold in milliseconds.</summary>
+            public int MinFrameDelayMs;
+
+            /// <summary>Gets the maximum number of frames to cache.</summary>
+            public uint MaxCachedFrames;
         }
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -930,6 +976,97 @@ namespace GifBolt.Internal
         /// <returns>The recommended cache size in frames.</returns>
         internal static uint gb_decoder_calculate_adaptive_cache_size(int frameCount, float cachePercentage, uint minCachedFrames, uint maxCachedFrames)
              => _gbDecoderCalculateAdaptiveCacheSize?.Invoke(frameCount, cachePercentage, minCachedFrames, maxCachedFrames) ?? minCachedFrames;
+
+        /// <summary>
+        /// Gets RGBA32 pixel data as a reference-counted buffer.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <param name="index">Index of the frame.</param>
+        /// <param name="buffer">Returns the pixel buffer handle.</param>
+        /// <param name="byteCount">Returns the number of bytes in the pixel buffer.</param>
+        /// <returns>1 if successful; 0 otherwise.</returns>
+        internal static int gb_decoder_get_frame_pixels_rgba32_buffer(
+            IntPtr decoder, int index, out IntPtr buffer, out int byteCount)
+        {
+            buffer = IntPtr.Zero;
+            byteCount = 0;
+            return _gbDecoderGetFramePixelsRgba32Buffer?.Invoke(decoder, index, out buffer, out byteCount) ?? 0;
+        }
+
+        /// <summary>
+        /// Gets BGRA32 premultiplied pixel data as a reference-counted buffer.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <param name="index">Index of the frame.</param>
+        /// <param name="buffer">Returns the pixel buffer handle.</param>
+        /// <param name="byteCount">Returns the number of bytes in the pixel buffer.</param>
+        /// <returns>1 if successful; 0 otherwise.</returns>
+        internal static int gb_decoder_get_frame_pixels_bgra32_premultiplied_buffer(
+            IntPtr decoder, int index, out IntPtr buffer, out int byteCount)
+        {
+            buffer = IntPtr.Zero;
+            byteCount = 0;
+            return _gbDecoderGetFramePixelsBgra32PremultipliedBuffer?.Invoke(decoder, index, out buffer, out byteCount) ?? 0;
+        }
+
+        /// <summary>
+        /// Gets scaled BGRA32 premultiplied pixel data as a reference-counted buffer.
+        /// </summary>
+        /// <param name="decoder">Pointer to the decoder.</param>
+        /// <param name="index">Index of the frame.</param>
+        /// <param name="targetWidth">Desired width of the output frame.</param>
+        /// <param name="targetHeight">Desired height of the output frame.</param>
+        /// <param name="buffer">Returns the pixel buffer handle.</param>
+        /// <param name="outWidth">Returns the width of the scaled frame.</param>
+        /// <param name="outHeight">Returns the height of the scaled frame.</param>
+        /// <param name="byteCount">Returns the number of bytes in the pixel buffer.</param>
+        /// <param name="filterType">Scaling filter type (e.g., nearest, bilinear).</param>
+        /// <returns>1 if successful; 0 otherwise.</returns>
+        internal static int gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled_buffer(
+            IntPtr decoder, int index, int targetWidth, int targetHeight,
+            out IntPtr buffer, out int outWidth, out int outHeight, out int byteCount, int filterType)
+        {
+            buffer = IntPtr.Zero;
+            outWidth = 0;
+            outHeight = 0;
+            byteCount = 0;
+            return _gbDecoderGetFramePixelsBgra32PremultipliedScaledBuffer?.Invoke(
+                decoder, index, targetWidth, targetHeight, out buffer, out outWidth, out outHeight, out byteCount, filterType) ?? 0;
+        }
+
+        /// <summary>
+        /// Gets the pixel data pointer from a buffer.
+        /// </summary>
+        /// <param name="buffer">The pixel buffer handle.</param>
+        /// <returns>Pointer to pixel data, or IntPtr.Zero if invalid.</returns>
+        internal static IntPtr gb_pixel_buffer_get_data(IntPtr buffer)
+             => _gbPixelBufferGetData?.Invoke(buffer) ?? IntPtr.Zero;
+
+        /// <summary>
+        /// Gets the size of a pixel buffer in bytes.
+        /// </summary>
+        /// <param name="buffer">The pixel buffer handle.</param>
+        /// <returns>Size in bytes, or 0 if invalid.</returns>
+        internal static int gb_pixel_buffer_get_size(IntPtr buffer)
+             => _gbPixelBufferGetSize?.Invoke(buffer) ?? 0;
+
+        /// <summary>
+        /// Increments the reference count on a pixel buffer.
+        /// </summary>
+        /// <param name="buffer">The pixel buffer handle.</param>
+        internal static void gb_pixel_buffer_add_ref(IntPtr buffer)
+        {
+            _gbPixelBufferAddRef?.Invoke(buffer);
+        }
+
+        /// <summary>
+        /// Decrements the reference count and releases the pixel buffer if ref count reaches zero.
+        /// </summary>
+        /// <param name="buffer">The pixel buffer handle.</param>
+        internal static void gb_pixel_buffer_release(IntPtr buffer)
+        {
+            _gbPixelBufferRelease?.Invoke(buffer);
+        }
     }
 
     /// <summary>

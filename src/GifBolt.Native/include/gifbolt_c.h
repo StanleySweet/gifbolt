@@ -218,6 +218,69 @@ extern "C"
         gb_decoder_t decoder, int index, int targetWidth, int targetHeight, int* outWidth,
         int* outHeight, int* byteCount, int filterType);
 
+    /// \typedef gb_pixel_buffer_t
+    /// \brief Opaque handle to a pixel buffer with reference counting.
+    typedef void* gb_pixel_buffer_t;
+
+    /// \brief Gets RGBA32 pixel data as a reference-counted buffer.
+    /// \param decoder The decoder handle.
+    /// \param index The zero-based frame index.
+    /// \param[out] buffer Receives the pixel buffer handle.
+    /// \param[out] byteCount Receives the size of pixel data in bytes.
+    /// \return 1 if successful; 0 otherwise.
+    /// \remarks The buffer is reference-counted. Call gb_pixel_buffer_release() when done.
+    ///          The returned buffer is owned by the caller and must be released.
+    GB_API int gb_decoder_get_frame_pixels_rgba32_buffer(gb_decoder_t decoder, int index,
+                                                         gb_pixel_buffer_t* buffer, int* byteCount);
+
+    /// \brief Gets BGRA32 premultiplied pixel data as a reference-counted buffer.
+    /// \param decoder The decoder handle.
+    /// \param index The zero-based frame index.
+    /// \param[out] buffer Receives the pixel buffer handle.
+    /// \param[out] byteCount Receives the size of pixel data in bytes.
+    /// \return 1 if successful; 0 otherwise.
+    /// \remarks The buffer is reference-counted. Call gb_pixel_buffer_release() when done.
+    ///          The returned buffer is owned by the caller and must be released.
+    GB_API int gb_decoder_get_frame_pixels_bgra32_premultiplied_buffer(gb_decoder_t decoder, int index,
+                                                                       gb_pixel_buffer_t* buffer, int* byteCount);
+
+    /// \brief Gets scaled BGRA32 premultiplied pixel data as a reference-counted buffer.
+    /// \param decoder The decoder handle.
+    /// \param index The zero-based frame index.
+    /// \param targetWidth The desired output width in pixels.
+    /// \param targetHeight The desired output height in pixels.
+    /// \param[out] buffer Receives the pixel buffer handle.
+    /// \param[out] outWidth Receives the actual output width.
+    /// \param[out] outHeight Receives the actual output height.
+    /// \param[out] byteCount Receives the size of pixel data in bytes.
+    /// \param filterType The scaling filter to use (0=Nearest, 1=Bilinear, 2=Bicubic, 3=Lanczos).
+    /// \return 1 if successful; 0 otherwise.
+    /// \remarks The buffer is reference-counted. Call gb_pixel_buffer_release() when done.
+    GB_API int gb_decoder_get_frame_pixels_bgra32_premultiplied_scaled_buffer(
+        gb_decoder_t decoder, int index, int targetWidth, int targetHeight,
+        gb_pixel_buffer_t* buffer, int* outWidth, int* outHeight, int* byteCount, int filterType);
+
+    /// \brief Gets the pixel data pointer from a buffer.
+    /// \param buffer The pixel buffer handle.
+    /// \return Pointer to pixel data, or NULL if invalid.
+    /// \remarks The pointer is valid as long as the buffer exists.
+    GB_API const void* gb_pixel_buffer_get_data(gb_pixel_buffer_t buffer);
+
+    /// \brief Gets the size of a pixel buffer in bytes.
+    /// \param buffer The pixel buffer handle.
+    /// \return Size in bytes, or 0 if invalid.
+    GB_API int gb_pixel_buffer_get_size(gb_pixel_buffer_t buffer);
+
+    /// \brief Increments the reference count on a pixel buffer.
+    /// \param buffer The pixel buffer handle.
+    /// \remarks Call this if you need an additional reference to the buffer.
+    GB_API void gb_pixel_buffer_add_ref(gb_pixel_buffer_t buffer);
+
+    /// \brief Decrements the reference count and releases the pixel buffer if ref count reaches zero.
+    /// \param buffer The pixel buffer handle (can be NULL).
+    /// \remarks Always call this when done with a buffer to avoid memory leaks.
+    GB_API void gb_pixel_buffer_release(gb_pixel_buffer_t buffer);
+
     /// \brief Starts background prefetching of frames ahead of the current playback position.
     /// \param decoder The decoder handle.
     /// \param startFrame The frame to start prefetching from.
@@ -310,12 +373,15 @@ extern "C"
     /// \struct gb_decoder_metadata_s
     /// \brief Consolidated GIF metadata.
     /// \remarks More efficient than making separate calls to get width, height, frame count, and loop count.
+    /// All configuration parameters are returned in a single call during Load().
     typedef struct
     {
-        int width;        ///< Image width in pixels.
-        int height;       ///< Image height in pixels.
-        int frameCount;   ///< Total number of frames.
-        int loopCount;    ///< Loop count (-1=infinite, >=0=specific count).
+        int width;            ///< Image width in pixels.
+        int height;           ///< Image height in pixels.
+        int frameCount;       ///< Total number of frames.
+        int loopCount;        ///< Loop count (-1=infinite, >=0=specific count).
+        int minFrameDelayMs;  ///< Minimum frame delay threshold in milliseconds.
+        unsigned int maxCachedFrames; ///< Maximum number of frames to cache.
     } gb_decoder_metadata_s;
 
     /// \brief Gets consolidated GIF metadata in a single call.
