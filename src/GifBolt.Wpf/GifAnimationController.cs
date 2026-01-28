@@ -88,7 +88,6 @@ namespace GifBolt.Wpf
         // FPS diagnostics
         private System.Diagnostics.Stopwatch? _fpsStopwatch;
         private int _frameCount;
-        private long _lastRenderTimeMs;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GifAnimationController"/> class.
@@ -167,55 +166,8 @@ namespace GifBolt.Wpf
                         return;
                     }
 
-                    byte[]? initialPixels = null;
-                    int scaledWidth;
-                    int scaledHeight;
-
-                    // Check if scaling is disabled (None filter) or enabled
-                    if (this._scalingFilter == ScalingFilter.None)
-                    {
-                        // Use native GIF resolution without scaling
-                        scaledWidth = this.Player.Width;
-                        scaledHeight = this.Player.Height;
-
-                        if (this.Player.TryGetFramePixelsBgra32PremultipliedBuffer(0, out var pixelBuffer) &&
-                            pixelBuffer.IsValid && pixelBuffer.SizeInBytes > 0)
-                        {
-                            initialPixels = pixelBuffer.ToArray();
-                            pixelBuffer.Dispose();
-                        }
-                    }
-                    else
-                    {
-                        // Scale to display size with selected filter
-                        int displayWidth = Math.Max(1, (int)this._image.ActualWidth);
-                        int displayHeight = Math.Max(1, (int)this._image.ActualHeight);
-
-                        if (displayWidth < 10 || displayHeight < 10)
-                        {
-                            displayWidth = this.Player.Width;
-                            displayHeight = this.Player.Height;
-                        }
-
-                        scaledWidth = displayWidth;
-                        scaledHeight = displayHeight;
-
-                        if (this.Player.TryGetFramePixelsBgra32PremultipliedScaledBuffer(
-                            0,
-                            displayWidth,
-                            displayHeight,
-                            out var scaledPixelBuffer,
-                            out int outWidth,
-                            out int outHeight,
-                            filter: this._scalingFilter) &&
-                            scaledPixelBuffer.IsValid && scaledPixelBuffer.SizeInBytes > 0)
-                        {
-                            initialPixels = scaledPixelBuffer.ToArray();
-                            scaledPixelBuffer.Dispose();
-                            scaledWidth = outWidth;
-                            scaledHeight = outHeight;
-                        }
-                    }
+                    // Get initial frame pixels (consolidates scaling logic)
+                    byte[]? initialPixels = this.GetFramePixels(0, out int scaledWidth, out int scaledHeight);
 
                     this._image.Dispatcher.BeginInvoke(() =>
                     {
@@ -263,8 +215,6 @@ namespace GifBolt.Wpf
                                 this._pendingRepeatBehavior = null;
                             }
 
-                            // Start prefetching to decode frames in background
-
                             onLoaded?.Invoke();
                         }
                         catch (Exception ex)
@@ -310,7 +260,6 @@ namespace GifBolt.Wpf
 
             this._fpsStopwatch.Restart();
             this._frameCount = 0;
-            this._lastRenderTimeMs = 0;
 
             // Suppress GC during animation to prevent collection pauses that cause jitter
             if (!this._inNoGCRegion)
@@ -498,6 +447,7 @@ namespace GifBolt.Wpf
 
         /// <summary>
         /// Renders a specific frame to the WriteableBitmap atomically.
+        /// Consolidates pixel buffer fetching and bitmap updates in a single call.
         /// </summary>
         /// <param name="frameIndex">The index of the frame to render.</param>
         private void RenderFrame(int frameIndex)
@@ -509,85 +459,18 @@ namespace GifBolt.Wpf
 
             try
             {
-                byte[]? bgraPixels = null;
-                int outWidth;
-                int outHeight;
-                bool success;
+                // Single consolidate call to get frame pixels (avoids duplicate scaling logic)
+                byte[]? bgraPixels = this.GetFramePixels(frameIndex, out int outWidth, out int outHeight);
 
-                // Check if scaling is disabled or enabled
-                if (this._scalingFilter == ScalingFilter.None)
+                if (bgraPixels != null && bgraPixels.Length > 0 && !this._isDisposed)
                 {
-                    // Use native resolution without scaling
-                    if (this.Player.TryGetFramePixelsBgra32PremultipliedBuffer(frameIndex, out var pixelBuffer) &&
-                        pixelBuffer.IsValid && pixelBuffer.SizeInBytes > 0)
-                    {
-                        bgraPixels = pixelBuffer.ToArray();
-                        pixelBuffer.Dispose();
-                        success = true;
-                    }
-                    else
-                    {
-                        success = false;
-                    }
-
-                    // For unscaled frames, use the actual GIF dimensions (not bitmap size)
-                    outWidth = this.Player.Width;
-                    outHeight = this.Player.Height;
-                }
-                else
-                {
-                    // Scale to display size with selected filter
-                    int displayWidth = this._writeableBitmap.PixelWidth;
-                    int displayHeight = this._writeableBitmap.PixelHeight;
-
-                    if (this.Player.TryGetFramePixelsBgra32PremultipliedScaledBuffer(
-                        frameIndex,
-                        displayWidth,
-                        displayHeight,
-                        out var scaledPixelBuffer,
-                        out outWidth,
-                        out outHeight,
-                        filter: this._scalingFilter) &&
-                        scaledPixelBuffer.IsValid && scaledPixelBuffer.SizeInBytes > 0)
-                    {
-                        bgraPixels = scaledPixelBuffer.ToArray();
-                        scaledPixelBuffer.Dispose();
-                        success = true;
-                    }
-                    else
-                    {
-                        success = false;
-                    }
-                }
-
-                if (success && bgraPixels != null && bgraPixels.Length > 0 && !this._isDisposed)
-                {
-                    // If bitmap is larger than frame, fill it with transparent first
+                    // Fill transparent area if bitmap is larger than frame data
                     if (this._writeableBitmap.PixelWidth > outWidth || this._writeableBitmap.PixelHeight > outHeight)
                     {
-                        int fillWidth = this._writeableBitmap.PixelWidth;
-                        int fillHeight = this._writeableBitmap.PixelHeight;
-                        int requiredSize = fillWidth * fillHeight * 4;
-
-                        // Reuse cached buffer if dimensions match, otherwise allocate once
-                        if (this._cachedTransparentFill == null || 
-                            this._cachedFillWidth != fillWidth || 
-                            this._cachedFillHeight != fillHeight)
-                        {
-                            this._cachedTransparentFill = new byte[requiredSize];
-                            this._cachedFillWidth = fillWidth;
-                            this._cachedFillHeight = fillHeight;
-                        }
-
-                        // Fill entire bitmap with transparent (buffer is zero-initialized)
-                        this._writeableBitmap.WritePixels(
-                            new Int32Rect(0, 0, fillWidth, fillHeight),
-                            this._cachedTransparentFill,
-                            fillWidth * 4,
-                            0);
+                        this.FillTransparent(this._writeableBitmap.PixelWidth, this._writeableBitmap.PixelHeight);
                     }
 
-                    // Now write the frame pixels atomically
+                    // Write frame pixels to bitmap
                     this._writeableBitmap.WritePixels(
                         new Int32Rect(0, 0, outWidth, outHeight),
                         bgraPixels,
@@ -601,9 +484,107 @@ namespace GifBolt.Wpf
             }
         }
 
+        /// <summary>
+        /// Gets frame pixels, handling both scaled and unscaled rendering in a single method.
+        /// Dynamically determines dimensions during initial load vs rendering phases.
+        /// </summary>
+        private byte[]? GetFramePixels(int frameIndex, out int outWidth, out int outHeight)
+        {
+            outWidth = 0;
+            outHeight = 0;
+
+            if (this.Player == null)
+            {
+                return null;
+            }
+
+            // Unscaled rendering - use native GIF resolution
+            if (this._scalingFilter == ScalingFilter.None)
+            {
+                if (this.Player.TryGetFramePixelsBgra32PremultipliedBuffer(frameIndex, out var pixelBuffer) &&
+                    pixelBuffer.IsValid && pixelBuffer.SizeInBytes > 0)
+                {
+                    byte[] pixels = pixelBuffer.ToArray();
+                    pixelBuffer.Dispose();
+                    outWidth = this.Player.Width;
+                    outHeight = this.Player.Height;
+                    return pixels;
+                }
+            }
+            else
+            {
+                // Scaled rendering - determine target size dynamically
+                int displayWidth = this.Player.Width;
+                int displayHeight = this.Player.Height;
+
+                // During rendering, use bitmap size if available
+                if (this._writeableBitmap != null)
+                {
+                    displayWidth = this._writeableBitmap.PixelWidth;
+                    displayHeight = this._writeableBitmap.PixelHeight;
+                }
+                // During initial load, try to use image actual size
+                else if (this._image?.ActualWidth > 0 && this._image?.ActualHeight > 0)
+                {
+                    displayWidth = Math.Max(1, (int)this._image.ActualWidth);
+                    displayHeight = Math.Max(1, (int)this._image.ActualHeight);
+                    if (displayWidth < 10 || displayHeight < 10)
+                    {
+                        displayWidth = this.Player.Width;
+                        displayHeight = this.Player.Height;
+                    }
+                }
+
+                if (this.Player.TryGetFramePixelsBgra32PremultipliedScaledBuffer(
+                    frameIndex,
+                    displayWidth,
+                    displayHeight,
+                    out var scaledPixelBuffer,
+                    out outWidth,
+                    out outHeight,
+                    filter: this._scalingFilter) &&
+                    scaledPixelBuffer.IsValid && scaledPixelBuffer.SizeInBytes > 0)
+                {
+                    byte[] pixels = scaledPixelBuffer.ToArray();
+                    scaledPixelBuffer.Dispose();
+                    return pixels;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Fills the bitmap with transparent pixels (reuses cached buffer).
+        /// </summary>
+        private void FillTransparent(int width, int height)
+        {
+            int requiredSize = width * height * 4;
+
+            // Reuse cached transparent buffer if dimensions match
+            if (this._cachedTransparentFill == null || 
+                this._cachedFillWidth != width || 
+                this._cachedFillHeight != height)
+            {
+                this._cachedTransparentFill = new byte[requiredSize];
+                this._cachedFillWidth = width;
+                this._cachedFillHeight = height;
+            }
+
+            // Write the zeroed (transparent) buffer to bitmap
+            if (this._writeableBitmap != null)
+            {
+                this._writeableBitmap.WritePixels(
+                    new Int32Rect(0, 0, width, height),
+                    this._cachedTransparentFill,
+                    width * 4,
+                    0);
+            }
+        }
+
         private void OnRenderTick(object? sender, EventArgs e)
         {
-            // Early exit if disposed or invalid
+            // Early exit if disposed or invalid  
             if (this._isDisposed || this.Player == null || this.AnimationContext == System.IntPtr.Zero 
                 || this._writeableBitmap == null || this._renderTimer == null)
             {
@@ -612,60 +593,50 @@ namespace GifBolt.Wpf
 
             try
             {
-                // Get the frame delay for the current frame and clamp to minimum
+                // Get the raw frame delay and advance frame with consolidated C++ logic
                 int rawFrameDelayMs = this.Player.GetFrameDelayMs(this.Player.CurrentFrame);
                 int minFrameDelayMs = this.Player.MinFrameDelayMs;
                 long elapsedMs = this._frameStopwatch.ElapsedMilliseconds;
 
-                // Only advance frame if enough time has elapsed for the current frame
-                if (elapsedMs >= rawFrameDelayMs)
+                // Only advance frame if enough time has elapsed
+                if (elapsedMs < rawFrameDelayMs)
                 {
-                    // Use consolidated animation context API for frame advancement
-                    bool advanced = GifPlayer.AdvanceAnimation(
-                        this.AnimationContext,
-                        rawFrameDelayMs,
-                        minFrameDelayMs,
-                        out var advanceResult);
-                    int result = advanced ? 1 : 0;
+                    return;
+                }
 
-                    if (result == 0 || advanceResult.IsComplete != 0)
-                    {
-                        this.Stop();
-                        return;
-                    }
+                // Use consolidated animation context API for frame advancement
+                // Returns frame index, completion state, repeat count, and effective delay all at once
+                bool advanced = GifPlayer.AdvanceAnimation(
+                    this.AnimationContext,
+                    rawFrameDelayMs,
+                    minFrameDelayMs,
+                    out var advanceResult);
 
-                    // Reset canvas state when looping back to frame 0
-                    if (advanceResult.NextFrame == 0 && this.Player != null)
+                if (!advanced || advanceResult.IsComplete != 0)
+                {
+                    this.Stop();
+                    return;
+                }
+
+                // Reset and render frame 0 when looping
+                if (advanceResult.NextFrame == 0)
+                {
+                    if (this.Player != null)
                     {
                         this.Player.ResetCanvas();
                         this.Player.CurrentFrame = 0;
                         GifPlayer.SetAnimationCurrentFrame(this.AnimationContext, 0);
-
-                        var renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
-                        this.RenderFrame(0);
-                        var renderTimeMs = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
-
-                        this._frameStopwatch.Restart();
-
-                        // FPS tracking - use effective delay
-                        this.UpdateFpsTracking(advanceResult.EffectiveDelayMs, renderTimeMs);
-                        return; // Exit early after rendering frame 0
                     }
 
-                    // Update the current frame
-                    if (this.Player != null)
-                    {
-                        this.Player.CurrentFrame = advanceResult.NextFrame;
-                        this._frameStopwatch.Restart();
+                    this.RenderFrameOptimized(0, advanceResult.EffectiveDelayMs);
+                    return;
+                }
 
-                        // Render only when frame actually changes
-                        var renderStart2 = System.Diagnostics.Stopwatch.GetTimestamp();
-                        this.RenderFrame(this.Player.CurrentFrame);
-                        var renderTimeMs2 = (System.Diagnostics.Stopwatch.GetTimestamp() - renderStart2) / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
-
-                        // FPS tracking - use effective delay
-                        this.UpdateFpsTracking(advanceResult.EffectiveDelayMs, renderTimeMs2);
-                    }
+                // Update frame and render (consolidate state update and render in one call)
+                if (this.Player != null)
+                {
+                    this.Player.CurrentFrame = advanceResult.NextFrame;
+                    this.RenderFrameOptimized(advanceResult.NextFrame, advanceResult.EffectiveDelayMs);
                 }
             }
             catch
@@ -674,15 +645,25 @@ namespace GifBolt.Wpf
             }
         }
 
-        private void UpdateFpsTracking(int frameDelayMs, double renderTimeMs)
+        /// <summary>
+        /// Optimized frame rendering that combines pixel buffer fetch and bitmap update.
+        /// Resets the stopwatch and updates FPS tracking in one operation.
+        /// </summary>
+        private void RenderFrameOptimized(int frameIndex, int effectiveDelayMs)
+        {
+            this.RenderFrame(frameIndex);
+            this._frameStopwatch.Restart();
+            this.UpdateFpsTracking(effectiveDelayMs, frameIndex);
+        }
+
+        private void UpdateFpsTracking(int frameDelayMs, int frameIndex)
         {
             this._frameCount++;
-            this._lastRenderTimeMs = this._fpsStopwatch?.ElapsedMilliseconds ?? 0;
 
             if (this._fpsStopwatch != null && this._fpsStopwatch.ElapsedMilliseconds > 1000)
             {
                 var fps = this._frameCount * 1000.0 / this._fpsStopwatch.ElapsedMilliseconds;
-                var fpsText = $"FPS: {fps:F1} | Render: {renderTimeMs:F2}ms | Delay: {frameDelayMs}ms";
+                var fpsText = $"FPS: {fps:F1} | Frame: {frameIndex} | Delay: {frameDelayMs}ms";
 
                 // Update FPS on the Image control
                 this._image.Dispatcher.BeginInvoke(() =>

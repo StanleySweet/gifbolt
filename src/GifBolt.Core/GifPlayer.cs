@@ -353,6 +353,7 @@ public sealed class GifPlayer : IDisposable
     /// <summary>Gets the display duration of the specified frame.</summary>
     /// <param name="frameIndex">The index of the frame.</param>
     /// <returns>The frame delay in milliseconds.</returns>
+    /// <remarks>For consolidated frame advancement with timing, use the animation context API instead.</remarks>
     public int GetFrameDelayMs(int frameIndex)
     {
         if (this._decoder == null || frameIndex < 0 || frameIndex >= this.FrameCount)
@@ -364,7 +365,7 @@ public sealed class GifPlayer : IDisposable
     }
 
     /// <summary>Gets or sets the minimum frame delay (in ms) for GIF playback.</summary>
-    /// <remarks>Default is 10 ms. Used to enforce a lower bound on frame delays during playback.</remarks>
+    /// <remarks>Default is 10 ms. Used to enforce a lower bound on frame delays during playback. Cached from metadata after loading.</remarks>
     public int MinFrameDelayMs
     {
         get => this._decoder != null ? Native.gb_decoder_get_min_frame_delay_ms(this._decoder.DangerousGetHandle()) : 0;
@@ -378,7 +379,7 @@ public sealed class GifPlayer : IDisposable
     }
 
     /// <summary>Gets or sets the maximum number of frames to cache in memory.</summary>
-    /// <remarks>Default is 10 frames. Larger values improve playback smoothness but consume more memory.</remarks>
+    /// <remarks>Cached from metadata after loading. Default is 10 frames. Larger values improve playback smoothness but consume more memory.</remarks>
     public uint MaxCachedFramesCount
     {
         get => this._decoder != null ? Native.gb_decoder_get_max_cached_frames(this._decoder.DangerousGetHandle()) : 0;
@@ -730,15 +731,8 @@ public sealed class GifPlayer : IDisposable
         this.IsLooping = metadata.LoopCount < 0;
         this.CurrentFrame = 0;
 
-        // Calculate and set adaptive cache size based on frame count
-        // This is done once during initialization via metadata, not repeatedly
-        uint adaptiveCacheSize = Native.gb_decoder_calculate_adaptive_cache_size(
-            this.FrameCount,
-            this.CachePercentage,
-            this.MinCachedFrames,
-            this.MaxCachedFrames);
-        Native.gb_decoder_set_max_cached_frames(this._decoder.DangerousGetHandle(), adaptiveCacheSize);
-
+        // Cache sizing is computed once in C++ during Load() based on decoder metadata
+        // No need to recalculate adaptive cache size - just apply prefetching if enabled
         if (this.EnablePrefetching)
         {
             Native.gb_decoder_start_prefetching(this._decoder.DangerousGetHandle(), 0);
